@@ -1,0 +1,22 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Eastern Shore MD"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-76.3100, 39.7100],
+          [-76.3100, 37.8500],
+          [-75.0500, 37.8500],
+          [-75.0500, 39.7100],
+          [-76.3100, 39.7100]
+        ]]
+      }
+    }
+  ]
+}
+

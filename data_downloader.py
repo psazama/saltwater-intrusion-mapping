@@ -1,33 +1,44 @@
 import rasterio
-from pystac_client import Client
+from rasterio.transform import from_bounds
+from rasterio.warp import reproject, Resampling
 from rasterio.session import AWSSession
 import matplotlib.pyplot as plt
+from pystac_client import Client
 from tqdm import tqdm
 import numpy as np
 import boto3
 import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from pyproj import Transformer
 
-def download_satellite_bands(mission="sentinel-2", bbox=None, date_range=None, data_dir="data"):
+def reproject_bbox(bbox, src_crs="EPSG:4326", dst_crs="EPSG:32618"):
+    minx, miny = bbox[0], bbox[1]
+    maxx, maxy = bbox[2], bbox[3]
+
+    transformer = Transformer.from_crs(src_crs, dst_crs, always_xy=True)
+
+    minx_proj, miny_proj = transformer.transform(minx, miny)
+    maxx_proj, maxy_proj = transformer.transform(maxx, maxy)
+
+    return [min(minx_proj, maxx_proj), min(miny_proj, maxy_proj),
+            max(minx_proj, maxx_proj), max(miny_proj, maxy_proj)]
+
+def query_satellite_items(mission="sentinel-2", bbox=None, date_range=None, debug=False):
     """
-    Downloads selected bands for either Sentinel-2 or Landsat-5 imagery using the AWS Earth Search STAC API.
-
-    This function dynamically selects the appropriate STAC collection and band identifiers based on the chosen
-    satellite mission. Currently supports:
-        - Sentinel-2 Level-2A (e.g., B03 = green, B08 = NIR)
-        - Landsat-5 Level-2 (e.g., green, nir08)
+    Queries available satellite imagery items using the AWS Earth Search STAC API.
 
     Parameters:
         mission (str): The satellite mission to use ("sentinel-2" or "landsat-5").
-        bbox (list): Bounding box [min_lon, min_lat, max_lon, max_lat] defining the area of interest.
-        date_range (str): ISO8601 date range string (e.g., '2010-01-01/2010-12-31').
-        data_dir (str): Local directory where downloaded TIFF files will be stored.
+        bbox (list): Bounding box [min_lon, min_lat, max_lon, max_lat].
+        date_range (str): ISO8601 date range string.
+        debug (bool): Whether to print debug output.
 
     Returns:
-        dict: Mapping of band short names to file paths (e.g., {"green": "/path/to/green.tif", ...}).
+        tuple: (list of STAC items, band mapping dictionary)
     """
     if mission == "sentinel-2":
         collection = "sentinel-2-l2a"
+        query_filter = {"eo:cloud_cover": {"lt": 10}}
         bands = {
             "green": "green",
             "red": "red",
@@ -36,14 +47,18 @@ def download_satellite_bands(mission="sentinel-2", bbox=None, date_range=None, d
             "swir22": "swir2"
         }
     elif mission == "landsat-5":
-        collection = "landsat-5-l1"  # Or "landsat-5-c2-l1" if using Collection 2
+        collection = "landsat-c2-l2"
+        query_filter = {
+            "eo:cloud_cover": {"lt": 10},
+            "platform": {"eq": "landsat-5"}
+        }
         bands = {
-            "B1": "blue",
-            "B2": "green",
-            "B3": "red",
-            "B4": "nir",
-            "B5": "swir1",
-            "B7": "swir2"
+            "blue": "blue",
+            "green": "green",
+            "red": "red",
+            "nir08": "nir",
+            "swir16": "swir1",
+            "swir22": "swir2"
         }
     else:
         raise ValueError("Unsupported mission")
@@ -53,44 +68,129 @@ def download_satellite_bands(mission="sentinel-2", bbox=None, date_range=None, d
         collections=[collection],
         bbox=bbox,
         datetime=date_range,
-        query={"eo:cloud_cover": {"lt": 10}},
-        max_items=1
+        query=query_filter,
+        max_items=None
     )
-    
+
     items = list(search.get_items())
     if not items:
         raise ValueError("No items found for your search.")
-    
-    item = items[0]
-    print(f"Found item: {item.id}")
-    
-    # Create output directory
-    output_dir = data_dir
-    os.makedirs(output_dir, exist_ok=True)
-    
-    # Enable unsigned S3 access
-    session = boto3.Session()
-    aws_session = AWSSession(session=session, requester_pays=True)
-    
-    last_out_path = None    
+
+    if debug:
+        for item in items:
+            print(f"Found item: {item.id}")
+
+    return items, bands
+
+def download_satellite_bands_from_item(item, bands, to_disk=True, data_dir="data", debug=False):
+    """
+    Downloads selected bands from a single STAC item.
+
+    Parameters:
+        item (dict): A STAC item.
+        bands (dict): Mapping of asset keys to band names.
+        data_dir (str): Local directory for output.
+        debug (bool): Whether to print debug output.
+
+    Returns:
+        str: Path to the last band written for this item.
+    """
+    #from pystac_client import AWSSession
+
+    session = AWSSession(requester_pays=True)
+    if to_disk:
+        os.makedirs(data_dir, exist_ok=True)
+    out_path = None
+
+    band_data = []
+    band_order = list(bands.keys())
     for key, name in bands.items():
         if key in item.assets:
             href = item.assets[key].href
-            out_path = os.path.join(output_dir, f"{item.id}_{name}.tif")
-        
-            print(f"Downloading {name} from {href} ...")
-            with rasterio.Env(aws_session):
+            if to_disk:
+                out_path = os.path.join(data_dir, f"{item.id}_{name}.tif")
+    
+                if os.path.exists(out_path):
+                    if debug:
+                        print(f"[SKIP] {out_path} already exists.")
+                    continue
+
+            if debug:
+                print(f"Accessing {name} from {href} ...")
+
+            with rasterio.Env(session):
                 with rasterio.open(href) as src:
                     profile = src.profile
                     data = src.read(1)
-        
-                with rasterio.open(out_path, 'w', **profile) as dst:
-                    dst.write(data, 1)
-            last_out_path = out_path
+                    band_index = band_order.index(key) + 1
+                    band_data.append((band_index, data, src.transform, src.crs))
+
+                if to_disk:
+                    with rasterio.open(out_path, 'w', **profile) as dst:
+                        dst.write(data, 1)
         else:
             print(f"[WARNING] Band {key} not available in item {item.id}. Available bands: {list(item.assets.keys())}")
-    
-    return last_out_path
+
+    return band_data
+
+def create_mosaic_placeholder(mosaic_path, bbox, resolution, crs="EPSG:32618", dtype="float32"):
+    """
+    Create an empty mosaic GeoTIFF file to be filled later.
+
+    Parameters:
+        mosaic_path (str): Path where the placeholder file will be saved.
+        bbox (tuple): (minx, miny, maxx, maxy) in target CRS.
+        resolution (float): Target pixel resolution in meters.
+        crs (str): Coordinate reference system.
+        dtype (str): Data type of the mosaic file.
+    """
+    minx, miny, maxx, maxy = bbox
+    width = int((maxx - minx) / resolution)
+    height = int((maxy - miny) / resolution)
+    transform = from_bounds(minx, miny, maxx, maxy, width, height)
+
+    profile = {
+        'driver': 'GTiff',
+        'height': height,
+        'width': width,
+        'count': 1,
+        'dtype': dtype,
+        'crs': crs,
+        'transform': transform,
+        'compress': 'lzw',
+        'nodata': np.nan
+    }
+
+    with rasterio.open(mosaic_path, "w", **profile) as dst:
+        dst.write(np.full((height, width), np.nan, dtype=dtype), 1)
+
+    return transform, width, height, crs
+
+def add_image_to_mosaic(band_index, image_data, src_transform, src_crs, mosaic_path):
+    """
+    Reproject and insert a satellite image array into the mosaic placeholder.
+
+    Parameters:
+        image_data (np.ndarray): The image array to reproject and insert.
+        src_transform (Affine): Affine transform of the source image.
+        src_crs (str or CRS): CRS of the source image.
+        mosaic_path (str): Path to the mosaic file to update.
+    """
+    with rasterio.open(mosaic_path, 'r+') as mosaic:
+        mosaic_array = mosaic.read(band_index)
+
+        reproject(
+            source=image_data,
+            destination=mosaic_array,
+            src_transform=src_transform,
+            src_crs=src_crs,
+            dst_transform=mosaic.transform,
+            dst_crs=mosaic.crs,
+            dst_nodata=np.nan,
+            resampling=Resampling.nearest
+        )
+
+        mosaic.write(mosaic_array, band_index)
 
 def extract_and_save_patch(args):
     """

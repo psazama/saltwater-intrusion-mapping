@@ -4,38 +4,15 @@ from rasterio.warp import reproject, Resampling
 from rasterio.session import AWSSession
 import matplotlib.pyplot as plt
 from pystac_client import Client
-from tqdm import tqdm
 import numpy as np
 import boto3
 import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pyproj import Transformer
+from shapely.geometry import box
+import geopandas as gpd
 
-def reproject_bbox(bbox, src_crs="EPSG:4326", dst_crs="EPSG:32618"):
-    minx, miny = bbox[0], bbox[1]
-    maxx, maxy = bbox[2], bbox[3]
-
-    transformer = Transformer.from_crs(src_crs, dst_crs, always_xy=True)
-
-    minx_proj, miny_proj = transformer.transform(minx, miny)
-    maxx_proj, maxy_proj = transformer.transform(maxx, maxy)
-
-    return [min(minx_proj, maxx_proj), min(miny_proj, maxy_proj),
-            max(minx_proj, maxx_proj), max(miny_proj, maxy_proj)]
-
-def query_satellite_items(mission="sentinel-2", bbox=None, date_range=None, debug=False):
-    """
-    Queries available satellite imagery items using the AWS Earth Search STAC API.
-
-    Parameters:
-        mission (str): The satellite mission to use ("sentinel-2" or "landsat-5").
-        bbox (list): Bounding box [min_lon, min_lat, max_lon, max_lat].
-        date_range (str): ISO8601 date range string.
-        debug (bool): Whether to print debug output.
-
-    Returns:
-        tuple: (list of STAC items, band mapping dictionary)
-    """
+def get_mission(mission):
     if mission == "sentinel-2":
         collection = "sentinel-2-l2a"
         query_filter = {"eo:cloud_cover": {"lt": 10}}
@@ -46,6 +23,14 @@ def query_satellite_items(mission="sentinel-2", bbox=None, date_range=None, debu
             "swir16": "swir1",
             "swir22": "swir2"
         }
+        band_index = {
+            "green": 1,
+            "red": 2,
+            "nir08": 3,
+            "swir16": 4,
+            "swir22": 5
+        }
+        resolution = 10
     elif mission == "landsat-5":
         collection = "landsat-c2-l2"
         query_filter = {
@@ -60,19 +45,60 @@ def query_satellite_items(mission="sentinel-2", bbox=None, date_range=None, debu
             "swir16": "swir1",
             "swir22": "swir2"
         }
+        band_index = {
+            "blue": 1,
+            "green": 2,
+            "red": 3,
+            "nir08": 4,
+            "swir16": 5,
+            "swir22": 6
+        }
+        resolution = 30
     else:
         raise ValueError("Unsupported mission")
+    return {"bands": bands, "band_index": band_index, "collection": collection, "query_filter": query_filter, "resolution": resolution}
 
+def reproject_bbox(bbox, src_crs="EPSG:4326", dst_crs="EPSG:32618"):
+    minx, miny = bbox[0], bbox[1]
+    maxx, maxy = bbox[2], bbox[3]
+
+    transformer = Transformer.from_crs(src_crs, dst_crs, always_xy=True)
+
+    minx_proj, miny_proj = transformer.transform(minx, miny)
+    maxx_proj, maxy_proj = transformer.transform(maxx, maxy)
+
+    return [min(minx_proj, maxx_proj), min(miny_proj, maxy_proj),
+            max(minx_proj, maxx_proj), max(miny_proj, maxy_proj)]
+
+def query_satellite_items(mission="sentinel-2", bbox=None, date_range=None, max_items=None, debug=False):
+    """
+    Queries available satellite imagery items using the AWS Earth Search STAC API.
+
+    Parameters:
+        mission (str): The satellite mission to use ("sentinel-2" or "landsat-5").
+        bbox (list): Bounding box [min_lon, min_lat, max_lon, max_lat].
+        date_range (str): ISO8601 date range string.
+        debug (bool): Whether to print debug output.
+
+    Returns:
+        tuple: (list of STAC items, band mapping dictionary)
+    """
+
+    mission_specs = get_mission(mission)
+    bands = mission_specs['bands']
+    collection = mission_specs['collection']
+    query_filter = mission_specs['query_filter']
+        
     catalog = Client.open("https://earth-search.aws.element84.com/v1")
     search = catalog.search(
         collections=[collection],
         bbox=bbox,
         datetime=date_range,
         query=query_filter,
-        max_items=None
+        max_items=max_items
     )
 
-    items = list(search.get_items())
+    items = list(search.items())
     if not items:
         raise ValueError("No items found for your search.")
 
@@ -95,7 +121,6 @@ def download_satellite_bands_from_item(item, bands, to_disk=True, data_dir="data
     Returns:
         str: Path to the last band written for this item.
     """
-    #from pystac_client import AWSSession
 
     session = AWSSession(requester_pays=True)
     if to_disk:
@@ -121,7 +146,11 @@ def download_satellite_bands_from_item(item, bands, to_disk=True, data_dir="data
             with rasterio.Env(session):
                 with rasterio.open(href) as src:
                     profile = src.profile
-                    data = src.read(1)
+                    if src.count == 1:
+                        data = src.read(1)
+                    else:
+                        raise ValueError(f"Expected single-band image, but got {src.count} bands in {href}")
+
                     band_index = band_order.index(key) + 1
                     band_data.append((band_index, data, src.transform, src.crs))
 
@@ -133,17 +162,21 @@ def download_satellite_bands_from_item(item, bands, to_disk=True, data_dir="data
 
     return band_data
 
-def create_mosaic_placeholder(mosaic_path, bbox, resolution, crs="EPSG:32618", dtype="float32"):
+def create_mosaic_placeholder(mosaic_path, bbox, mission, resolution, crs="EPSG:32618", dtype="float32"):
     """
     Create an empty mosaic GeoTIFF file to be filled later.
 
     Parameters:
         mosaic_path (str): Path where the placeholder file will be saved.
         bbox (tuple): (minx, miny, maxx, maxy) in target CRS.
+        mission (str): The satellite mission to use ("sentinel-2" or "landsat-5").
         resolution (float): Target pixel resolution in meters.
         crs (str): Coordinate reference system.
         dtype (str): Data type of the mosaic file.
     """
+    mission_specs = get_mission(mission)
+    bands = len(mission_specs['bands'])
+    
     minx, miny, maxx, maxy = bbox
     width = int((maxx - minx) / resolution)
     height = int((maxy - miny) / resolution)
@@ -153,7 +186,7 @@ def create_mosaic_placeholder(mosaic_path, bbox, resolution, crs="EPSG:32618", d
         'driver': 'GTiff',
         'height': height,
         'width': width,
-        'count': 1,
+        'count': bands,
         'dtype': dtype,
         'crs': crs,
         'transform': transform,
@@ -164,7 +197,7 @@ def create_mosaic_placeholder(mosaic_path, bbox, resolution, crs="EPSG:32618", d
     with rasterio.open(mosaic_path, "w", **profile) as dst:
         dst.write(np.full((height, width), np.nan, dtype=dtype), 1)
 
-    return transform, width, height, crs
+    return transform, width, height, crs, bands
 
 def add_image_to_mosaic(band_index, image_data, src_transform, src_crs, mosaic_path):
     """
@@ -192,94 +225,73 @@ def add_image_to_mosaic(band_index, image_data, src_transform, src_crs, mosaic_p
 
         mosaic.write(mosaic_array, band_index)
 
-def extract_and_save_patch(args):
+def divide_bbox_into_patches(bbox, patch_size_meters, crs="EPSG:32618"):
     """
-    Extracts a patch from a GeoTIFF and saves it to a new file.
+    Divide a bounding box into smaller square patches in the target CRS.
 
     Parameters:
-        args (tuple): (tiff_path, x, y, patch_size, output_path)
+        bbox (list): [min_lon, min_lat, max_lon, max_lat] in WGS84.
+        patch_size_meters (float): Patch size in meters.
+        crs (str): Target projected CRS.
 
     Returns:
-        dict: Dictionary with origin coordinates and file path of saved patch.
+        list of shapely.geometry.Polygon: Patch polygons in the target CRS.
     """
-    tiff_path, x, y, patch_size, output_path = args
+    # Create GeoDataFrame in WGS84
+    gdf = gpd.GeoDataFrame(geometry=[box(*bbox)], crs="EPSG:4326")
+    gdf = gdf.to_crs(crs)
+    bounds = gdf.total_bounds  # minx, miny, maxx, maxy
 
-    with rasterio.open(tiff_path) as src:
-        window = rasterio.windows.Window(x, y, patch_size, patch_size)
-        patch = src.read(1, window=window)
+    minx, miny, maxx, maxy = bounds
+    xs = np.arange(minx, maxx, patch_size_meters)
+    ys = np.arange(miny, maxy, patch_size_meters)
 
-        # Recalculate the transform for this window
-        transform = src.window_transform(window)
-
-        # Update the profile with the new transform and dimensions
-        updated_profile = src.profile.copy()
-        updated_profile.update({
-            "height": patch.shape[0],
-            "width": patch.shape[1],
-            "transform": transform,
-            "count": 1,
-            "dtype": patch.dtype,
-        })
-
-        if output_path is not None:
-            patch_filename = os.path.join(output_path, f"{x}_{y}.tif")
-            with rasterio.open(patch_filename, "w", **updated_profile) as dst:
-                dst.write(patch, 1)
-
-        return {
-            "origin": (x, y),
-            "filepath": patch_filename
-        }
-
-def parallel_extract_patches(tiff_path, patch_size=224, overlap=0.5, output_path=None, max_workers=4):
-    """
-    Extracts overlapping patches from a GeoTIFF and saves them in parallel.
-
-    Parameters:
-        tiff_path (str): Path to the input GeoTIFF.
-        patch_size (int): Width and height of each patch.
-        overlap (float): Fractional overlap between patches.
-        output_path (str, optional): Directory to save patches.
-        max_workers (int): Number of parallel workers.
-
-    Returns:
-        tuple: (List of patch metadata, image width, height, and original profile)
-    """
-    # Create output directory
-    if output_path is not None:
-        print(output_path)
-        os.makedirs(output_path, exist_ok=True)
-    
-    stride = int(patch_size * (1 - overlap))
     patches = []
-    tasks = []
-
-    with rasterio.open(tiff_path) as src:
-        width, height = src.width, src.height
-        orig_profile = src.profile.copy()
-
-        xs = list(range(0, width - patch_size + 1, stride))
-        ys = list(range(0, height - patch_size + 1, stride))
-
-        # Ensure right and bottom edges are included
-        if xs[-1] + patch_size < width:
-            xs.append(width - patch_size)
-        if ys[-1] + patch_size < height:
-            ys.append(height - patch_size)
-
+    for x in xs:
         for y in ys:
-            for x in xs:
-                tasks.append((tiff_path, x, y, patch_size, output_path))
+            patch = box(x, y, x + patch_size_meters, y + patch_size_meters)
+            patches.append(patch)
 
-    results = []
-    with ProcessPoolExecutor(max_workers=max_workers) as executor:
-        futures = [executor.submit(extract_and_save_patch, t) for t in tasks]
-        for future in tqdm(as_completed(futures), total=len(futures)):
-            results.append(future.result())
+    return patches
 
-    return results, width, height, orig_profile
 
-def compute_ndwi(green_path, nir_path, out_path=None, display=False):
+def patchwise_query_download_mosaic(mosaic_path, bbox, mission, patch_size_meters, resolution, bands, date_range, base_output_path, to_disk=False):
+    """
+    Breaks region into patches and processes each separately.
+
+    Parameters:
+        bbox (list): [min_lon, min_lat, max_lon, max_lat]
+        mission (str): Satellite mission
+        patch_size_meters (int): Size of square patch
+        resolution (int): Resolution in meters per pixel
+        bands (dict): STAC asset key to friendly name
+        date_range (str): Date range for querying imagery
+        base_output_path (str): Where to store patches and mosaics
+    """
+    patches = divide_bbox_into_patches(bbox, patch_size_meters)
+    gdf_patches = gpd.GeoDataFrame(geometry=patches, crs="EPSG:32618")
+    gdf_patches = gdf_patches.to_crs("EPSG:4326")  # back to WGS84 for querying
+
+    for i, patch in gdf_patches.iterrows():
+        sub_bbox = patch.geometry.bounds
+        try:
+            items, _ = query_satellite_items(mission=mission, bbox=sub_bbox, date_range=date_range, max_items=3)
+            if to_disk:
+                patch_output_path = os.path.join(base_output_path, f"patch_{i}")
+                os.makedirs(patch_output_path, exist_ok=True)
+            
+            for item in items:
+                if to_disk:
+                    band_data = download_satellite_bands_from_item(item, bands, to_disk=to_disk, data_dir=patch_output_path)
+                else:
+                    band_data = download_satellite_bands_from_item(item, bands, to_disk=to_disk, data_dir=None)
+                for (band_name, band_data, src_transform, src_crs) in band_data:
+                    add_image_to_mosaic(band_name, band_data, src_transform, src_crs, mosaic_path)
+
+        except Exception as e:
+            print(f"[ERROR] Patch {i} failed: {e}")
+
+def compute_ndwi(green, nir, profile, out_path=None, display=False):
     """
     Computes the Normalized Difference Water Index (NDWI) from Sentinel-2 Green (B03) and NIR (B08) bands.
 
@@ -289,19 +301,14 @@ def compute_ndwi(green_path, nir_path, out_path=None, display=False):
     A threshold (e.g., NDWI > 0.2) can be used to create a binary water mask.
 
     Parameters:
-        green_path (str): Path to the Sentinel-2 Band 3 (Green) GeoTIFF.
-        nir_path (str): Path to the Sentinel-2 Band 8 (NIR) GeoTIFF.
+        green_image_data (np.ndarray): The (Green) GeoTIFF image array.
+        nir_image_data (np.ndarray): The (NIR) GeoTIFF image array.
         out_path (str, optional): Path to save the output NDWI binary mask (GeoTIFF). If None, the result is not saved.
         display (bool, optional): If True, displays the binary mask using matplotlib.
 
     Returns:
         numpy.ndarray: Binary NDWI water mask array (1 = water, 0 = non-water).
     """
-    with rasterio.open(green_path) as gsrc, rasterio.open(nir_path) as nsrc:
-        green = gsrc.read(1).astype(float)
-        nir = nsrc.read(1).astype(float)
-        profile = gsrc.profile.copy()
-
     ndwi = (green - nir) / (green + nir + 1e-10)
     ndwi_mask = (ndwi > 0.2).astype(float)
 
@@ -316,43 +323,3 @@ def compute_ndwi(green_path, nir_path, out_path=None, display=False):
         plt.show()
 
     return ndwi_mask
-
-
-def stitch_patches_to_geotiff(output_path, patches_paths, orig_width, orig_height, orig_profile):
-    """
-    Reconstructs a full GeoTIFF from patch files, averaging overlaps.
-
-    Parameters:
-        output_path (str): Path to write the stitched GeoTIFF.
-        patches_paths (list): List of dictionaries with patch file paths and origins.
-        orig_width (int): Width of the original image.
-        orig_height (int): Height of the original image.
-        orig_profile (dict): Rasterio profile to apply to the output.
-    """
-    # Open destination file for writing
-    with rasterio.open(output_path, "w", **orig_profile) as dst:
-        
-        # Create a separate weight array to average overlapping regions
-        weight_array = np.zeros((orig_height, orig_width), dtype=np.float32)
-        data_array = np.zeros((orig_height, orig_width), dtype=np.float32)
-
-        for patch_dict in tqdm(patches_paths):
-            patch_path = patch_dict["filepath"]
-            x, y = patch_dict["origin"]
-
-            with rasterio.open(patch_path) as src:
-                patch = src.read(1)
-
-            if patch.ndim == 3:
-                patch = patch.squeeze()  # For shape (1, H, W)
-
-            h, w = patch.shape
-            data_array[y:y+h, x:x+w] += patch
-            weight_array[y:y+h, x:x+w] += 1
-
-        # Avoid division by zero
-        weight_array[weight_array == 0] = 1
-        averaged_result = data_array / weight_array
-
-        # Write the final stitched data in one go or tile it as well
-        dst.write(averaged_result, 1)

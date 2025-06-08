@@ -1,0 +1,13 @@
+2025-06-08 17:57:01,852 [1526] INFO: Started processing for date: 1984-06-01/1984-06-30
+2025-06-08 17:57:01,853 [1525] INFO: Started processing for date: 1984-03-01/1984-03-31
+2025-06-08 17:57:05,540 [1525] INFO: Found credentials in shared credentials file: ~/.aws/credentials
+2025-06-08 17:57:11,601 [1526] INFO: Found credentials in shared credentials file: ~/.aws/credentials
+2025-06-08 17:57:54,219 [1526] INFO: Found credentials in shared credentials file: ~/.aws/credentials
+2025-06-08 17:58:10,619 [1525] INFO: Found credentials in shared credentials file: ~/.aws/credentials
+2025-06-08 17:58:36,451 [1526] INFO: Found credentials in shared credentials file: ~/.aws/credentials
+2025-06-08 17:59:21,223 [1526] INFO: Found credentials in shared credentials file: ~/.aws/credentials
+2025-06-08 17:59:39,452 [1525] INFO: Found credentials in shared credentials file: ~/.aws/credentials
+2025-06-08 18:00:06,818 [1526] INFO: Found credentials in shared credentials file: ~/.aws/credentials
+2025-06-08 18:00:51,026 [1526] INFO: Found credentials in shared credentials file: ~/.aws/credentials
+2025-06-08 18:00:58,621 [1525] INFO: Found credentials in shared credentials file: ~/.aws/credentials
+2025-06-08 18:02:03,826 [1525] INFO: Found credentials in shared credentials file: ~/.aws/credentials

@@ -44,7 +44,8 @@ def main():
         dates_to_run = dates["date_ranges"][::3]
         results = []
 
-        with ProcessPoolExecutor(max_workers=(os.cpu_count() / 2)) as executor:
+        max_workers = os.cpu_count() // 2
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
             futures = {
                 executor.submit(
                     process_date,

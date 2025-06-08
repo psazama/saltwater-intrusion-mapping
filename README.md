@@ -39,6 +39,7 @@ This project detects and visualizes saltwater intrusion in coastal agricultural 
 
 ## 📍 To Do / Next Steps
 - Add temporal change detection (multi-date NDWI differencing)
+- Expand to Sentinel-1 for SAR bands (improved salinity calculation)
 - Classify affected zones for reporting
 - Integrate elevation or soil salinity data
 - Add web-based map viewer

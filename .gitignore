@@ -1,6 +1,7 @@
 # Ignore all data folders
 data/
 nohup.out
+download_worker_log.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

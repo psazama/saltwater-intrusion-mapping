@@ -182,7 +182,7 @@ def download_satellite_bands_from_item(
                     band_data.append((band_index, data, src.transform, src.crs))
 
                 if to_disk:
-                    with rasterio.open(out_path, "w", **profile) as dst:
+                    with rasterio.open(out_path, "w", **profile, BIGTIFF="YES") as dst:
                         dst.write(data, 1)
         else:
             print(
@@ -226,7 +226,7 @@ def create_mosaic_placeholder(
         "nodata": np.nan,
     }
 
-    with rasterio.open(mosaic_path, "w", **profile) as dst:
+    with rasterio.open(mosaic_path, "w", **profile, BIGTIFF="YES") as dst:
         dst.write(np.full((height, width), np.nan, dtype=dtype), 1)
 
     return transform, width, height, crs, bands
@@ -242,7 +242,7 @@ def add_image_to_mosaic(band_index, image_data, src_transform, src_crs, mosaic_p
         src_crs (str or CRS): CRS of the source image.
         mosaic_path (str): Path to the mosaic file to update.
     """
-    with rasterio.open(mosaic_path, "r+") as mosaic:
+    with rasterio.open(mosaic_path, "r+", BIGTIFF="YES") as mosaic:
         mosaic_array = mosaic.read(band_index)
 
         reproject(
@@ -452,7 +452,7 @@ def compute_ndwi(green, nir, profile, out_path=None, display=False):
     ndwi_mask = (ndwi > 0.2).astype(float)
 
     if out_path:
-        with rasterio.open(out_path, "w", **profile) as dst:
+        with rasterio.open(out_path, "w", **profile, BIGTIFF="YES") as dst:
             dst.write(ndwi_mask, 1)
 
     if display:

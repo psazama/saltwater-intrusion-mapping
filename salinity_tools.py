@@ -3,6 +3,7 @@ import numpy as np
 import rasterio
 import xarray as xr
 import xgboost as xgb
+from rasterio.windows import Window
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
 
@@ -16,55 +17,116 @@ def salinity_truth():
     df = df[df["depth"] <= 1.0]
 
 
-def extract_salinity_features_from_mosaic(
-    mosaic_path, mission_band_index, label_path=None
+def process_salinity_features_chunk(
+    src, win, band_index, src_lbl=None, dst_y=None, dst_y_win=None
 ):
-    """
-    Loads stacked Sentinel/Landsat mosaic and computes model features for water pixels.
+    """Read bands and compute feature stack, water mask, and optionally write labels for a given window."""
+    blue = src.read(band_index["blue"], window=win)
+    green = src.read(band_index["green"], window=win)
+    red = src.read(band_index["red"], window=win)
+    nir = src.read(band_index["nir08"], window=win)
+    swir1 = src.read(band_index["swir16"], window=win)
+    swir2 = src.read(band_index["swir22"], window=win)
 
-    Parameters:
-        mosaic_path (str): Path to stacked multispectral GeoTIFF.
-        band_index (dict): Mapping of band names to indices (1-based).
-        label_path (str, optional): Optional path to salinity label GeoTIFF (same shape as mosaic).
-
-    Returns:
-        X (np.ndarray): Feature matrix (n_samples, n_features) for water pixels.
-        y (np.ndarray or None): Target salinity values (n_samples,) if label_path is provided, else None.
-        water_mask (np.ndarray): Boolean mask of selected water pixels (for reuse or mapping).
-    """
-    with rasterio.open(mosaic_path) as src:
-        blue = src.read(mission_band_index["blue"])
-        green = src.read(mission_band_index["green"])
-        red = src.read(mission_band_index["red"])
-        nir = src.read(mission_band_index["nir08"])
-        swir1 = src.read(mission_band_index["swir16"])
-        swir2 = src.read(mission_band_index["swir22"])
-
-    # NDWI for water masking
-    ndwi = (green - nir) / (green + nir + 1e-10)
+    # Compute indices
+    ndti = np.divide(
+        green - blue, green + blue, out=np.zeros_like(green), where=(green + blue) != 0
+    )
+    turbidity = np.divide(red, green, out=np.zeros_like(red), where=green != 0)
+    chlorophyll_proxy = np.divide(
+        blue, green, out=np.zeros_like(blue), where=green != 0
+    )
+    salinity_proxy = swir1 + swir2
+    ndvi = np.divide(
+        nir - red, nir + red, out=np.zeros_like(nir), where=(nir + red) != 0
+    )
+    ndwi = np.divide(
+        green - nir, green + nir, out=np.zeros_like(green), where=(green + nir) != 0
+    )
     water_mask = ndwi > 0.2
 
-    # Compute features
-    ndti = (green - blue) / (green + blue + 1e-10)
-    turbidity = red / (green + 1e-10)
-    chlorophyll_proxy = blue / green
-    salinity_proxy = swir1 + swir2
-    ndvi = (nir - red) / (nir + red + 1e-10)
+    # Stack and mask
+    feat_stack = np.stack([ndti, turbidity, chlorophyll_proxy, salinity_proxy, ndvi])
+    feat_stack = np.nan_to_num(feat_stack, nan=0.0)
+    feat_stack *= water_mask
 
-    # Stack features and apply mask
-    stacked = np.stack(
-        [ndti, turbidity, chlorophyll_proxy, salinity_proxy, ndvi], axis=-1
-    )
-    X = stacked[water_mask]
+    # Optionally write masked label
+    if src_lbl and dst_y and dst_y_win:
+        label_data = src_lbl.read(1, window=win)
+        masked_label = (label_data * water_mask).astype("float32")
+        dst_y.write(masked_label, 1, window=dst_y_win)
 
-    y = None
-    if label_path:
-        with rasterio.open(label_path) as src:
-            salinity_map = src.read(1)
-        y = salinity_map[water_mask]
-        y = y.astype(np.float32)
+    return feat_stack.astype("float32"), water_mask.astype("float32")
 
-    return X, y, water_mask
+
+def extract_salinity_features_from_mosaic(
+    mosaic_path,
+    mission_band_index,
+    output_feature_path,
+    output_mask_path,
+    label_path=None,
+    output_label_path=None,
+    chunk_size=512,
+):
+    """
+    Windowed salinity feature extraction and disk-based writing.
+
+    Args:
+        mosaic_path (str): Path to input multispectral TIFF.
+        mission_band_index (dict): Band index mapping.
+        output_feature_path (str): Path to write X features as a 5-band float32 TIFF.
+        output_mask_path (str): Path to write water mask as 1-band float32 TIFF.
+        label_path (str, optional): Input salinity label map (same shape as mosaic).
+        output_label_path (str, optional): Output label raster path (same shape as mask).
+        chunk_size (int): Size of processing window in pixels.
+    """
+
+    with rasterio.open(mosaic_path) as src:
+        profile = src.profile.copy()
+        width, height = src.width, src.height
+
+        # Update profiles
+        profile.update(count=5, dtype="float32", compress="lzw", BIGTIFF="YES")
+        with rasterio.open(output_feature_path, "w", **profile) as dst_feat:
+            mask_profile = profile.copy()
+            mask_profile.update(count=1)
+            with rasterio.open(output_mask_path, "w", **mask_profile) as dst_mask:
+                if label_path and output_label_path:
+                    with rasterio.open(label_path) as src_lbl:
+                        lbl_profile = src_lbl.profile.copy()
+                    lbl_profile.update(dtype="float32", compress="lzw", BIGTIFF="YES")
+                    dst_y = rasterio.open(output_label_path, "w", **lbl_profile)
+                else:
+                    src_lbl = None
+                    dst_y = None
+                    dst_y_win = None
+
+                for i in range(0, height, chunk_size):
+                    for j in range(0, width, chunk_size):
+                        win = Window(
+                            j,
+                            i,
+                            min(chunk_size, width - j),
+                            min(chunk_size, height - i),
+                        )
+
+                        feat_stack, water_mask = process_salinity_features_chunk(
+                            src,
+                            win,
+                            mission_band_index,
+                            src_lbl=src_lbl,
+                            dst_y=dst_y,
+                            dst_y_win=dst_y_win,
+                        )
+
+                        for band_idx in range(feat_stack.shape[0]):
+                            dst_feat.write(
+                                feat_stack[band_idx], band_idx + 1, window=win
+                            )
+
+                        dst_mask.write(water_mask, 1, window=win)
+                if label_path and output_label_path:
+                    dst_y.close()
 
 
 def calc_salinity_deng(X, y, test_size=0.2, random_state=42, save_model_path=None):

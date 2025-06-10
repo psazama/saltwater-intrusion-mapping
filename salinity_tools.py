@@ -7,6 +7,8 @@ from rasterio.windows import Window
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
 
+from download_tools import compute_ndwi
+
 
 def salinity_truth():
     ds = xr.open_dataset("data/salinity_labels/WOD_CAS_T_S_2020_1.nc")
@@ -18,7 +20,14 @@ def salinity_truth():
 
 
 def process_salinity_features_chunk(
-    src, win, band_index, src_lbl=None, dst_y=None, dst_y_win=None
+    src,
+    win,
+    band_index,
+    src_lbl=None,
+    dst_y=None,
+    dst_y_win=None,
+    water_threshold=0.2,
+    profile=None,
 ):
     """Read bands and compute feature stack, water mask, and optionally write labels for a given window."""
     blue = src.read(band_index["blue"], window=win)
@@ -40,10 +49,18 @@ def process_salinity_features_chunk(
     ndvi = np.divide(
         nir - red, nir + red, out=np.zeros_like(nir), where=(nir + red) != 0
     )
-    ndwi = np.divide(
-        green - nir, green + nir, out=np.zeros_like(green), where=(green + nir) != 0
+    # Compute NDWI + mask
+    if profile is None:
+        profile = src.profile.copy()
+        transform = src.window_transform(win)
+        profile.update(
+            {"height": win.height, "width": win.width, "transform": transform}
+        )
+
+    ndwi_mask = compute_ndwi(
+        green, nir, profile, out_path=None, display=False, threshold=water_threshold
     )
-    water_mask = ndwi > 0.2
+    water_mask = ndwi_mask.astype(bool)
 
     # Stack and mask
     feat_stack = np.stack([ndti, turbidity, chlorophyll_proxy, salinity_proxy, ndvi])
@@ -56,7 +73,7 @@ def process_salinity_features_chunk(
         masked_label = (label_data * water_mask).astype("float32")
         dst_y.write(masked_label, 1, window=dst_y_win)
 
-    return feat_stack.astype("float32"), water_mask.astype("float32")
+    return feat_stack.astype("float32"), ndwi_mask.astype("float32")
 
 
 def extract_salinity_features_from_mosaic(
@@ -67,6 +84,7 @@ def extract_salinity_features_from_mosaic(
     label_path=None,
     output_label_path=None,
     chunk_size=512,
+    water_threshold=0.2,
 ):
     """
     Windowed salinity feature extraction and disk-based writing.
@@ -117,6 +135,7 @@ def extract_salinity_features_from_mosaic(
                             src_lbl=src_lbl,
                             dst_y=dst_y,
                             dst_y_win=dst_y_win,
+                            water_threshold=water_threshold,
                         )
 
                         for band_idx in range(feat_stack.shape[0]):

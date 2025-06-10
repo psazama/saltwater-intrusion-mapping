@@ -10,6 +10,7 @@ from pystac_client import Client
 from rasterio.session import AWSSession
 from rasterio.transform import from_bounds
 from rasterio.warp import Resampling, reproject
+from rasterio.windows import Window
 from shapely.geometry import box
 
 
@@ -71,6 +72,80 @@ def init_logger(log_path="process_log.txt"):
         format="%(asctime)s [%(process)d] %(levelname)s: %(message)s",
         handlers=[logging.FileHandler(log_path, mode="a"), logging.StreamHandler()],
     )
+
+
+def find_non_nan_window(
+    tif_path, bands=None, window_size=512, stride=256, threshold_ratio=0.5
+):
+    """
+    Finds a window in a raster where the data is mostly valid (not NaN or near-zero).
+
+    Parameters:
+        tif_path (str): Path to the raster file.
+        bands (list or None): List of 1-based band indices to read and validate. If None, reads band 1.
+        window_size (int): Size of the square window.
+        stride (int): Step size for moving the window.
+        threshold_ratio (float): Minimum proportion of valid data required.
+
+    Returns:
+        Tuple of:
+            - data (np.ndarray or list of np.ndarrays): Array(s) for the selected window.
+            - profile (dict): Raster profile updated for the window.
+            - window (Window): The selected rasterio window.
+    """
+    with rasterio.open(tif_path) as src:
+        scale_reflectance = False
+        if "landsat" in tif_path:
+            scale_reflectance = True
+
+        width, height = src.width, src.height
+        band_list = bands if bands is not None else [1]
+
+        for y in range(0, height - window_size + 1, stride):
+            for x in range(0, width - window_size + 1, stride):
+                window = Window(x, y, window_size, window_size)
+
+                # Read and validate bands
+                data_list = []
+                valid = True
+
+                for b in band_list:
+                    data = src.read(b, window=window)
+                    if scale_reflectance:
+                        # Landsat Collection 2 Level-2 surface reflectance (SR) products store reflectance as integers and apply the scale factor = 0.0000275, offset = -0.2 as per USGS Landsat documentation
+                        data = data.astype(np.float32) * 0.0000275 - 0.2
+                    data_list.append(data)
+
+                    valid_mask = ~np.isnan(data)
+                    if (
+                        np.sum(valid_mask) < threshold_ratio * data.size
+                        or np.sum(np.isclose(data, 0))
+                        > (1 - threshold_ratio) * data.size
+                    ):
+                        valid = False
+                        break  # this window is not good
+
+                if valid:
+                    print(f"Found valid window at x={x}, y={y}")
+                    transform = src.window_transform(window)
+                    profile = src.profile.copy()
+                    profile.update(
+                        {
+                            "height": window.height,
+                            "width": window.width,
+                            "transform": transform,
+                        }
+                    )
+
+                    # Return single array if only one band, else list
+                    return (
+                        (data_list[0] if len(data_list) == 1 else data_list),
+                        profile,
+                        window,
+                    )
+
+    print("No valid window found.")
+    return None, None, None
 
 
 def reproject_bbox(bbox, src_crs="EPSG:4326", dst_crs="EPSG:32618"):
@@ -430,14 +505,14 @@ def process_date(
     return result
 
 
-def compute_ndwi(green, nir, profile, out_path=None, display=False):
+def compute_ndwi(green, nir, profile, out_path=None, display=False, threshold=0.2):
     """
-    Computes the Normalized Difference Water Index (NDWI) from Sentinel-2 Green (B03) and NIR (B08) bands.
+    Computes the Normalized Difference Water Index (NDWI) from Green and NIR bands.
 
     NDWI highlights surface water by leveraging the reflectance difference between the green and near-infrared bands:
         NDWI = (Green - NIR) / (Green + NIR)
 
-    A threshold (e.g., NDWI > 0.2) can be used to create a binary water mask.
+    A threshold (e.g., NDWI > 0.2) can be used to create a binary water mask for Sentinel-2.
 
     Parameters:
         green_image_data (np.ndarray): The (Green) GeoTIFF image array.
@@ -449,7 +524,7 @@ def compute_ndwi(green, nir, profile, out_path=None, display=False):
         numpy.ndarray: Binary NDWI water mask array (1 = water, 0 = non-water).
     """
     ndwi = (green - nir) / (green + nir + 1e-10)
-    ndwi_mask = (ndwi > 0.2).astype(float)
+    ndwi_mask = (ndwi > threshold).astype(float)
 
     if out_path:
         with rasterio.open(out_path, "w", **profile, BIGTIFF="YES") as dst:

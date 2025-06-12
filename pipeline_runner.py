@@ -34,7 +34,9 @@ def main():
     bbox = gdf.total_bounds.tolist()
     sentinel_mission = get_mission("sentinel-2")
     landsat5_mission = get_mission("landsat-5")
-    landsat5_mosaic_path = "data/landsat_eastern_shore.tif"
+    landsat7_mission = get_mission("landsat-7")
+    landsat5_mosaic_path = "data/landsat5_eastern_shore.tif"
+    landsat7_mosaic_path = "data/landsat7_eastern_shore.tif"
     sentinel2_mosaic_path = "data/sentinel_eastern_shore.tif"
 
     if args.step <= 0:
@@ -53,8 +55,10 @@ def main():
                     bbox,
                     sentinel_mission,
                     landsat5_mission,
+                    landsat7_mission,
                     sentinel2_mosaic_path,
                     landsat5_mosaic_path,
+                    landsat7_mosaic_path,
                 ): date
                 for date in dates_to_run
             }

@@ -1,5 +1,7 @@
 import logging
 import os
+import shutil
+import tempfile
 
 import geopandas as gpd
 import matplotlib.pyplot as plt
@@ -38,6 +40,26 @@ def get_mission(mission):
     elif mission == "landsat-5":
         collection = "landsat-c2-l2"
         query_filter = {"eo:cloud_cover": {"lt": 10}, "platform": {"eq": "landsat-5"}}
+        bands = {
+            "blue": "blue",
+            "green": "green",
+            "red": "red",
+            "nir08": "nir",
+            "swir16": "swir1",
+            "swir22": "swir2",
+        }
+        band_index = {
+            "blue": 1,
+            "green": 2,
+            "red": 3,
+            "nir08": 4,
+            "swir16": 5,
+            "swir22": 6,
+        }
+        resolution = 30
+    elif mission == "landsat-7":
+        collection = "landsat-c2-l2"
+        query_filter = {"eo:cloud_cover": {"lt": 10}, "platform": {"eq": "landsat-7"}}
         bands = {
             "blue": "blue",
             "green": "green",
@@ -136,6 +158,7 @@ def find_non_nan_window(
                             "transform": transform,
                         }
                     )
+                    profile.update({"BIGTIFF": "IF_SAFER"})
 
                     # Return single array if only one band, else list
                     return (
@@ -172,7 +195,7 @@ def query_satellite_items(
     Queries available satellite imagery items using the AWS Earth Search STAC API.
 
     Parameters:
-        mission (str): The satellite mission to use ("sentinel-2" or "landsat-5").
+        mission (str): The satellite mission to use ("sentinel-2" or "landsat-5" or "landsat-7").
         bbox (list): Bounding box [min_lon, min_lat, max_lon, max_lat].
         date_range (str): ISO8601 date range string.
         debug (bool): Whether to print debug output.
@@ -246,6 +269,7 @@ def download_satellite_bands_from_item(
             with rasterio.Env(session):
                 with rasterio.open(href) as src:
                     profile = src.profile
+                    profile.update({"BIGTIFF": "IF_SAFER"})
                     if src.count == 1:
                         data = src.read(1)
                     else:
@@ -257,7 +281,7 @@ def download_satellite_bands_from_item(
                     band_data.append((band_index, data, src.transform, src.crs))
 
                 if to_disk:
-                    with rasterio.open(out_path, "w", **profile, BIGTIFF="YES") as dst:
+                    with rasterio.open(out_path, "w", **profile) as dst:
                         dst.write(data, 1)
         else:
             print(
@@ -300,8 +324,9 @@ def create_mosaic_placeholder(
         "compress": "lzw",
         "nodata": np.nan,
     }
+    profile.update({"BIGTIFF": "IF_SAFER"})
 
-    with rasterio.open(mosaic_path, "w", **profile, BIGTIFF="YES") as dst:
+    with rasterio.open(mosaic_path, "w", **profile) as dst:
         dst.write(np.full((height, width), np.nan, dtype=dtype), 1)
 
     return transform, width, height, crs, bands
@@ -317,7 +342,7 @@ def add_image_to_mosaic(band_index, image_data, src_transform, src_crs, mosaic_p
         src_crs (str or CRS): CRS of the source image.
         mosaic_path (str): Path to the mosaic file to update.
     """
-    with rasterio.open(mosaic_path, "r+", BIGTIFF="YES") as mosaic:
+    with rasterio.open(mosaic_path, "r+") as mosaic:
         mosaic_array = mosaic.read(band_index)
 
         reproject(
@@ -364,6 +389,35 @@ def divide_bbox_into_patches(bbox, patch_size_meters, crs="EPSG:32618"):
     return patches
 
 
+def compress_mosaic(mosaic_path):
+    """
+    Rewrites the mosaic file with compression.
+    """
+    with rasterio.open(mosaic_path) as src:
+        profile = src.profile.copy()
+        profile.update({"BIGTIFF": "IF_SAFER"})
+        data = src.read()
+
+    profile.update(
+        {
+            "compress": "lzw",  # or "deflate", "zstd", etc.
+            "tiled": True,
+            "blockxsize": 512,
+            "blockysize": 512,
+        }
+    )
+
+    # Use a temporary file for atomic write
+    with tempfile.NamedTemporaryFile(suffix=".tif", delete=False) as tmp:
+        temp_path = tmp.name
+
+    with rasterio.open(temp_path, "w", **profile) as dst:
+        dst.write(data)
+
+    shutil.move(temp_path, mosaic_path)
+    print(f"[INFO] Compressed mosaic saved: {mosaic_path}")
+
+
 def patchwise_query_download_mosaic(
     mosaic_path,
     bbox,
@@ -376,16 +430,8 @@ def patchwise_query_download_mosaic(
     to_disk=False,
 ):
     """
-    Breaks region into patches and processes each separately.
-
-    Parameters:
-        bbox (list): [min_lon, min_lat, max_lon, max_lat]
-        mission (str): Satellite mission
-        patch_size_meters (int): Size of square patch
-        resolution (int): Resolution in meters per pixel
-        bands (dict): STAC asset key to friendly name
-        date_range (str): Date range for querying imagery
-        base_output_path (str): Where to store patches and mosaics
+    Breaks region into patches and processes each separately,
+    then compresses the resulting mosaic.
     """
     patches = divide_bbox_into_patches(bbox, patch_size_meters)
     gdf_patches = gpd.GeoDataFrame(geometry=patches, crs="EPSG:32618")
@@ -418,17 +464,22 @@ def patchwise_query_download_mosaic(
         except Exception as e:
             print(f"[ERROR] Patch {i} failed: {e}")
 
+    # Final step: compress the mosaic after all patches are added
+    compress_mosaic(mosaic_path)
+
 
 def process_date(
     date,
     bbox,
     sentinel_mission,
     landsat5_mission,
+    landsat7_mission,
     sentinel2_mosaic_path,
     landsat5_mosaic_path,
+    landsat7_mosaic_path,
 ):
     """
-    Processes satellite data for a single date by creating and populating mosaics for both Landsat-5 and Sentinel-2.
+    Processes satellite data for a single date by creating and populating mosaics for Landsat-5, Landsat-7, and Sentinel-2.
 
     For each mission:
     - Constructs a dated filename for the output mosaic.
@@ -443,8 +494,10 @@ def process_date(
         bbox (list): Bounding box in WGS84 [min_lon, min_lat, max_lon, max_lat].
         sentinel_mission (dict): Sentinel-2 mission specs from get_mission().
         landsat5_mission (dict): Landsat-5 mission specs from get_mission().
+        landsat7_mission (dict): Landsat-7 mission specs from get_mission().
         sentinel2_mosaic_path (str): Base path to output Sentinel-2 mosaics.
         landsat5_mosaic_path (str): Base path to output Landsat-5 mosaics.
+        landsat7_mosaic_path (str): Base path to output Landsat-7 mosaics.
 
     Returns:
         dict: A result dictionary with the date and any errors encountered.
@@ -452,55 +505,36 @@ def process_date(
     init_logger("download_worker_log.txt")  # optional: make this configurable
 
     logging.info(f"Started processing for date: {date}")
+    missions = ["sentinel-2", "landsat-5", "landsat-7"]
+    mission_paths = [sentinel2_mosaic_path, landsat5_mosaic_path, landsat7_mosaic_path]
 
     result = {"date": date, "errors": []}
-    try:
-        mname = landsat5_mosaic_path[:-4] + "_" + date.replace("/", "_") + ".tif"
-        create_mosaic_placeholder(
-            mosaic_path=mname,
-            bbox=reproject_bbox(bbox),
-            resolution=landsat5_mission["resolution"],
-            mission="landsat-5",
-            crs="EPSG:32618",
-            dtype="float32",
-        )
-        patchwise_query_download_mosaic(
-            mname,
-            bbox,
-            "landsat-5",
-            landsat5_mission["resolution"] * 1000,
-            landsat5_mission["resolution"],
-            landsat5_mission["bands"],
-            date,
-            None,
-            to_disk=False,
-        )
-    except Exception as e:
-        result["errors"].append(f"Landsat5 error: {e}")
-
-    try:
-        mname = sentinel2_mosaic_path[:-4] + "_" + date.replace("/", "_") + ".tif"
-        create_mosaic_placeholder(
-            mosaic_path=mname,
-            bbox=reproject_bbox(bbox),
-            resolution=sentinel_mission["resolution"],
-            mission="sentinel-2",
-            crs="EPSG:32618",
-            dtype="float32",
-        )
-        patchwise_query_download_mosaic(
-            mname,
-            bbox,
-            "sentinel-2",
-            sentinel_mission["resolution"] * 1000,
-            sentinel_mission["resolution"],
-            sentinel_mission["bands"],
-            date,
-            None,
-            to_disk=False,
-        )
-    except Exception as e:
-        result["errors"].append(f"Sentinel2 error: {e}")
+    for mission_number, mission_name in enumerate(missions):
+        try:
+            mission_config = get_mission(mission_name)
+            base, _ = os.path.splitext(mission_paths[mission_number])
+            mname = f"{base}_{date.replace('/', '_')}.tif"
+            create_mosaic_placeholder(
+                mosaic_path=mname,
+                bbox=reproject_bbox(bbox),
+                resolution=mission_config["resolution"],
+                mission=mission_name,
+                crs="EPSG:32618",
+                dtype="float32",
+            )
+            patchwise_query_download_mosaic(
+                mname,
+                bbox,
+                mission_name,
+                mission_config["resolution"] * 1000,
+                mission_config["resolution"],
+                mission_config["bands"],
+                date,
+                None,
+                to_disk=False,
+            )
+        except Exception as e:
+            result["errors"].append(f"{mission_name} error: {e}")
 
     return result
 
@@ -525,6 +559,7 @@ def compute_ndwi(green, nir, profile, out_path=None, display=False, threshold=0.
     """
     ndwi = (green - nir) / (green + nir + 1e-10)
     ndwi_mask = (ndwi > threshold).astype(float)
+    profile.update({"BIGTIFF": "IF_SAFER"})
 
     if out_path:
         with rasterio.open(out_path, "w", **profile, BIGTIFF="YES") as dst:

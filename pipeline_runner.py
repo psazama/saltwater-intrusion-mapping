@@ -7,6 +7,11 @@ import geopandas as gpd
 from tqdm import tqdm
 
 from download_tools import get_mission, process_date
+from salinity_tools import (
+    extract_salinity_features_from_mosaic,
+    salinity_truth,
+    train_salinity_deng,
+)
 
 
 def main():
@@ -70,8 +75,20 @@ def main():
                     print(f"[{result['date']}] Errors: {result['errors']}")
 
     if args.step <= 1:
-        pass
-        # compute_ndwi(green_path, nir_path, out_path=None, display=False):
+        y = salinity_truth()
+        print(y.head())
+
+        base, _ = os.path.splitext(sentinel2_mosaic_path)
+        output_feature_path = f"{base}_features.tif"
+        output_mask_path = f"{base}_mask.tif"
+        X = extract_salinity_features_from_mosaic(
+            sentinel2_mosaic_path,
+            sentinel_mission["band_index"],
+            output_feature_path,
+            output_mask_path,
+        )
+
+        model, metrics = train_salinity_deng(X, y)
 
 
 if __name__ == "__main__":

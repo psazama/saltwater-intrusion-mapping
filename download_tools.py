@@ -468,6 +468,21 @@ def patchwise_query_download_mosaic(
     compress_mosaic(mosaic_path)
 
 
+def should_skip_mosaic(path, threshold=0.9):
+    if not os.path.exists(path):
+        return False
+    try:
+        with rasterio.open(path) as src:
+            data = src.read()
+            nan_ratio = np.isnan(data).sum() / data.size
+            if nan_ratio < threshold:
+                logging.info(f"[SKIP] {path} already exists with {nan_ratio:.2%} NaNs.")
+                return True
+    except Exception as e:
+        logging.warning(f"[WARNING] Could not read {path}: {e}")
+    return False
+
+
 def process_date(
     date,
     bbox,
@@ -514,6 +529,8 @@ def process_date(
             mission_config = get_mission(mission_name)
             base, _ = os.path.splitext(mission_paths[mission_number])
             mname = f"{base}_{date.replace('/', '_')}.tif"
+            if should_skip_mosaic(mname):
+                continue
             create_mosaic_placeholder(
                 mosaic_path=mname,
                 bbox=reproject_bbox(bbox),

@@ -11,12 +11,18 @@ from download_tools import compute_ndwi
 
 
 def salinity_truth():
-    ds = xr.open_dataset("data/salinity_labels/WOD_CAS_T_S_2020_1.nc")
+    print("step 0")
+    ds = xr.open_dataset("data/salinity_labels/WOD_CAS_T_S_2020_1.nc", chunks={})
+    print("step 1")
     df = ds.to_dataframe().reset_index()
+    print("step 2")
     df.to_csv("codc_salinity_profiles.csv", index=False)
+    print("step 3")
 
     df = df[df["instrument"] == "CTD"]
+    print("step 4")
     df = df[df["depth"] <= 1.0]
+    return df
 
 
 def process_salinity_features_chunk(
@@ -148,7 +154,7 @@ def extract_salinity_features_from_mosaic(
                     dst_y.close()
 
 
-def calc_salinity_deng(X, y, test_size=0.2, random_state=42, save_model_path=None):
+def train_salinity_deng(X, y, test_size=0.2, random_state=42, save_model_path=None):
     """
     Train an XGBoost regressor on salinity feature data.:
     Deng et al., 2024. Monitoring Salinity in Inner Mongolian Lakes Based on Sentinel‑2 Images and Machine Learning.
@@ -184,10 +190,10 @@ def calc_salinity_deng(X, y, test_size=0.2, random_state=42, save_model_path=Non
     rmse = np.sqrt(mean_squared_error(y_test, y_pred))
     r2 = r2_score(y_test, y_pred)
 
-    print(f"✅ XGBoost trained — RMSE: {rmse:.2f}, R²: {r2:.3f}")
+    print(f"XGBoost trained — RMSE: {rmse:.2f}, R²: {r2:.3f}")
 
     if save_model_path:
         joblib.dump(model, save_model_path)
-        print(f"📦 Model saved to {save_model_path}")
+        print(f"Model saved to {save_model_path}")
 
     return model, {"rmse": rmse, "r2": r2}

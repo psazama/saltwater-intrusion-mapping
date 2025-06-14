@@ -10,18 +10,28 @@ from sklearn.model_selection import train_test_split
 from download_tools import compute_ndwi
 
 
-def salinity_truth():
-    print("step 0")
-    ds = xr.open_dataset("data/salinity_labels/WOD_CAS_T_S_2020_1.nc", chunks={})
-    print("step 1")
-    df = ds.to_dataframe().reset_index()
-    print("step 2")
-    df.to_csv("codc_salinity_profiles.csv", index=False)
-    print("step 3")
+def salinity_truth(depth=1.0):
+    ds = xr.open_dataset("data/salinity_labels/WOD_CAS_T_S_2020_1.nc")
 
-    df = df[df["instrument"] == "CTD"]
-    print("step 4")
-    df = df[df["depth"] <= 1.0]
+    # Limit to avoid memory issues (optional)
+    # prof_slice = slice(0, 10000)
+
+    # Extract salinity and depth for those profiles
+    sal = ds["Salinity_origin"]  # .isel(N_PROF=prof_slice)
+    dep = ds["Depth_origin"]  # .isel(N_PROF=prof_slice)
+
+    # Surface filter: only depths ≤ 1.0m
+    surface_mask = dep <= depth
+    surface_sal = sal.where(surface_mask)
+
+    # Convert to DataFrame
+    df = surface_sal.to_dataframe(name="salinity").reset_index()
+    df = df.dropna(subset=["salinity"])
+
+    print(f"Extracted {len(df)} valid salinity measurements")
+
+    # Save
+    df.to_csv("codc_salinity_profiles.csv", index=False)
     return df
 
 

@@ -10,7 +10,6 @@ from download_tools import get_mission, process_date
 from salinity_tools import (
     extract_salinity_features_from_mosaic,
     salinity_truth,
-    train_salinity_deng,
 )
 
 
@@ -75,20 +74,24 @@ def main():
                     print(f"[{result['date']}] Errors: {result['errors']}")
 
     if args.step <= 1:
+        test_mosaic = "data/landsat5_eastern_shore_2006-09-01_2006-09-30.tif"
+        test_mission = landsat5_mission
+
         y = salinity_truth()
         print(y.head())
 
-        base, _ = os.path.splitext(sentinel2_mosaic_path)
+        base, _ = os.path.splitext(test_mosaic)
         output_feature_path = f"{base}_features.tif"
         output_mask_path = f"{base}_mask.tif"
         X = extract_salinity_features_from_mosaic(
-            sentinel2_mosaic_path,
-            sentinel_mission["band_index"],
+            test_mosaic,
+            test_mission["band_index"],
             output_feature_path,
             output_mask_path,
         )
+        print(X)
 
-        model, metrics = train_salinity_deng(X, y)
+        # model, metrics = train_salinity_deng(X, y)
 
 
 if __name__ == "__main__":

@@ -1,5 +1,8 @@
+import os
+
 import joblib
 import numpy as np
+import pandas as pd
 import rasterio
 import xarray as xr
 import xgboost as xgb
@@ -10,29 +13,85 @@ from sklearn.model_selection import train_test_split
 from download_tools import compute_ndwi
 
 
-def salinity_truth(depth=1.0):
-    ds = xr.open_dataset("data/salinity_labels/WOD_CAS_T_S_2020_1.nc")
+def salinity_truth(
+    dataset_files=["data/salinity_labels/WOD/WOD_CAS_T_S_2020_1.nc"],
+    output_csv="data/salinity_labels/codc_salinity_profiles.csv",
+    depth=1.0,
+    prof_limit=None,
+):
+    lat_idx = 4
+    lon_idx = 5
+    year_idx = 1
+    month_idx = 2
+    day_idx = 3
 
-    # Limit to avoid memory issues (optional)
-    # prof_slice = slice(0, 10000)
+    all_dfs = []
 
-    # Extract salinity and depth for those profiles
-    sal = ds["Salinity_origin"]  # .isel(N_PROF=prof_slice)
-    dep = ds["Depth_origin"]  # .isel(N_PROF=prof_slice)
+    for dataset_file in dataset_files:
+        ds = xr.open_dataset(dataset_file)
 
-    # Surface filter: only depths ≤ 1.0m
-    surface_mask = dep <= depth
-    surface_sal = sal.where(surface_mask)
+        # Use full range if no limit provided
+        if prof_limit is None:
+            prof_limit = ds.sizes["N_PROF"]
 
-    # Convert to DataFrame
-    df = surface_sal.to_dataframe(name="salinity").reset_index()
-    df = df.dropna(subset=["salinity"])
+        prof_slice = slice(0, prof_limit)
 
-    print(f"Extracted {len(df)} valid salinity measurements")
+        # Extract salinity and depth for those profiles
+        sal = ds["Salinity_origin"].isel(N_PROF=prof_slice)
+        dep = ds["Depth_origin"].isel(N_PROF=prof_slice)
+        lats = (
+            ds["Profile_info_record_all"]
+            .isel(STRINGS18=lat_idx, N_PROF=prof_slice)
+            .values
+        )
+        lons = (
+            ds["Profile_info_record_all"]
+            .isel(STRINGS18=lon_idx, N_PROF=prof_slice)
+            .values
+        )
+        years = (
+            ds["Profile_info_record_all"]
+            .isel(STRINGS18=year_idx, N_PROF=prof_slice)
+            .values.astype(int)
+        )
+        months = (
+            ds["Profile_info_record_all"]
+            .isel(STRINGS18=month_idx, N_PROF=prof_slice)
+            .values.astype(int)
+        )
+        days = (
+            ds["Profile_info_record_all"]
+            .isel(STRINGS18=day_idx, N_PROF=prof_slice)
+            .values.astype(int)
+        )
+
+        times = [
+            f"{y:04d}-{m:02d}-{d:02d}" if y > 0 else None
+            for y, m, d in zip(years, months, days)
+        ]
+
+        # Surface filter: only depths ≤ 1.0m
+        surface_mask = dep <= depth
+        surface_sal = sal.where(surface_mask)
+
+        # Convert to DataFrame
+        df = surface_sal.to_dataframe(name="salinity").reset_index()
+        df = df.dropna(subset=["salinity"])
+        df["latitude"] = df["N_PROF"].map(dict(zip(range(prof_limit), lats)))
+        df["longitude"] = df["N_PROF"].map(dict(zip(range(prof_limit), lons)))
+        df["date"] = df["N_PROF"].map(dict(zip(range(prof_limit), times)))
+        df["source_file"] = os.path.basename(dataset_file)
+
+        all_dfs.append(df)
+
+    final_df = pd.concat(all_dfs, ignore_index=True)
+    print(
+        f"Extracted {len(final_df)} valid salinity measurements from {len(dataset_files)} file(s)"
+    )
 
     # Save
-    df.to_csv("codc_salinity_profiles.csv", index=False)
-    return df
+    final_df.to_csv(output_csv, index=False)
+    return final_df
 
 
 def process_salinity_features_chunk(

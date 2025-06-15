@@ -21,12 +21,3 @@ repos:
     hooks:
       - id: ruff
         args: ["--fix"]
-
-  - repo: local
-    hooks:
-      - id: pipreqs-generate
-        name: Generate minimal requirements.txt
-        entry: bash -c 'pipreqs . --force'
-        language: system
-        types: [python]
-

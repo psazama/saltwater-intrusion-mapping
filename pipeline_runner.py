@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from pathlib import Path
 
 import geopandas as gpd
 from tqdm import tqdm
@@ -24,6 +25,13 @@ def main():
         required=False,
         choices=[0, 1, 2],
         help="Processing step to begin on (0 = data download, 1 = water mask creation, 2 = water map time comparison)",
+    ),
+    parser.add_argument(
+        "--salinity_truth_file",
+        type=str,
+        default="data/salinity_labels/WOD/",
+        required=False,
+        help="Build groundtruth salinity dataframe with .nc files in this directory",
     )
     args = parser.parse_args()
 
@@ -77,7 +85,9 @@ def main():
         test_mosaic = "data/landsat5_eastern_shore_2006-09-01_2006-09-30.tif"
         test_mission = landsat5_mission
 
-        y = salinity_truth()
+        directory = Path(args.salinity_truth_file)
+        codc_files = list(directory.glob("*.nc"))
+        y = salinity_truth(dataset_file=codc_files)
         print(y.head())
 
         base, _ = os.path.splitext(test_mosaic)

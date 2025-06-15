@@ -468,14 +468,14 @@ def patchwise_query_download_mosaic(
     compress_mosaic(mosaic_path)
 
 
-def should_skip_mosaic(path, threshold=0.9):
+def should_skip_mosaic(path, threshold=0.8):
     if not os.path.exists(path):
         return False
     try:
         with rasterio.open(path) as src:
             data = src.read()
             nan_ratio = np.isnan(data).sum() / data.size
-            if nan_ratio < threshold:
+            if nan_ratio > threshold:
                 logging.info(f"[SKIP] {path} already exists with {nan_ratio:.2%} NaNs.")
                 return True
     except Exception as e:

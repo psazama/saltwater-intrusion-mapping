@@ -9,6 +9,7 @@ import xgboost as xgb
 from rasterio.windows import Window
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
+from tqdm import tqdm
 
 from download_tools import compute_ndwi
 
@@ -25,9 +26,10 @@ def salinity_truth(
     month_idx = 2
     day_idx = 3
 
-    all_dfs = []
+    header_written = False
 
-    for dataset_file in dataset_files:
+    for dataset_file in tqdm(dataset_files):
+        print(".")
         ds = xr.open_dataset(dataset_file)
 
         # Use full range if no limit provided
@@ -36,6 +38,7 @@ def salinity_truth(
 
         prof_slice = slice(0, prof_limit)
 
+        print("..")
         # Extract salinity and depth for those profiles
         sal = ds["Salinity_origin"].isel(N_PROF=prof_slice)
         dep = ds["Depth_origin"].isel(N_PROF=prof_slice)
@@ -70,28 +73,50 @@ def salinity_truth(
             for y, m, d in zip(years, months, days)
         ]
 
-        # Surface filter: only depths ≤ 1.0m
-        surface_mask = dep <= depth
-        surface_sal = sal.where(surface_mask)
+        print("...")
+        valid_profile_mask = (dep <= depth).any(dim="N_LEVELS").values
+        valid_indices = np.where(valid_profile_mask)[0]
 
-        # Convert to DataFrame
-        df = surface_sal.to_dataframe(name="salinity").reset_index()
-        df = df.dropna(subset=["salinity"])
-        df["latitude"] = df["N_PROF"].map(dict(zip(range(prof_limit), lats)))
-        df["longitude"] = df["N_PROF"].map(dict(zip(range(prof_limit), lons)))
-        df["date"] = df["N_PROF"].map(dict(zip(range(prof_limit), times)))
-        df["source_file"] = os.path.basename(dataset_file)
+        print("....")
+        records = []
 
-        all_dfs.append(df)
+        for i in tqdm(valid_indices):
+            try:
+                sal_i = sal.isel(N_PROF=i).values
+                dep_i = dep.isel(N_PROF=i).values
 
-    final_df = pd.concat(all_dfs, ignore_index=True)
-    print(
-        f"Extracted {len(final_df)} valid salinity measurements from {len(dataset_files)} file(s)"
-    )
+                valid = dep_i <= depth
+                if not np.any(valid):
+                    continue
 
-    # Save
-    final_df.to_csv(output_csv, index=False)
-    return final_df
+                surface_val = sal_i[valid][0]
+                if np.isnan(surface_val):
+                    continue
+
+                records.append(
+                    {
+                        "salinity": surface_val,
+                        "latitude": lats[i],
+                        "longitude": lons[i],
+                        "date": times[i],
+                        "source_file": os.path.basename(dataset_file),
+                    }
+                )
+
+            except Exception as e:
+                print(f"Profile {i} in {dataset_file} failed: {e}")
+                continue
+
+        df = pd.DataFrame(records)
+
+        print(".....")
+        if not header_written:
+            df.to_csv(output_csv, mode="w", index=False)
+            header_written = True
+        else:
+            df.to_csv(output_csv, mode="a", header=False, index=False)
+
+        print("......")
 
 
 def process_salinity_features_chunk(

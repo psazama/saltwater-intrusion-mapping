@@ -87,7 +87,7 @@ def main():
 
         directory = Path(args.salinity_truth_file)
         codc_files = list(directory.glob("*.nc"))
-        y = salinity_truth(dataset_file=codc_files)
+        y = salinity_truth(dataset_files=codc_files)
         print(y.head())
 
         base, _ = os.path.splitext(test_mosaic)

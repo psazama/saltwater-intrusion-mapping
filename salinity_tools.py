@@ -14,7 +14,7 @@ from tqdm import tqdm
 from download_tools import compute_ndwi
 
 
-def salinity_truth(
+def build_salinity_truth(
     dataset_files=["data/salinity_labels/WOD/WOD_CAS_T_S_2020_1.nc"],
     output_csv="data/salinity_labels/codc_salinity_profiles.csv",
     depth=1.0,
@@ -28,7 +28,7 @@ def salinity_truth(
 
     header_written = False
 
-    for dataset_file in tqdm(dataset_files):
+    for dataset_file in tqdm(dataset_files[::3]):
         print(".")
         ds = xr.open_dataset(dataset_file)
 
@@ -117,6 +117,12 @@ def salinity_truth(
             df.to_csv(output_csv, mode="a", header=False, index=False)
 
         print("......")
+
+
+def load_salinity_truth(truth_file):
+    df = pd.read_csv(truth_file)
+    df_clean = df.dropna()
+    return df_clean
 
 
 def process_salinity_features_chunk(

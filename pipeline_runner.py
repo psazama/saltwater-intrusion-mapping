@@ -7,10 +7,11 @@ from pathlib import Path
 import geopandas as gpd
 from tqdm import tqdm
 
-from download_tools import get_mission, process_date
+from download_tools import find_satellite_coverage, get_mission, process_date
 from salinity_tools import (
+    build_salinity_truth,
     extract_salinity_features_from_mosaic,
-    salinity_truth,
+    load_salinity_truth,
 )
 
 
@@ -27,11 +28,18 @@ def main():
         help="Processing step to begin on (0 = data download, 1 = water mask creation, 2 = water map time comparison)",
     ),
     parser.add_argument(
-        "--salinity_truth_file",
+        "--salinity_truth_directory",
         type=str,
-        default="data/salinity_labels/WOD/",
+        default=None,
         required=False,
         help="Build groundtruth salinity dataframe with .nc files in this directory",
+    )
+    parser.add_argument(
+        "--salinity_truth_file",
+        type=str,
+        default="data/salinity_labels/codc_salinity_profiles.csv",
+        required=False,
+        help="Load salinity ground truth from file",
     )
     args = parser.parse_args()
 
@@ -85,10 +93,20 @@ def main():
         test_mosaic = "data/landsat5_eastern_shore_2006-09-01_2006-09-30.tif"
         test_mission = landsat5_mission
 
-        directory = Path(args.salinity_truth_file)
-        codc_files = list(directory.glob("*.nc"))
-        y = salinity_truth(dataset_files=codc_files)
-        print(y.head())
+        if args.salinity_truth_directory:
+            directory = Path(args.salinity_truth_directory)
+            codc_files = list(sorted(directory.glob("*.nc")))
+            build_salinity_truth(
+                dataset_files=codc_files, output_csv=args.salinity_truth_file
+            )
+        y = load_salinity_truth(args.salinity_truth_file)
+
+        overlapped_measurements = find_satellite_coverage(y)
+        print(
+            overlapped_measurements[
+                ["latitude", "longitude", "date", "covered_by"]
+            ].head()
+        )
 
         base, _ = os.path.splitext(test_mosaic)
         output_feature_path = f"{base}_features.tif"

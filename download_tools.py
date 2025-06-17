@@ -2,6 +2,7 @@ import logging
 import os
 import shutil
 import tempfile
+from datetime import datetime, timedelta
 
 import geopandas as gpd
 import matplotlib.pyplot as plt
@@ -14,6 +15,7 @@ from rasterio.transform import from_bounds
 from rasterio.warp import Resampling, reproject
 from rasterio.windows import Window
 from shapely.geometry import box
+from tqdm import tqdm
 
 
 def get_mission(mission):
@@ -37,6 +39,7 @@ def get_mission(mission):
             "swir22": 6,
         }
         resolution = 10
+        valid_date_range = ("2015-06-23", None)
     elif mission == "landsat-5":
         collection = "landsat-c2-l2"
         query_filter = {"eo:cloud_cover": {"lt": 10}, "platform": {"eq": "landsat-5"}}
@@ -56,7 +59,8 @@ def get_mission(mission):
             "swir16": 5,
             "swir22": 6,
         }
-        resolution = 30
+        resolution = (30,)
+        valid_date_range = ("1984-03-01", "2013-01-01")
     elif mission == "landsat-7":
         collection = "landsat-c2-l2"
         query_filter = {"eo:cloud_cover": {"lt": 10}, "platform": {"eq": "landsat-7"}}
@@ -76,7 +80,8 @@ def get_mission(mission):
             "swir16": 5,
             "swir22": 6,
         }
-        resolution = 30
+        resolution = (30,)
+        valid_date_range = ("1999-04-15", "2022-03-31")
     else:
         raise ValueError("Unsupported mission")
     return {
@@ -85,6 +90,7 @@ def get_mission(mission):
         "collection": collection,
         "query_filter": query_filter,
         "resolution": resolution,
+        "valid_date_range": valid_date_range,
     }
 
 
@@ -169,6 +175,56 @@ def find_non_nan_window(
 
     print("No valid window found.")
     return None, None, None
+
+
+def find_satellite_coverage(
+    df, missions=["sentinel-2", "landsat-5", "landsat-7"], buffer_km=5
+):
+    results = []
+
+    for _, row in tqdm(df.iterrows(), total=len(df)):
+        lat, lon, date = row["latitude"], row["longitude"], row["date"]
+        try:
+            # Buffer in degrees (approx)
+            buffer_deg = buffer_km / 111.0
+            bbox = [
+                lon - buffer_deg,
+                lat - buffer_deg,
+                lon + buffer_deg,
+                lat + buffer_deg,
+            ]
+
+            # ±1 day range
+            dt = datetime.strptime(date, "%Y-%m-%d")
+            date_range = (
+                f"{(dt - timedelta(days=1)).date()}/{(dt + timedelta(days=1)).date()}"
+            )
+
+            covered_by = []
+            for mission in missions:
+                try:
+                    mission_info = get_mission(mission)
+                    start_date, end_date = mission_info["valid_date_range"]
+                    if start_date and dt < datetime.strptime(start_date, "%Y-%m-%d"):
+                        continue
+                    if end_date and dt > datetime.strptime(end_date, "%Y-%m-%d"):
+                        continue
+
+                    items, _ = query_satellite_items(
+                        mission=mission, bbox=bbox, date_range=date_range, max_items=1
+                    )
+                    if items:
+                        covered_by.append(mission)
+                except Exception:
+                    pass
+
+            results.append(covered_by)
+        except Exception as e:
+            print(f"Failed on row {row}: {e}")
+            results.append([])
+
+    df["covered_by"] = results
+    return df
 
 
 def reproject_bbox(bbox, src_crs="EPSG:4326", dst_crs="EPSG:32618"):

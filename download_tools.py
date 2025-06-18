@@ -39,7 +39,7 @@ def get_mission(mission):
             "swir22": 6,
         }
         resolution = 10
-        valid_date_range = ("2015-06-23", None)
+        valid_date_range = ["2015-06-23", None]
     elif mission == "landsat-5":
         collection = "landsat-c2-l2"
         query_filter = {"eo:cloud_cover": {"lt": 10}, "platform": {"eq": "landsat-5"}}
@@ -59,8 +59,8 @@ def get_mission(mission):
             "swir16": 5,
             "swir22": 6,
         }
-        resolution = (30,)
-        valid_date_range = ("1984-03-01", "2013-01-01")
+        resolution = 30
+        valid_date_range = ["1984-03-01", "2013-01-01"]
     elif mission == "landsat-7":
         collection = "landsat-c2-l2"
         query_filter = {"eo:cloud_cover": {"lt": 10}, "platform": {"eq": "landsat-7"}}
@@ -80,8 +80,8 @@ def get_mission(mission):
             "swir16": 5,
             "swir22": 6,
         }
-        resolution = (30,)
-        valid_date_range = ("1999-04-15", "2022-03-31")
+        resolution = 30
+        valid_date_range = ["1999-04-15", "2022-03-31"]
     else:
         raise ValueError("Unsupported mission")
     return {
@@ -524,9 +524,50 @@ def patchwise_query_download_mosaic(
     compress_mosaic(mosaic_path)
 
 
-def should_skip_mosaic(path, threshold=0.8):
+def should_skip_mosaic(path, mission_config, date_str, threshold=0.8):
+    """
+    Determines if mosaic processing should be skipped based on:
+    1. Date being outside the valid mission date range
+    2. Existing file with high NaN ratio
+
+    Parameters:
+        path (str): Path to the mosaic file
+        mission_config (dict): Mission configuration from get_mission()
+        date_str (str): Date string in format "YYYY-MM-DD/YYYY-MM-DD" or "YYYY-MM-DD"
+        threshold (float): NaN ratio threshold above which to skip
+
+    Returns:
+        bool: True if processing should be skipped, False otherwise
+    """
+    # Extract start date from date string (handles both single dates and ranges)
+    if "/" in date_str:
+        date_str = date_str.split("/")[0]
+
+    try:
+        query_date = datetime.strptime(date_str, "%Y-%m-%d")
+    except ValueError:
+        logging.warning(f"[WARNING] Invalid date format: {date_str}")
+        return True  # Skip if date format is invalid
+
+    # Check if date is within valid mission range
+    dates = mission_config["valid_date_range"]
+    mission_start = datetime.strptime(dates[0], "%Y-%m-%d")
+    if dates[1]:
+        mission_end = datetime.strptime(dates[1], "%Y-%m-%d")
+    else:
+        mission_end = datetime.now()
+
+    if query_date < mission_start or query_date > mission_end:
+        print(query_date, mission_start, mission_end)
+        logging.info(
+            f"[SKIP] Date {date_str} is outside mission date range {dates[0]}, {dates[1]}"
+        )
+        return True
+
+    # Check if file exists and has high NaN ratio (original logic)
     if not os.path.exists(path):
         return False
+
     try:
         with rasterio.open(path) as src:
             data = src.read()
@@ -536,6 +577,7 @@ def should_skip_mosaic(path, threshold=0.8):
                 return True
     except Exception as e:
         logging.warning(f"[WARNING] Could not read {path}: {e}")
+
     return False
 
 
@@ -585,7 +627,7 @@ def process_date(
             mission_config = get_mission(mission_name)
             base, _ = os.path.splitext(mission_paths[mission_number])
             mname = f"{base}_{date.replace('/', '_')}.tif"
-            if should_skip_mosaic(mname):
+            if should_skip_mosaic(mname, mission_config, date):
                 continue
             create_mosaic_placeholder(
                 mosaic_path=mname,

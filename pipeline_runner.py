@@ -63,7 +63,7 @@ def main():
         with open("date_range.json", "r") as f:
             dates = json.load(f)
 
-        dates_to_run = dates["date_ranges"][::3]
+        dates_to_run = dates["date_ranges"][::12]
         results = []
 
         max_workers = os.cpu_count() // 2

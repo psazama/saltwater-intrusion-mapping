@@ -227,6 +227,62 @@ def find_satellite_coverage(
     return df
 
 
+def download_matching_images(
+    df,
+    missions=["sentinel-2", "landsat-5", "landsat-7"],
+    buffer_km=2,
+    output_dir="data/matched_downloads",
+):
+    os.makedirs(output_dir, exist_ok=True)
+    downloaded_paths = []
+
+    for _, row in tqdm(df.iterrows(), total=len(df)):
+        lat, lon, date = row["latitude"], row["longitude"], row["date"]
+        dt = datetime.strptime(date, "%Y-%m-%d")
+        date_range = (
+            f"{(dt - timedelta(days=1)).date()}/{(dt + timedelta(days=1)).date()}"
+        )
+        buffer_deg = buffer_km / 111.0
+        bbox = [lon - buffer_deg, lat - buffer_deg, lon + buffer_deg, lat + buffer_deg]
+
+        row_downloads = []
+
+        for mission in row.get("covered_by", []):
+            try:
+                items, bands = query_satellite_items(
+                    mission=mission, bbox=bbox, date_range=date_range, max_items=1
+                )
+                if items:
+                    item = items[0]
+                    date_tag = dt.strftime("%Y%m%d")
+                    download_dir = os.path.join(
+                        output_dir, f"{mission}_{date_tag}_{lat:.4f}_{lon:.4f}"
+                    )
+                    os.makedirs(download_dir, exist_ok=True)
+
+                    download_satellite_bands_from_item(
+                        item, bands, to_disk=True, data_dir=download_dir
+                    )
+
+                    # Record each band’s path
+                    for band_key in bands.values():
+                        band_file = os.path.join(
+                            download_dir, f"{item.id}_{band_key}.tif"
+                        )
+                        if os.path.exists(band_file):
+                            row_downloads.append(band_file)
+            except Exception as e:
+                print(
+                    f"[ERROR] Could not download {mission} for {lat},{lon} on {date}: {e}"
+                )
+
+        downloaded_paths.append(row_downloads)
+
+    df = df.copy()
+    df["downloaded_files"] = downloaded_paths
+    return df
+
+
 def reproject_bbox(bbox, src_crs="EPSG:4326", dst_crs="EPSG:32618"):
     minx, miny = bbox[0], bbox[1]
     maxx, maxy = bbox[2], bbox[3]
@@ -334,10 +390,16 @@ def download_satellite_bands_from_item(
                         )
 
                     band_index = band_order.index(key) + 1
+                    if band_index > len(bands):
+                        raise ValueError(
+                            f"Invalid band index {band_index} for item {item.id}"
+                        )
                     band_data.append((band_index, data, src.transform, src.crs))
 
                 if to_disk:
-                    with rasterio.open(out_path, "w", **profile) as dst:
+                    with rasterio.open(
+                        out_path, "w", **profile, BIGTIFF="IF_SAFER"
+                    ) as dst:
                         dst.write(data, 1)
         else:
             print(
@@ -382,8 +444,17 @@ def create_mosaic_placeholder(
     }
     profile.update({"BIGTIFF": "IF_SAFER"})
 
+    profile.update(
+        {
+            "tiled": True,
+            "blockxsize": 512,
+            "blockysize": 512,
+        }
+    )
+
     with rasterio.open(mosaic_path, "w", **profile) as dst:
-        dst.write(np.full((height, width), np.nan, dtype=dtype), 1)
+        nan_data = np.full((bands, height, width), np.nan, dtype=dtype)
+        dst.write(nan_data)
 
     return transform, width, height, crs, bands
 
@@ -399,6 +470,10 @@ def add_image_to_mosaic(band_index, image_data, src_transform, src_crs, mosaic_p
         mosaic_path (str): Path to the mosaic file to update.
     """
     with rasterio.open(mosaic_path, "r+") as mosaic:
+        if band_index > mosaic.count:
+            raise ValueError(
+                f"Band index {band_index} exceeds available bands in mosaic."
+            )
         mosaic_array = mosaic.read(band_index)
 
         reproject(
@@ -516,6 +591,10 @@ def patchwise_query_download_mosaic(
                     add_image_to_mosaic(
                         band_name, band_data, src_transform, src_crs, mosaic_path
                     )
+
+            if os.path.exists(mosaic_path):
+                size_gb = os.path.getsize(mosaic_path) / (1024**3)
+                print(f"[PATCH {i}] Mosaic size so far: {size_gb:.2f} GB")
 
         except Exception as e:
             print(f"[ERROR] Patch {i} failed: {e}")

@@ -7,7 +7,12 @@ from pathlib import Path
 import geopandas as gpd
 from tqdm import tqdm
 
-from download_tools import find_satellite_coverage, get_mission, process_date
+from download_tools import (
+    download_matching_images,
+    find_satellite_coverage,
+    get_mission,
+    process_date,
+)
 from salinity_tools import (
     build_salinity_truth,
     extract_salinity_features_from_mosaic,
@@ -90,8 +95,6 @@ def main():
                     print(f"[{result['date']}] Errors: {result['errors']}")
 
     if args.step <= 1:
-        test_mosaic = "data/landsat5_eastern_shore_2006-09-01_2006-09-30.tif"
-        test_mission = landsat5_mission
 
         if args.salinity_truth_directory:
             directory = Path(args.salinity_truth_directory)
@@ -102,11 +105,15 @@ def main():
         y = load_salinity_truth(args.salinity_truth_file)
 
         overlapped_measurements = find_satellite_coverage(y)
-        print(
-            overlapped_measurements[
-                ["latitude", "longitude", "date", "covered_by"]
-            ].head()
-        )
+        overlapped_measurements_filter = overlapped_measurements[
+            overlapped_measurements["covered_by"].apply(lambda x: len(x) > 0)
+        ]
+        datapath_df = download_matching_images(overlapped_measurements_filter)
+        datapath_df.to_csv("data/ground_truth_matches.csv", index=False)
+
+        test_data = datapath_df.iloc[0][0]
+        test_mission = get_mission(test_data["covered_by"][0])
+        test_mosaic = test_data["downloaded_files"][0]
 
         base, _ = os.path.splitext(test_mosaic)
         output_feature_path = f"{base}_features.tif"

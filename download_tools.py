@@ -164,7 +164,13 @@ def find_non_nan_window(
                             "transform": transform,
                         }
                     )
-                    profile.update({"BIGTIFF": "IF_SAFER"})
+                    profile.update(
+                        {
+                            "dtype": "float32",
+                            "nodata": np.nan,
+                            "BIGTIFF": "IF_SAFER",
+                        }
+                    )
 
                     # Return single array if only one band, else list
                     return (
@@ -230,7 +236,7 @@ def find_satellite_coverage(
 def download_matching_images(
     df,
     missions=["sentinel-2", "landsat-5", "landsat-7"],
-    buffer_km=2,
+    buffer_km=0.1,
     output_dir="data/matched_downloads",
 ):
     os.makedirs(output_dir, exist_ok=True)
@@ -252,28 +258,56 @@ def download_matching_images(
                 items, bands = query_satellite_items(
                     mission=mission, bbox=bbox, date_range=date_range, max_items=1
                 )
-                if items:
-                    item = items[0]
-                    date_tag = dt.strftime("%Y%m%d")
-                    download_dir = os.path.join(
-                        output_dir, f"{mission}_{date_tag}_{lat:.4f}_{lon:.4f}"
-                    )
-                    os.makedirs(download_dir, exist_ok=True)
+                if not items:
+                    continue
 
-                    download_satellite_bands_from_item(
-                        item, bands, to_disk=True, data_dir=download_dir
-                    )
+                item = items[0]
+                date_tag = dt.strftime("%Y%m%d")
+                download_dir = os.path.join(
+                    output_dir, f"{mission}_{date_tag}_{lat:.4f}_{lon:.4f}"
+                )
+                os.makedirs(download_dir, exist_ok=True)
 
-                    # Record each band’s path
-                    for band_key in bands.values():
-                        band_file = os.path.join(
-                            download_dir, f"{item.id}_{band_key}.tif"
-                        )
-                        if os.path.exists(band_file):
-                            row_downloads.append(band_file)
+                band_files = []
+                for band_key in bands.values():
+                    path = os.path.join(download_dir, f"{item.id}_{band_key}.tif")
+                    band_files.append(path)
+
+                multi_band_path = os.path.join(download_dir, f"{item.id}_multiband.tif")
+
+                if os.path.exists(multi_band_path):
+                    print(f"[SKIP] Multiband file already exists: {multi_band_path}")
+                    row_downloads.append(multi_band_path)
+                    continue
+
+                # Download each band
+                download_satellite_bands_from_item(
+                    item, bands, to_disk=True, data_dir=download_dir
+                )
+
+                # Read all bands and stack
+                band_arrays = []
+                first_profile = None
+                for path in band_files:
+                    if not os.path.exists(path):
+                        raise FileNotFoundError(f"Expected band missing: {path}")
+                    with rasterio.open(path) as src:
+                        data = src.read(1)
+                        band_arrays.append(data)
+                        if first_profile is None:
+                            first_profile = src.profile.copy()
+
+                # Update profile for multiband
+                first_profile.update(count=len(band_arrays))
+                with rasterio.open(multi_band_path, "w", **first_profile) as dst:
+                    for i, band_array in enumerate(band_arrays, start=1):
+                        dst.write(band_array, i)
+
+                row_downloads.append(multi_band_path)
+
             except Exception as e:
                 print(
-                    f"[ERROR] Could not download {mission} for {lat},{lon} on {date}: {e}"
+                    f"[ERROR] Could not download or combine {mission} for {lat},{lon} on {date}: {e}"
                 )
 
         downloaded_paths.append(row_downloads)
@@ -381,9 +415,22 @@ def download_satellite_bands_from_item(
             with rasterio.Env(session):
                 with rasterio.open(href) as src:
                     profile = src.profile
-                    profile.update({"BIGTIFF": "IF_SAFER"})
+                    profile.update(
+                        {
+                            "dtype": "float32",
+                            "nodata": np.nan,
+                        }
+                    )
                     if src.count == 1:
-                        data = src.read(1)
+                        data = src.read(1).astype(np.float32)
+                        if src.nodata is not None:
+                            data[data == src.nodata] = np.nan
+                        else:
+                            # Common nodata fallbacks
+                            data[data == 0] = np.nan
+                        print(
+                            f"[DEBUG] {item.id} - {name}: shape={data.shape}, NaN ratio={np.isnan(data).sum() / data.size:.2%}"
+                        )
                     else:
                         raise ValueError(
                             f"Expected single-band image, but got {src.count} bands in {href}"
@@ -440,9 +487,13 @@ def create_mosaic_placeholder(
         "crs": crs,
         "transform": transform,
         "compress": "lzw",
-        "nodata": np.nan,
     }
-    profile.update({"BIGTIFF": "IF_SAFER"})
+    profile.update(
+        {
+            "dtype": "float32",
+            "nodata": np.nan,
+        }
+    )
 
     profile.update(
         {
@@ -452,7 +503,7 @@ def create_mosaic_placeholder(
         }
     )
 
-    with rasterio.open(mosaic_path, "w", **profile) as dst:
+    with rasterio.open(mosaic_path, "w", **profile, BIGTIFF="IF_SAFER") as dst:
         nan_data = np.full((bands, height, width), np.nan, dtype=dtype)
         dst.write(nan_data)
 
@@ -474,11 +525,13 @@ def add_image_to_mosaic(band_index, image_data, src_transform, src_crs, mosaic_p
             raise ValueError(
                 f"Band index {band_index} exceeds available bands in mosaic."
             )
-        mosaic_array = mosaic.read(band_index)
+
+        existing_array = mosaic.read(band_index)
+        temp_array = np.full(existing_array.shape, np.nan, dtype=image_data.dtype)
 
         reproject(
             source=image_data,
-            destination=mosaic_array,
+            destination=temp_array,
             src_transform=src_transform,
             src_crs=src_crs,
             dst_transform=mosaic.transform,
@@ -487,7 +540,27 @@ def add_image_to_mosaic(band_index, image_data, src_transform, src_crs, mosaic_p
             resampling=Resampling.nearest,
         )
 
-        mosaic.write(mosaic_array, band_index)
+        print(
+            f"[DEBUG] Band {band_index} reprojected to temp array: {np.isnan(temp_array).sum() / temp_array.size:.2%} NaNs"
+        )
+
+        # Combine arrays with averaging
+        valid_existing = ~np.isnan(existing_array)
+        valid_temp = ~np.isnan(temp_array)
+
+        combined_array = existing_array.copy()
+        combined_array[valid_temp & ~valid_existing] = temp_array[
+            valid_temp & ~valid_existing
+        ]
+        combined_array[valid_temp & valid_existing] = (
+            existing_array[valid_temp & valid_existing]
+            + temp_array[valid_temp & valid_existing]
+        ) / 2.0
+
+        mosaic.write(combined_array, band_index)
+        print(
+            f"[DEBUG] Band {band_index} final mosaic NaN ratio: {np.isnan(combined_array).sum() / combined_array.size:.2%}"
+        )
 
 
 def divide_bbox_into_patches(bbox, patch_size_meters, crs="EPSG:32618"):
@@ -526,7 +599,12 @@ def compress_mosaic(mosaic_path):
     """
     with rasterio.open(mosaic_path) as src:
         profile = src.profile.copy()
-        profile.update({"BIGTIFF": "IF_SAFER"})
+        profile.update(
+            {
+                "dtype": "float32",
+                "nodata": np.nan,
+            }
+        )
         data = src.read()
 
     profile.update(
@@ -542,7 +620,7 @@ def compress_mosaic(mosaic_path):
     with tempfile.NamedTemporaryFile(suffix=".tif", delete=False) as tmp:
         temp_path = tmp.name
 
-    with rasterio.open(temp_path, "w", **profile) as dst:
+    with rasterio.open(temp_path, "w", **profile, BIGTIFF="IF_SAFER") as dst:
         dst.write(data)
 
     shutil.move(temp_path, mosaic_path)
@@ -572,8 +650,9 @@ def patchwise_query_download_mosaic(
         sub_bbox = patch.geometry.bounds
         try:
             items, _ = query_satellite_items(
-                mission=mission, bbox=sub_bbox, date_range=date_range, max_items=3
+                mission=mission, bbox=sub_bbox, date_range=date_range, max_items=1
             )
+            print(f"[PATCH {i}] Found {len(items)} items for {sub_bbox}")
             if to_disk:
                 patch_output_path = os.path.join(base_output_path, f"patch_{i}")
                 os.makedirs(patch_output_path, exist_ok=True)
@@ -587,9 +666,9 @@ def patchwise_query_download_mosaic(
                     band_data = download_satellite_bands_from_item(
                         item, bands, to_disk=to_disk, data_dir=None
                     )
-                for band_name, band_data, src_transform, src_crs in band_data:
+                for band_name, band_val, src_transform, src_crs in band_data:
                     add_image_to_mosaic(
-                        band_name, band_data, src_transform, src_crs, mosaic_path
+                        band_name, band_val, src_transform, src_crs, mosaic_path
                     )
 
             if os.path.exists(mosaic_path):
@@ -708,13 +787,14 @@ def process_date(
             mname = f"{base}_{date.replace('/', '_')}.tif"
             if should_skip_mosaic(mname, mission_config, date):
                 continue
+            data_type = "float32"
             create_mosaic_placeholder(
                 mosaic_path=mname,
                 bbox=reproject_bbox(bbox),
                 resolution=mission_config["resolution"],
                 mission=mission_name,
                 crs="EPSG:32618",
-                dtype="float32",
+                dtype=data_type,
             )
             patchwise_query_download_mosaic(
                 mname,
@@ -753,10 +833,15 @@ def compute_ndwi(green, nir, profile, out_path=None, display=False, threshold=0.
     """
     ndwi = (green - nir) / (green + nir + 1e-10)
     ndwi_mask = (ndwi > threshold).astype(float)
-    profile.update({"BIGTIFF": "IF_SAFER"})
+    profile.update(
+        {
+            "dtype": "float32",
+            "nodata": np.nan,
+        }
+    )
 
     if out_path:
-        with rasterio.open(out_path, "w", **profile, BIGTIFF="YES") as dst:
+        with rasterio.open(out_path, "w", **profile, BIGTIFF="IF_SAFER") as dst:
             dst.write(ndwi_mask, 1)
 
     if display:

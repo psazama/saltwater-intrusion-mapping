@@ -93,7 +93,7 @@ def main():
                 results.append(result)
                 if result["errors"]:
                     print(f"[{result['date']}] Errors: {result['errors']}")
-
+        return
     if args.step <= 1:
 
         if args.salinity_truth_directory:
@@ -127,6 +127,8 @@ def main():
         print(X)
 
         # model, metrics = train_salinity_deng(X, y)
+
+        return
 
 
 if __name__ == "__main__":

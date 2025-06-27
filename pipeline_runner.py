@@ -64,11 +64,12 @@ def main():
     landsat7_mosaic_path = "data/landsat7_eastern_shore.tif"
     sentinel2_mosaic_path = "data/sentinel_eastern_shore.tif"
 
-    if args.step <= 0:
+    ##### Data Downloading ######
+    if args.step == 0:
         with open("date_range.json", "r") as f:
             dates = json.load(f)
 
-        dates_to_run = dates["date_ranges"][::12]
+        dates_to_run = dates["date_ranges"][:36:120]
         results = []
 
         max_workers = os.cpu_count() // 2
@@ -94,7 +95,13 @@ def main():
                 if result["errors"]:
                     print(f"[{result['date']}] Errors: {result['errors']}")
         return
-    if args.step <= 1:
+
+    ### Get Water Masks ###
+    if args.step == 1:
+        return
+
+    ### Find Overlaps of Salinity Measures ###
+    if args.step == 2:
 
         if args.salinity_truth_directory:
             directory = Path(args.salinity_truth_directory)

@@ -1,5 +1,6 @@
 # Ignore all data folders
 data/
+sample_data/
 nohup.out
 download_worker_log.txt
 

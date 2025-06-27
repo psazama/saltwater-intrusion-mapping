@@ -1,8 +1,10 @@
 import logging
+import math
 import os
 import shutil
 import tempfile
 from datetime import datetime, timedelta
+from typing import Optional
 
 import geopandas as gpd
 import matplotlib.pyplot as plt
@@ -10,9 +12,10 @@ import numpy as np
 import rasterio
 from pyproj import Transformer
 from pystac_client import Client
+from rasterio.enums import Resampling
 from rasterio.session import AWSSession
 from rasterio.transform import from_bounds
-from rasterio.warp import Resampling, reproject
+from rasterio.warp import calculate_default_transform, reproject
 from rasterio.windows import Window
 from shapely.geometry import box
 from tqdm import tqdm
@@ -94,6 +97,69 @@ def get_mission(mission):
     }
 
 
+def warp_to_wgs84(
+    src_path: str,
+    dst_path: Optional[str] = None,
+    resampling: Resampling = Resampling.nearest,
+    dst_nodata: float = np.nan,
+) -> str:
+    """Reproject a raster to WGS‑84 (EPSG:4326) for web‑map visualisation.
+
+    Parameters
+    ----------
+    src_path : str
+        Path to the input GeoTIFF (any projected or geographic CRS).
+    dst_path : str, optional
+        Path for the re‑projected output. If *None* (default) the function
+        appends ``_wgs84`` to *src_path* before the file extension.
+    resampling : rasterio.enums.Resampling, optional
+        Resampling algorithm (default: ``Resampling.nearest``).
+    dst_nodata : float, optional
+        Nodata value written to the output (default: ``numpy.nan``).
+
+    Returns
+    -------
+    str
+        Path to the generated WGS‑84 GeoTIFF.
+    """
+
+    if dst_path is None:
+        base, ext = os.path.splitext(src_path)
+        dst_path = f"{base}_wgs84{ext}"
+
+    with rasterio.open(src_path) as src:
+        dst_crs = "EPSG:4326"
+        transform, width, height = calculate_default_transform(
+            src.crs, dst_crs, src.width, src.height, *src.bounds
+        )
+
+        profile = src.profile.copy()
+        profile.update(
+            {
+                "crs": dst_crs,
+                "transform": transform,
+                "width": width,
+                "height": height,
+                "nodata": dst_nodata,
+            }
+        )
+
+        with rasterio.open(dst_path, "w", **profile) as dst:
+            for band_idx in range(1, src.count + 1):
+                reproject(
+                    source=rasterio.band(src, band_idx),
+                    destination=rasterio.band(dst, band_idx),
+                    src_transform=src.transform,
+                    src_crs=src.crs,
+                    dst_transform=transform,
+                    dst_crs=dst_crs,
+                    resampling=resampling,
+                    dst_nodata=dst_nodata,
+                )
+
+    return dst_path
+
+
 def init_logger(log_path="process_log.txt"):
     logging.basicConfig(
         level=logging.INFO,
@@ -168,7 +234,6 @@ def find_non_nan_window(
                         {
                             "dtype": "float32",
                             "nodata": np.nan,
-                            "BIGTIFF": "IF_SAFER",
                         }
                     )
 
@@ -444,9 +509,7 @@ def download_satellite_bands_from_item(
                     band_data.append((band_index, data, src.transform, src.crs))
 
                 if to_disk:
-                    with rasterio.open(
-                        out_path, "w", **profile, BIGTIFF="IF_SAFER"
-                    ) as dst:
+                    with rasterio.open(out_path, "w", **profile, BIGTIFF="YES") as dst:
                         dst.write(data, 1)
         else:
             print(
@@ -474,8 +537,10 @@ def create_mosaic_placeholder(
     bands = len(mission_specs["bands"])
 
     minx, miny, maxx, maxy = bbox
-    width = int((maxx - minx) / resolution)
-    height = int((maxy - miny) / resolution)
+
+    width = math.ceil((maxx - minx) / resolution)
+    height = math.ceil((maxy - miny) / resolution)
+
     transform = from_bounds(minx, miny, maxx, maxy, width, height)
 
     profile = {
@@ -487,25 +552,14 @@ def create_mosaic_placeholder(
         "crs": crs,
         "transform": transform,
         "compress": "lzw",
+        "tiled": True,
+        "blockxsize": 512,
+        "blockysize": 512,
+        "nodata": np.nan,
     }
-    profile.update(
-        {
-            "dtype": "float32",
-            "nodata": np.nan,
-        }
-    )
 
-    profile.update(
-        {
-            "tiled": True,
-            "blockxsize": 512,
-            "blockysize": 512,
-        }
-    )
-
-    with rasterio.open(mosaic_path, "w", **profile, BIGTIFF="IF_SAFER") as dst:
-        nan_data = np.full((bands, height, width), np.nan, dtype=dtype)
-        dst.write(nan_data)
+    with rasterio.open(mosaic_path, "w", **profile, BIGTIFF="YES") as dst:
+        dst.write(np.full((bands, height, width), np.nan, dtype=dtype))
 
     return transform, width, height, crs, bands
 
@@ -620,7 +674,7 @@ def compress_mosaic(mosaic_path):
     with tempfile.NamedTemporaryFile(suffix=".tif", delete=False) as tmp:
         temp_path = tmp.name
 
-    with rasterio.open(temp_path, "w", **profile, BIGTIFF="IF_SAFER") as dst:
+    with rasterio.open(temp_path, "w", **profile, BIGTIFF="YES") as dst:
         dst.write(data)
 
     shutil.move(temp_path, mosaic_path)
@@ -642,6 +696,10 @@ def patchwise_query_download_mosaic(
     Breaks region into patches and processes each separately,
     then compresses the resulting mosaic.
     """
+    # If caller passes ``None`` we default to 20× native pixel size
+    if patch_size_meters is None:
+        patch_size_meters = resolution * 20  # e.g. 30 m × 20 = 600 m
+
     patches = divide_bbox_into_patches(bbox, patch_size_meters)
     gdf_patches = gpd.GeoDataFrame(geometry=patches, crs="EPSG:32618")
     gdf_patches = gdf_patches.to_crs("EPSG:4326")  # back to WGS84 for querying
@@ -800,7 +858,7 @@ def process_date(
                 mname,
                 bbox,
                 mission_name,
-                mission_config["resolution"] * 1000,
+                mission_config["resolution"] * 100,
                 mission_config["resolution"],
                 mission_config["bands"],
                 date,
@@ -813,40 +871,48 @@ def process_date(
     return result
 
 
-def compute_ndwi(green, nir, profile, out_path=None, display=False, threshold=0.2):
+def compute_ndwi(path, mission, out_path=None, display=False, threshold=0.2):
     """
-    Computes the Normalized Difference Water Index (NDWI) from Green and NIR bands.
-
-    NDWI highlights surface water by leveraging the reflectance difference between the green and near-infrared bands:
-        NDWI = (Green - NIR) / (Green + NIR)
-
-    A threshold (e.g., NDWI > 0.2) can be used to create a binary water mask for Sentinel-2.
+    Computes the NDWI mask from a GeoTIFF based on mission-specific green and NIR bands.
 
     Parameters:
-        green_image_data (np.ndarray): The (Green) GeoTIFF image array.
-        nir_image_data (np.ndarray): The (NIR) GeoTIFF image array.
-        out_path (str, optional): Path to save the output NDWI binary mask (GeoTIFF). If None, the result is not saved.
-        display (bool, optional): If True, displays the binary mask using matplotlib.
+        path (str): Path to GeoTIFF file.
+        mission (str): One of ["landsat-5", "landsat-7", "sentinel-2"].
+        out_path (str, optional): Where to save NDWI GeoTIFF.
+        display (bool): Whether to show the NDWI mask.
+        threshold (float): NDWI threshold to define water (default 0.2).
 
     Returns:
-        numpy.ndarray: Binary NDWI water mask array (1 = water, 0 = non-water).
+        np.ndarray: Binary NDWI mask (1 = water, 0 = non-water).
     """
-    ndwi = (green - nir) / (green + nir + 1e-10)
-    ndwi_mask = (ndwi > threshold).astype(float)
-    profile.update(
-        {
-            "dtype": "float32",
-            "nodata": np.nan,
-        }
-    )
+    mission_info = get_mission(mission)
+    band_index = mission_info["band_index"]
+    green_band = band_index["green"]
+    nir_band = band_index["nir08"]
 
-    if out_path:
-        with rasterio.open(out_path, "w", **profile, BIGTIFF="IF_SAFER") as dst:
-            dst.write(ndwi_mask, 1)
+    scale_reflectance = "landsat" in mission
+
+    with rasterio.open(path) as src:
+        green = src.read(green_band).astype(np.float32)
+        nir = src.read(nir_band).astype(np.float32)
+
+        if scale_reflectance:
+            green = green * 0.0000275 - 0.2
+            nir = nir * 0.0000275 - 0.2
+
+        ndwi = (green - nir) / (green + nir + 1e-10)
+        ndwi_mask = (ndwi > threshold).astype(float)
+
+        profile = src.profile.copy()
+        profile.update({"count": 1, "dtype": "float32", "nodata": np.nan})
+
+        if out_path:
+            with rasterio.open(out_path, "w", **profile, BIGTIFF="YES") as dst:
+                dst.write(ndwi_mask, 1)
 
     if display:
         plt.imshow(ndwi_mask, cmap="gray")
-        plt.title("NDWI Water Mask")
+        plt.title(f"NDWI Mask ({mission})")
         plt.axis("off")
         plt.show()
 

@@ -4,6 +4,7 @@ import os
 import shutil
 import tempfile
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Optional
 
 import geopandas as gpd
@@ -19,6 +20,8 @@ from rasterio.warp import calculate_default_transform, reproject
 from rasterio.windows import Window
 from shapely.geometry import box
 from tqdm import tqdm
+
+from swmaps.config import data_path
 
 
 def get_mission(mission):
@@ -302,9 +305,10 @@ def download_matching_images(
     df,
     missions=["sentinel-2", "landsat-5", "landsat-7"],
     buffer_km=0.1,
-    output_dir="data/matched_downloads",
+    output_dir=None,
 ):
-    os.makedirs(output_dir, exist_ok=True)
+    output_dir = Path(output_dir) if output_dir else data_path("matched_downloads")
+    output_dir.mkdir(parents=True, exist_ok=True)
     downloaded_paths = []
 
     for _, row in tqdm(df.iterrows(), total=len(df)):
@@ -441,7 +445,7 @@ def query_satellite_items(
 
 
 def download_satellite_bands_from_item(
-    item, bands, to_disk=True, data_dir="data", debug=False
+    item, bands, to_disk=True, data_dir=None, debug=False
 ):
     """
     Downloads selected bands from a single STAC item.
@@ -457,8 +461,9 @@ def download_satellite_bands_from_item(
     """
 
     session = AWSSession(requester_pays=True)
+    data_dir = Path(data_dir) if data_dir else data_path()
     if to_disk:
-        os.makedirs(data_dir, exist_ok=True)
+        data_dir.mkdir(parents=True, exist_ok=True)
     out_path = None
 
     band_data = []
@@ -558,7 +563,15 @@ def create_mosaic_placeholder(
         "nodata": np.nan,
     }
 
-    with rasterio.open(mosaic_path, "w", **profile, BIGTIFF="YES") as dst:
+    with rasterio.open(
+        mosaic_path,
+        "w",
+        **profile,
+        predictor=2,  # horizontal differencing
+        sparse_ok=True,  # <- only real tiles hit disk
+        initialized=False,  # <- don’t pre-fill with zeros
+        BIGTIFF="YES",
+    ) as dst:
         dst.write(np.full((bands, height, width), np.nan, dtype=dtype))
 
     return transform, width, height, crs, bands
@@ -674,7 +687,15 @@ def compress_mosaic(mosaic_path):
     with tempfile.NamedTemporaryFile(suffix=".tif", delete=False) as tmp:
         temp_path = tmp.name
 
-    with rasterio.open(temp_path, "w", **profile, BIGTIFF="YES") as dst:
+    with rasterio.open(
+        temp_path,
+        "w",
+        **profile,
+        predictor=2,  # horizontal differencing
+        sparse_ok=True,  # <- only real tiles hit disk
+        initialized=False,  # <- don’t pre-fill with zeros
+        BIGTIFF="YES",
+    ) as dst:
         dst.write(data)
 
     shutil.move(temp_path, mosaic_path)
@@ -806,6 +827,7 @@ def process_date(
     sentinel2_mosaic_path,
     landsat5_mosaic_path,
     landsat7_mosaic_path,
+    inline_mask=False,
 ):
     """
     Processes satellite data for a single date by creating and populating mosaics for Landsat-5, Landsat-7, and Sentinel-2.
@@ -827,6 +849,8 @@ def process_date(
         sentinel2_mosaic_path (str): Base path to output Sentinel-2 mosaics.
         landsat5_mosaic_path (str): Base path to output Landsat-5 mosaics.
         landsat7_mosaic_path (str): Base path to output Landsat-7 mosaics.
+        inline_mask (bool): If True, write an NDWI water mask next to every finished mosaic and then delete the mosaic to save disk space.
+
 
     Returns:
         dict: A result dictionary with the date and any errors encountered.
@@ -865,6 +889,20 @@ def process_date(
                 None,
                 to_disk=False,
             )
+
+            # ---- optional mask-and-cleanup ----
+            if inline_mask:
+                mask_path = f"{os.path.splitext(mname)[0]}_mask.tif"
+                compute_ndwi(
+                    mname,
+                    mission_name,
+                    out_path=mask_path,
+                    display=False,
+                    threshold=0.2,
+                )
+                os.remove(mname)
+                logging.info(f"[MASK] Saved {mask_path} and removed {mname}")
+
         except Exception as e:
             result["errors"].append(f"{mission_name} error: {e}")
 

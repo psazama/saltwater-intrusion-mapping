@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 import joblib
 import numpy as np
@@ -11,15 +12,30 @@ from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
-from download_tools import compute_ndwi
+from swmaps.config import data_path
+from swmaps.core.download_tools import compute_ndwi
+
+
+def _default_wod_example() -> Path:
+    return data_path("salinity_labels", "WOD", "WOD_CAS_T_S_2020_1.nc")
 
 
 def build_salinity_truth(
-    dataset_files=["data/salinity_labels/WOD/WOD_CAS_T_S_2020_1.nc"],
-    output_csv="data/salinity_labels/codc_salinity_profiles.csv",
+    dataset_files=None,
+    output_csv=None,
     depth=1.0,
     prof_limit=None,
 ):
+    dataset_files = (
+        list(dataset_files) if dataset_files is not None else [_default_wod_example()]
+    )
+    output_csv = (
+        Path(output_csv)
+        if output_csv
+        else data_path("salinity_labels", "codc_salinity_profiles.csv")
+    )
+    output_csv.parent.mkdir(parents=True, exist_ok=True)
+
     lat_idx = 4
     lon_idx = 5
     year_idx = 1
@@ -119,7 +135,12 @@ def build_salinity_truth(
         print("......")
 
 
-def load_salinity_truth(truth_file):
+def load_salinity_truth(truth_file=None):
+    truth_file = (
+        Path(truth_file)
+        if truth_file
+        else data_path("salinity_labels", "codc_salinity_profiles.csv")
+    )
     df = pd.read_csv(truth_file)
     df_clean = df.dropna()
     return df_clean
@@ -271,6 +292,12 @@ def train_salinity_deng(X, y, test_size=0.2, random_state=42, save_model_path=No
         model: Trained XGBoost model
         metrics (dict): RMSE and R² scores
     """
+    if save_model_path is not None:
+        save_model_path = Path(save_model_path)
+    else:
+        save_model_path = data_path("models", "xgb_deng.joblib")
+        save_model_path.parent.mkdir(parents=True, exist_ok=True)
+
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=test_size, random_state=random_state
     )

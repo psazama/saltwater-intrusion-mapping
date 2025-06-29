@@ -1,3 +1,83 @@
+########################
+# 1.  Python artefacts #
+########################
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+*.egg-info/
+.eggs/
+build/
+dist/
+
+########################
+# 2.  Virtual-envs     #
+########################
+.env
+.venv/
+env/
+venv/
+
+########################
+# 3.  IDE / Editor     #
+########################
+.vscode/
+.idea/
+*.sw?
+*.swo
+*.swp
+
+########################
+# 4.  Jupyter          #
+########################
+.ipynb_checkpoints/
+
+########################
+# 5.  OS noise         #
+########################
+.DS_Store
+Thumbs.db
+
+########################
+# 6.  Logs & DB files  #
+########################
+*.log
+download_worker_log.txt
+*.db                      # Dagster run-history SQLite shards
+
+############################################################
+# 7.  Dagster temp instance created by `dagster dev`       #
+#     (directory names look like tmpk1qq4fin, etc.)        #
+############################################################
+tmp*/
+.dagster_home/
+**/compute_logs/
+**/history/
+**/schedules/
+**/storage/
+
+############################################################
+# 8.  Generated rasters, masks, patch downloads            #
+#     — KEEP sample_data for demos                         #
+############################################################
+#   Large mosaics & masks
+s*/data/*_eastern_shore_*.tif
+s*/data/*_mask.tif
+#   Per-patch STAC band downloads
+s*/data/matched_downloads/
+#   Anything else in swmaps/data/
+s*/data/*
+#   …but keep hand-curated sample files
+!s*/sample_data/**
+
+########################
+# 9.  ML model dumps   #
+########################
+*.joblib
+*.pkl
+
+
+
 # Ignore all data folders
 data/
 sample_data/

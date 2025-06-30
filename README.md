@@ -63,27 +63,46 @@ This project uses in situ oceanographic salinity data from the **World Ocean Dat
 
 This salinity dataset enables spatial validation and supervised learning, bridging field measurements with satellite-derived features.
 
-## 📦 Dependencies
-- rasterio
-- geopandas
-- xarray
-- numpy
-- matplotlib
-- pystac-client
-- shapely
-- scikit-image
-- folium
-- tqdm
-- concurrent.futures
-- pre-commit (optional)
-- nbstripout (optional)
+---
 
-## 📍 To Do / Next Steps
-- Add temporal change detection (multi-date NDWI differencing)
-- Expand to Sentinel-1 for SAR bands (improved salinity calculation)
-- Classify affected zones for reporting
-- Integrate elevation or soil salinity data
-- Add web-based map viewer
+## 🗃️ Repository Layout
+
+```
+saltwater-intrusion-mapping/
+├── config/ # study area & date ranges
+├── swmaps/ # Python package
+│ ├── core/ # download_tools, salinity_tools, …
+│ ├── pipelines/ # Dagster assets/resources
+│ └── data/ # generated rasters (git-ignored)
+├── notebooks/ # experiments / visual demos
+├── pipeline_runner.py # legacy CLI (still works)
+├── dagster.yaml # local dev instance
+├── workspace.yaml # loads swmaps.defs
+└── pyproject.toml
+```
+
+---
+
+## ⚡ Quick Start (local)
+
+```bash
+# 1 · Install (dev mode)
+git clone https://github.com/<you>/saltwater-intrusion-mapping.git
+cd saltwater-intrusion-mapping
+conda env create -f swmaps/core/environment.yml   # or: pip install -r requirements.txt
+pip install -e .
+
+# 2 · Launch Dagster UI (with queued run-coordinator)
+export DAGSTER_HOME="$(pwd)/.dagster_home"
+dagster dev -w workspace.yaml   # → http://localhost:3000
+
+# 3 · Materialise water masks
+#     (UI → Assets → masks_by_range → Launch backfill)
+```
+> Smoketest: run without Dagster
+> `python pipeline_runner.py --step 0 --inline_mask`
+
+---
 
 ## 📖 License
 

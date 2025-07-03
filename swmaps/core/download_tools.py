@@ -15,7 +15,7 @@ from pyproj import Transformer
 from pystac_client import Client
 from rasterio.enums import Resampling
 from rasterio.session import AWSSession
-from rasterio.transform import from_bounds
+from rasterio.transform import from_bounds, Affine
 from rasterio.warp import calculate_default_transform, reproject
 from rasterio.windows import Window
 from shapely.geometry import box
@@ -161,6 +161,37 @@ def warp_to_wgs84(
                 )
 
     return dst_path
+
+
+def downsample_to_landsat(
+    data: np.ndarray,
+    transform: Affine,
+    crs,
+    target_resolution: float = 30,
+    resampling: Resampling = Resampling.average,
+) -> tuple:
+    """Resample Sentinel-2 data to Landsat 30 m resolution."""
+
+    src_res = max(abs(transform.a), abs(transform.e))
+    scale = target_resolution / src_res
+    dst_height = max(1, int(np.ceil(data.shape[0] / scale)))
+    dst_width = max(1, int(np.ceil(data.shape[1] / scale)))
+    dst_transform = transform * Affine.scale(scale)
+
+    dst = np.empty((dst_height, dst_width), dtype=data.dtype)
+
+    reproject(
+        source=data,
+        destination=dst,
+        src_transform=transform,
+        src_crs=crs,
+        dst_transform=dst_transform,
+        dst_crs=crs,
+        resampling=resampling,
+        dst_nodata=np.nan,
+    )
+
+    return dst, dst_transform
 
 
 def init_logger(log_path="process_log.txt"):
@@ -351,7 +382,12 @@ def download_matching_images(
 
                 # Download each band
                 download_satellite_bands_from_item(
-                    item, bands, to_disk=True, data_dir=download_dir
+                    item,
+                    bands,
+                    to_disk=True,
+                    data_dir=download_dir,
+                    mission=mission,
+                    downsample_to_landsat_res=(mission == "sentinel-2"),
                 )
 
                 # Read all bands and stack
@@ -445,16 +481,30 @@ def query_satellite_items(
 
 
 def download_satellite_bands_from_item(
-    item, bands, to_disk=True, data_dir=None, debug=False
+    item,
+    bands,
+    to_disk=True,
+    data_dir=None,
+    debug=False,
+    mission=None,
+    downsample_to_landsat_res=False,
+    target_resolution=30,
 ):
     """
     Downloads selected bands from a single STAC item.
+    Optionally downsamples Sentinel-2 imagery to Landsat
+    resolution before returning the array.
 
     Parameters:
         item (dict): A STAC item.
         bands (dict): Mapping of asset keys to band names.
         data_dir (str): Local directory for output.
         debug (bool): Whether to print debug output.
+        mission (str, optional): Mission name (e.g. "sentinel-2").
+        downsample_to_landsat_res (bool): If True and mission is
+            "sentinel-2", resample the band to ``target_resolution``.
+        target_resolution (float): Target pixel size in meters
+            when downsampling (default 30).
 
     Returns:
         str: Path to the last band written for this item.
@@ -498,6 +548,20 @@ def download_satellite_bands_from_item(
                         else:
                             # Common nodata fallbacks
                             data[data == 0] = np.nan
+                        if downsample_to_landsat_res and mission == "sentinel-2":
+                            data, transform_ds = downsample_to_landsat(
+                                data, src.transform, src.crs, target_resolution
+                            )
+                            profile.update(
+                                {
+                                    "transform": transform_ds,
+                                    "height": data.shape[0],
+                                    "width": data.shape[1],
+                                }
+                            )
+                            src_transform = transform_ds
+                        else:
+                            src_transform = src.transform
                         print(
                             f"[DEBUG] {item.id} - {name}: shape={data.shape}, NaN ratio={np.isnan(data).sum() / data.size:.2%}"
                         )
@@ -511,9 +575,16 @@ def download_satellite_bands_from_item(
                         raise ValueError(
                             f"Invalid band index {band_index} for item {item.id}"
                         )
-                    band_data.append((band_index, data, src.transform, src.crs))
+                    band_data.append((band_index, data, src_transform, src.crs))
 
                 if to_disk:
+                    profile.update(
+                        {
+                            "height": data.shape[0],
+                            "width": data.shape[1],
+                            "transform": src_transform,
+                        }
+                    )
                     with rasterio.open(out_path, "w", **profile, BIGTIFF="YES") as dst:
                         dst.write(data, 1)
         else:
@@ -739,11 +810,21 @@ def patchwise_query_download_mosaic(
             for item in items:
                 if to_disk:
                     band_data = download_satellite_bands_from_item(
-                        item, bands, to_disk=to_disk, data_dir=patch_output_path
+                        item,
+                        bands,
+                        to_disk=to_disk,
+                        data_dir=patch_output_path,
+                        mission=mission,
+                        downsample_to_landsat_res=(mission == "sentinel-2"),
                     )
                 else:
                     band_data = download_satellite_bands_from_item(
-                        item, bands, to_disk=to_disk, data_dir=None
+                        item,
+                        bands,
+                        to_disk=to_disk,
+                        data_dir=None,
+                        mission=mission,
+                        downsample_to_landsat_res=(mission == "sentinel-2"),
                     )
                 for band_name, band_val, src_transform, src_crs in band_data:
                     add_image_to_mosaic(

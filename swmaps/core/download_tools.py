@@ -3,7 +3,9 @@ import math
 import os
 import shutil
 import tempfile
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
+from functools import partial
 from pathlib import Path
 from typing import Optional
 
@@ -22,6 +24,7 @@ from shapely.geometry import box
 from tqdm import tqdm
 
 from swmaps.config import data_path
+from swmaps.core.aoi import iter_square_patches
 
 
 def get_mission(mission):
@@ -100,6 +103,68 @@ def get_mission(mission):
     }
 
 
+def create_coastal_poly(bounding_box_file, out_file=None, buf_km=2, offshore_km=1):
+    """
+    Build a coastal band polygon (buffered coastline, clipped to bbox) and save it once.
+
+    Parameters
+    ----------
+    bounding_box_file : str | Path
+        Vector file containing your big bbox (GeoJSON, Shapefile, etc.).
+    out_file : str | Path | None
+        Where to save the band (defaults to  config/coastal_band.gpkg).
+    buf_km, offshore_km : float
+        Width of inland / offshore buffers (kilometres).
+
+    Returns
+    -------
+    GeoDataFrame with a single Polygon feature (lat/long, EPSG:4326).
+    """
+
+    bbox_gdf = gpd.read_file(bounding_box_file).to_crs("EPSG:4326")
+    bbox = bbox_gdf.total_bounds  # [minx, miny, maxx, maxy]
+
+    # Expand by a generous margin (≈ 10 km) so we don’t miss any coast
+    margin_deg = 10 / 111.0  # ~10 km in degrees
+    qbox = box(
+        bbox[0] - margin_deg,
+        bbox[1] - margin_deg,
+        bbox[2] + margin_deg,
+        bbox[3] + margin_deg,
+    )
+
+    coast_file = data_path("coastline/ne_10m_coastline.shp")
+    coast = gpd.read_file(
+        coast_file,
+        bbox=qbox,
+    ).to_crs("EPSG:4326")
+
+    if coast.empty:
+        raise ValueError("No coastline segments intersect the provided bbox.")
+
+    #  Project to metric CRS
+    utm_zone = int((bbox[0] + 180) // 6) + 1
+    utm_crs = f"EPSG:{32600 + utm_zone}"
+    coast_m = coast.to_crs(utm_crs)
+
+    inland = coast_m.buffer(buf_km * 1_000, cap_style=2)
+    offshore = coast_m.buffer(-offshore_km * 1_000, cap_style=2)
+    band_m = inland.union(offshore).unary_union
+
+    # back to WGS-84
+    band = gpd.GeoSeries([band_m], crs=utm_crs).to_crs("EPSG:4326")
+
+    # final clip to exact bbox
+    band_clip = gpd.clip(band, bbox_gdf)
+    out_gdf = gpd.GeoDataFrame(geometry=band_clip, crs="EPSG:4326")
+
+    out_file = Path(out_file or "config/coastal_band.gpkg")
+    out_file.parent.mkdir(parents=True, exist_ok=True)
+    out_gdf.to_file(out_file, driver="GPKG", layer="coastal_band")
+
+    return out_gdf
+
+
 def warp_to_wgs84(
     src_path: str,
     dst_path: Optional[str] = None,
@@ -169,6 +234,21 @@ def init_logger(log_path="process_log.txt"):
         format="%(asctime)s [%(process)d] %(levelname)s: %(message)s",
         handlers=[logging.FileHandler(log_path, mode="a"), logging.StreamHandler()],
     )
+
+
+def _stack_bands(item, bands):
+    session = AWSSession(requester_pays=True)
+    arrays = []
+    transforms = None
+    crs = None
+    for key in bands.keys():
+        href = item.assets[key].href
+        with rasterio.Env(session), rasterio.open(href) as src:
+            arr = src.read(1).astype(np.float32)
+            if transforms is None:
+                transforms, crs = src.transform, src.crs
+            arrays.append(arr)
+    return np.stack(arrays), transforms, crs
 
 
 def find_non_nan_window(
@@ -387,8 +467,17 @@ def download_matching_images(
 
 
 def reproject_bbox(bbox, src_crs="EPSG:4326", dst_crs="EPSG:32618"):
-    minx, miny = bbox[0], bbox[1]
-    maxx, maxy = bbox[2], bbox[3]
+    if isinstance(bbox, (list, tuple)) and len(bbox) == 4:
+        geom = None
+        minx, miny = bbox[0], bbox[1]
+        maxx, maxy = bbox[2], bbox[3]
+    else:
+        # shapely geometry OR Geo(Data)Frame
+        if hasattr(bbox, "geometry"):  # GeoDataFrame / GeoSeries
+            geom = bbox.unary_union
+        else:  # Polygon / MultiPolygon
+            geom = bbox
+        minx, miny, maxx, maxy = geom.bounds
 
     transformer = Transformer.from_crs(src_crs, dst_crs, always_xy=True)
 
@@ -466,56 +555,38 @@ def download_satellite_bands_from_item(
         data_dir.mkdir(parents=True, exist_ok=True)
     out_path = None
 
-    band_data = []
+    def _fetch_one(k_n):
+        key, name = k_n
+        href = item.assets[key].href
+        with rasterio.Env(session):
+            with rasterio.open(href) as src:
+                arr = src.read(1).astype(np.float32)
+                nod = src.nodata or 0
+                arr[arr == nod] = np.nan
+                return key, name, arr, src.transform, src.crs
+
     band_order = list(bands.keys())
-    for key, name in bands.items():
-        if key in item.assets:
-            href = item.assets[key].href
+    band_data = []
+    with ThreadPoolExecutor(max_workers=len(bands)) as pool:
+        for key, name, data, trf, crs in pool.map(_fetch_one, bands.items()):
+            band_index = band_order.index(key) + 1
+            band_data.append((band_index, data, trf, crs))
+
             if to_disk:
-                out_path = os.path.join(data_dir, f"{item.id}_{name}.tif")
+                out_path = data_dir / f"{item.id}_{name}.tif"
 
-                if os.path.exists(out_path):
-                    if debug:
-                        print(f"[SKIP] {out_path} already exists.")
-                    continue
+                profile = {
+                    "driver": "GTiff",
+                    "dtype": "float32",
+                    "nodata": np.nan,
+                    "crs": crs,
+                    "transform": trf,
+                    "height": data.shape[0],
+                    "width": data.shape[1],
+                }
 
-            if debug:
-                print(f"Accessing {name} from {href} ...")
-
-            with rasterio.Env(session):
-                with rasterio.open(href) as src:
-                    profile = src.profile
-                    profile.update(
-                        {
-                            "dtype": "float32",
-                            "nodata": np.nan,
-                        }
-                    )
-                    if src.count == 1:
-                        data = src.read(1).astype(np.float32)
-                        if src.nodata is not None:
-                            data[data == src.nodata] = np.nan
-                        else:
-                            # Common nodata fallbacks
-                            data[data == 0] = np.nan
-                        print(
-                            f"[DEBUG] {item.id} - {name}: shape={data.shape}, NaN ratio={np.isnan(data).sum() / data.size:.2%}"
-                        )
-                    else:
-                        raise ValueError(
-                            f"Expected single-band image, but got {src.count} bands in {href}"
-                        )
-
-                    band_index = band_order.index(key) + 1
-                    if band_index > len(bands):
-                        raise ValueError(
-                            f"Invalid band index {band_index} for item {item.id}"
-                        )
-                    band_data.append((band_index, data, src.transform, src.crs))
-
-                if to_disk:
-                    with rasterio.open(out_path, "w", **profile, BIGTIFF="YES") as dst:
-                        dst.write(data, 1)
+                with rasterio.open(out_path, "w", **profile) as dst:
+                    dst.write(data, 1)
         else:
             print(
                 f"[WARNING] Band {key} not available in item {item.id}. Available bands: {list(item.assets.keys())}"
@@ -556,7 +627,7 @@ def create_mosaic_placeholder(
         "dtype": dtype,
         "crs": crs,
         "transform": transform,
-        "compress": "lzw",
+        "compress": "LZW",
         "tiled": True,
         "blockxsize": 512,
         "blockysize": 512,
@@ -567,9 +638,7 @@ def create_mosaic_placeholder(
         mosaic_path,
         "w",
         **profile,
-        predictor=2,  # horizontal differencing
         sparse_ok=True,  # <- only real tiles hit disk
-        initialized=False,  # <- don’t pre-fill with zeros
         BIGTIFF="YES",
     ) as dst:
         dst.write(np.full((bands, height, width), np.nan, dtype=dtype))
@@ -630,36 +699,6 @@ def add_image_to_mosaic(band_index, image_data, src_transform, src_crs, mosaic_p
         )
 
 
-def divide_bbox_into_patches(bbox, patch_size_meters, crs="EPSG:32618"):
-    """
-    Divide a bounding box into smaller square patches in the target CRS.
-
-    Parameters:
-        bbox (list): [min_lon, min_lat, max_lon, max_lat] in WGS84.
-        patch_size_meters (float): Patch size in meters.
-        crs (str): Target projected CRS.
-
-    Returns:
-        list of shapely.geometry.Polygon: Patch polygons in the target CRS.
-    """
-    # Create GeoDataFrame in WGS84
-    gdf = gpd.GeoDataFrame(geometry=[box(*bbox)], crs="EPSG:4326")
-    gdf = gdf.to_crs(crs)
-    bounds = gdf.total_bounds  # minx, miny, maxx, maxy
-
-    minx, miny, maxx, maxy = bounds
-    xs = np.arange(minx, maxx, patch_size_meters)
-    ys = np.arange(miny, maxy, patch_size_meters)
-
-    patches = []
-    for x in xs:
-        for y in ys:
-            patch = box(x, y, x + patch_size_meters, y + patch_size_meters)
-            patches.append(patch)
-
-    return patches
-
-
 def compress_mosaic(mosaic_path):
     """
     Rewrites the mosaic file with compression.
@@ -693,7 +732,6 @@ def compress_mosaic(mosaic_path):
         **profile,
         predictor=2,  # horizontal differencing
         sparse_ok=True,  # <- only real tiles hit disk
-        initialized=False,  # <- don’t pre-fill with zeros
         BIGTIFF="YES",
     ) as dst:
         dst.write(data)
@@ -702,16 +740,34 @@ def compress_mosaic(mosaic_path):
     print(f"[INFO] Compressed mosaic saved: {mosaic_path}")
 
 
+def _download_patch(idx_patch, mission, date_range, bands):
+    """
+    Runs in its own process.
+    Returns (patch_index, stack, transform, crs)  OR  None if no imagery.
+    """
+    i, patch = idx_patch
+    sub_bbox = patch.geometry.bounds
+
+    items, _ = query_satellite_items(
+        mission=mission, bbox=sub_bbox, date_range=date_range, max_items=1
+    )
+    if not items:
+        return None
+
+    stack, tfm, crs = _stack_bands(items[0], bands)  # (bands, h, w)
+    return i, stack, tfm, crs
+
+
 def patchwise_query_download_mosaic(
     mosaic_path,
     bbox,
     mission,
-    patch_size_meters,
     resolution,
     bands,
     date_range,
     base_output_path,
     to_disk=False,
+    patch_size_meters=None,
 ):
     """
     Breaks region into patches and processes each separately,
@@ -719,43 +775,30 @@ def patchwise_query_download_mosaic(
     """
     # If caller passes ``None`` we default to 20× native pixel size
     if patch_size_meters is None:
-        patch_size_meters = resolution * 20  # e.g. 30 m × 20 = 600 m
+        patch_size_meters = max(15_000, resolution * 600)
 
-    patches = divide_bbox_into_patches(bbox, patch_size_meters)
+    patches = list(iter_square_patches(bbox, patch_size_meters))
     gdf_patches = gpd.GeoDataFrame(geometry=patches, crs="EPSG:32618")
     gdf_patches = gdf_patches.to_crs("EPSG:4326")  # back to WGS84 for querying
+    total_patches = len(gdf_patches)
+    logging.warning(f"[INFO] Total Patch Count: {total_patches}")
 
-    for i, patch in gdf_patches.iterrows():
-        sub_bbox = patch.geometry.bounds
-        try:
-            items, _ = query_satellite_items(
-                mission=mission, bbox=sub_bbox, date_range=date_range, max_items=1
-            )
-            print(f"[PATCH {i}] Found {len(items)} items for {sub_bbox}")
-            if to_disk:
-                patch_output_path = os.path.join(base_output_path, f"patch_{i}")
-                os.makedirs(patch_output_path, exist_ok=True)
+    with ProcessPoolExecutor(max_workers=os.cpu_count() // 2) as pool:
+        patch_runner = partial(
+            _download_patch, mission=mission, date_range=date_range, bands=bands
+        )
+        futures = {pool.submit(patch_runner, p): p[0] for p in gdf_patches.iterrows()}
 
-            for item in items:
-                if to_disk:
-                    band_data = download_satellite_bands_from_item(
-                        item, bands, to_disk=to_disk, data_dir=patch_output_path
-                    )
-                else:
-                    band_data = download_satellite_bands_from_item(
-                        item, bands, to_disk=to_disk, data_dir=None
-                    )
-                for band_name, band_val, src_transform, src_crs in band_data:
-                    add_image_to_mosaic(
-                        band_name, band_val, src_transform, src_crs, mosaic_path
-                    )
+        for fut in as_completed(futures):
+            out = fut.result()
+            if out is None:
+                continue  # empty patch
+            i, stack, tfm, crs = out  # unpack
+            for b in range(stack.shape[0]):  # write band-by-band
+                add_image_to_mosaic(b + 1, stack[b], tfm, crs, mosaic_path)
 
-            if os.path.exists(mosaic_path):
-                size_gb = os.path.getsize(mosaic_path) / (1024**3)
-                print(f"[PATCH {i}] Mosaic size so far: {size_gb:.2f} GB")
-
-        except Exception as e:
-            print(f"[ERROR] Patch {i} failed: {e}")
+            size_gb = os.path.getsize(mosaic_path) / (1024**3)
+            print(f"[PATCH {i+1}/{total_patches}] mosaic ≈ {size_gb:,.2f} GB")
 
     # Final step: compress the mosaic after all patches are added
     compress_mosaic(mosaic_path)
@@ -882,7 +925,6 @@ def process_date(
                 mname,
                 bbox,
                 mission_name,
-                mission_config["resolution"] * 100,
                 mission_config["resolution"],
                 mission_config["bands"],
                 date,

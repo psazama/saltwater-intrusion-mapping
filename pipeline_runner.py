@@ -9,6 +9,7 @@ from tqdm import tqdm
 
 from swmaps.config import data_path
 from swmaps.core.download_tools import (
+    create_coastal_poly,
     download_matching_images,
     find_satellite_coverage,
     get_mission,
@@ -58,18 +59,28 @@ def main():
         default=max(os.cpu_count() // 2, 1),
         help="Parallel workers for imagery processing",
     )
+    parser.add_argument(
+        "--bbox",
+        action="store_true",
+        help="Use full bounding box instead of coastal band.",
+    )
     args = parser.parse_args()
 
-    # Load the GeoJSON
-    geojson = Path(__file__).resolve().parent / "config" / "easternshore.geojson"
-    gdf = gpd.read_file(geojson)
+    if args.bbox:
+        # Load the GeoJSON
+        geojson = Path(__file__).resolve().parent / "config" / "somerset.geojson"
+        gdf = gpd.read_file(geojson)
 
-    # Ensure it's in WGS84 (EPSG:4326) for STAC API compatibility
-    if gdf.crs != "EPSG:4326":
-        gdf = gdf.to_crs("EPSG:4326")
+        # Ensure it's in WGS84 (EPSG:4326) for STAC API compatibility
+        if gdf.crs != "EPSG:4326":
+            gdf = gdf.to_crs("EPSG:4326")
 
-    # Get bounding box: [min_lon, min_lat, max_lon, max_lat]
-    bbox = gdf.total_bounds.tolist()
+        # Get bounding box: [min_lon, min_lat, max_lon, max_lat]
+        bbox = gdf.total_bounds.tolist()
+    else:
+        band_path = Path(__file__).resolve().parent / "config" / "coastal_band.gpkg"
+        bbox = gpd.read_file(band_path, layer="coastal_band").geometry.iloc[0]
+
     missions = {
         "sentinel-2": get_mission("sentinel-2"),
         "landsat-5": get_mission("landsat-5"),
@@ -81,14 +92,20 @@ def main():
     landsat5_mosaic = data_path("landsat5_eastern_shore.tif")
     landsat7_mosaic = data_path("landsat7_eastern_shore.tif")
 
-    ##### Data Downloading ######
+    ##### Generate Bounding Box #####
     if args.step == 0:
+        print("Creating Coastal Polygon")
+        create_coastal_poly(geojson)
+        return
+
+    ##### Data Downloading ######
+    if args.step == 1:
         with open(
             Path(__file__).resolve().parent / "config" / "date_range.json", "r"
         ) as fh:
             dates = json.load(fh)["date_ranges"]
 
-        dates_to_run = dates[:36:120]
+        dates_to_run = dates[7:36:12]
         results = []
 
         max_workers = os.cpu_count() // 2
@@ -117,11 +134,11 @@ def main():
         return
 
     ### Get Water Masks ###
-    if args.step == 1:
+    if args.step == 2:
         return
 
     ### Find Overlaps of Salinity Measures ###
-    if args.step == 2:
+    if args.step == 3:
         if args.salinity_truth_directory:
             codc_files = sorted(Path(args.salinity_truth_directory).glob("*.nc"))
             build_salinity_truth(

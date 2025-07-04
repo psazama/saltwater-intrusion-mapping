@@ -32,11 +32,13 @@ partitions_def = StaticPartitionsDefinition(_DATE_RANGES)
 # ---------------------------------------------------------------------------
 # 2. Study‑area bounding box (WGS84)
 # ---------------------------------------------------------------------------
-_GEOJSON = _CFG_DIR / "easternshore.geojson"
-_gdf = gpd.read_file(_GEOJSON)
-if _gdf.crs != "EPSG:4326":
-    _gdf = _gdf.to_crs("EPSG:4326")
-_BBOX = _gdf.total_bounds.tolist()
+_BAND = _CFG_DIR / "coastal_band.gpkg"
+if _BAND.exists():
+    _BBOX_OR_BAND = gpd.read_file(_BAND, layer="coastal_band").geometry.iloc[0]
+else:
+    _GEOJSON = _CFG_DIR / "easternshore.geojson"
+    gdf = gpd.read_file(_GEOJSON).to_crs("EPSG:4326")
+    _BBOX_OR_BAND = gdf.total_bounds.tolist()  # [minx, miny, maxx, maxy]
 
 # ---------------------------------------------------------------------------
 # 3. Mission configs + base mosaic filenames (no date suffix)
@@ -49,10 +51,11 @@ _SENTINEL_TIF = data_path("sentinel_eastern_shore.tif")
 _LS5_TIF = data_path("landsat5_eastern_shore.tif")
 _LS7_TIF = data_path("landsat7_eastern_shore.tif")
 
-
 # ---------------------------------------------------------------------------
 # 4. Asset: one partition == one date‑range string from JSON
 # ---------------------------------------------------------------------------
+
+
 @asset(
     name="masks_by_range",
     partitions_def=partitions_def,
@@ -65,7 +68,7 @@ def masks_by_range(context) -> list[str]:
 
     result = process_date(
         date=date_range,
-        bbox=_BBOX,
+        bbox=_BBOX_OR_BAND,
         sentinel_mission=_SENTINEL,
         landsat5_mission=_LS5,
         landsat7_mission=_LS7,
@@ -83,6 +86,42 @@ def masks_by_range(context) -> list[str]:
             mask_paths.append(str(candidate))
 
     context.log.info(f"{len(mask_paths)} mask file(s) written for {date_range}")
+    if result["errors"]:
+        context.log.warning(f"process_date() raised errors: {result['errors']}")
+
+    return mask_paths
+
+
+@asset(
+    name="download_by_range",
+    partitions_def=partitions_def,
+    io_manager_key="local_files",  # swap to gcs_io_manager in prod
+)
+def download_range(context) -> list[str]:
+    """Materialise NDWI water masks for a single date range (e.g. 1984‑03‑01/1984‑03‑31)."""
+
+    date_range: str = context.partition_key  # already in the correct "start/end" form
+
+    result = process_date(
+        date=date_range,
+        bbox=_BBOX_OR_BAND,
+        sentinel_mission=_SENTINEL,
+        landsat5_mission=_LS5,
+        landsat7_mission=_LS7,
+        sentinel2_mosaic_path=_SENTINEL_TIF,
+        landsat5_mosaic_path=_LS5_TIF,
+        landsat7_mosaic_path=_LS7_TIF,
+        inline_mask=False,
+    )
+
+    tag = date_range.replace("/", "_")
+    mask_paths: list[str] = []
+    for mission_prefix in ("sentinel", "landsat5", "landsat7"):
+        candidate = data_path(f"{mission_prefix}_eastern_shore_{tag}.tif")
+        if candidate.exists():
+            mask_paths.append(str(candidate))
+
+    context.log.info(f"{len(mask_paths)} file(s) written for {date_range}")
     if result["errors"]:
         context.log.warning(f"process_date() raised errors: {result['errors']}")
 

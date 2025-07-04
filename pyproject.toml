@@ -1,8 +1,11 @@
 [project]
 name = "swmaps"
 version = "0.1.0"
-dependencies = []
+dependencies = [
+    "dagster",
+    "dagster-k8s",
+    "dagster-gcp[gcs]",
+]
 
 [tool.setuptools]
 packages = ["swmaps"]
-

@@ -76,9 +76,9 @@ saltwater-intrusion-mapping/
 │ └── data/ # generated rasters (git-ignored)
 ├── notebooks/ # experiments / visual demos
 ├── pipeline_runner.py # legacy CLI (still works)
-├── dagster.yaml # local dev instance
+├── dagster.yaml # local dev instance (optional)
 ├── dagster_gke.yaml # run launcher for GKE
-├── workspace.yaml # loads swmaps.defs
+├── workspace.yaml # loads swmaps.defs (from __init__.py)
 ├── workspace_gke.yaml # loads swmaps.gke_defs
 └── pyproject.toml
 ```
@@ -97,6 +97,7 @@ pip install -e .
 # 2 · Launch Dagster UI (with queued run-coordinator)
 export DAGSTER_HOME="$(pwd)/.dagster_home"
 dagster dev -w workspace.yaml   # → http://localhost:3000
+# (the dagster.yaml file is optional; Dagster will fall back to defaults)
 
 # 3 · Materialise water masks
 #     (UI → Assets → masks_by_range → Launch backfill)

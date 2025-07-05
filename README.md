@@ -76,8 +76,10 @@ saltwater-intrusion-mapping/
 │ └── data/ # generated rasters (git-ignored)
 ├── notebooks/ # experiments / visual demos
 ├── pipeline_runner.py # legacy CLI (still works)
-├── dagster.yaml # local dev instance
-├── workspace.yaml # loads swmaps.defs
+├── dagster.yaml # local dev instance (optional)
+├── dagster_gke.yaml # run launcher for GKE
+├── workspace.yaml # loads swmaps.defs (from __init__.py)
+├── workspace_gke.yaml # loads swmaps.gke_defs
 └── pyproject.toml
 ```
 
@@ -95,6 +97,7 @@ pip install -e .
 # 2 · Launch Dagster UI (with queued run-coordinator)
 export DAGSTER_HOME="$(pwd)/.dagster_home"
 dagster dev -w workspace.yaml   # → http://localhost:3000
+# (the dagster.yaml file is optional; Dagster will fall back to defaults)
 
 # 3 · Materialise water masks
 #     (UI → Assets → masks_by_range → Launch backfill)
@@ -102,8 +105,21 @@ dagster dev -w workspace.yaml   # → http://localhost:3000
 > Smoketest: run without Dagster
 > `python pipeline_runner.py --step 0 --inline_mask`
 
+## 🚀 Running on GKE
+The repository includes a `dagster_gke.yaml` configuration that launches each
+Dagster run as a Kubernetes job. After building a container image for the
+`swmaps` package, point your deployment at this config file:
+
+```bash
+kubectl create namespace dagster
+export DAGSTER_HOME=/opt/dagster
+dagster api grpc -m swmaps.gke_defs &
+dagster-webserver -y dagster_gke.yaml -w workspace_gke.yaml
+```
+
 ---
 
 ## 📖 License
 
 MIT License
+

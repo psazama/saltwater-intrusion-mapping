@@ -63,6 +63,19 @@ This project uses in situ oceanographic salinity data from the **World Ocean Dat
 
 This salinity dataset enables spatial validation and supervised learning, bridging field measurements with satellite-derived features.
 
+## 🌡️ Water Trend Analysis
+Use `swmaps.core.water_trend` to model how long each pixel stays water-covered and how that changes over time.
+
+```python
+from swmaps.core.water_trend import load_wet_year, pixel_trend, plot_trend_heatmap
+
+wet_year = load_wet_year("masks/*.tif")
+slope, pval = pixel_trend(wet_year)
+signif = pval < 0.05
+plot_trend_heatmap(slope, signif, title="Trend in % wet months per year")
+```
+
+
 ---
 
 ## 🗃️ Repository Layout

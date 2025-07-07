@@ -1,0 +1,22 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Somerset County MD"
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-76.236458, 37.886605],
+          [-75.539633, 37.886605],
+          [-75.539633, 38.298944],
+          [-76.236458, 38.298944],
+          [-76.236458, 37.886605]
+        ]]
+      }
+    }
+  ]
+}
+

@@ -17,7 +17,7 @@ from pyproj import Transformer
 from pystac_client import Client
 from rasterio.enums import Resampling
 from rasterio.session import AWSSession
-from rasterio.transform import from_bounds
+from rasterio.transform import from_bounds, Affine
 from rasterio.warp import calculate_default_transform, reproject
 from rasterio.windows import Window
 from shapely.geometry import box
@@ -228,6 +228,37 @@ def warp_to_wgs84(
     return dst_path
 
 
+def downsample_to_landsat(
+    data: np.ndarray,
+    transform: Affine,
+    crs,
+    target_resolution: float = 30,
+    resampling: Resampling = Resampling.average,
+) -> tuple:
+    """Resample Sentinel-2 data to Landsat 30 m resolution."""
+
+    src_res = max(abs(transform.a), abs(transform.e))
+    scale = target_resolution / src_res
+    dst_height = max(1, int(np.ceil(data.shape[0] / scale)))
+    dst_width = max(1, int(np.ceil(data.shape[1] / scale)))
+    dst_transform = transform * Affine.scale(scale)
+
+    dst = np.empty((dst_height, dst_width), dtype=data.dtype)
+
+    reproject(
+        source=data,
+        destination=dst,
+        src_transform=transform,
+        src_crs=crs,
+        dst_transform=dst_transform,
+        dst_crs=crs,
+        resampling=resampling,
+        dst_nodata=np.nan,
+    )
+
+    return dst, dst_transform
+
+
 def init_logger(log_path="process_log.txt"):
     logging.basicConfig(
         level=logging.INFO,
@@ -431,7 +462,12 @@ def download_matching_images(
 
                 # Download each band
                 download_satellite_bands_from_item(
-                    item, bands, to_disk=True, data_dir=download_dir
+                    item,
+                    bands,
+                    to_disk=True,
+                    data_dir=download_dir,
+                    mission=mission,
+                    downsample_to_landsat_res=(mission == "sentinel-2"),
                 )
 
                 # Read all bands and stack
@@ -534,16 +570,30 @@ def query_satellite_items(
 
 
 def download_satellite_bands_from_item(
-    item, bands, to_disk=True, data_dir=None, debug=False
+    item,
+    bands,
+    to_disk=True,
+    data_dir=None,
+    debug=False,
+    mission=None,
+    downsample_to_landsat_res=False,
+    target_resolution=30,
 ):
     """
     Downloads selected bands from a single STAC item.
+    Optionally downsamples Sentinel-2 imagery to Landsat
+    resolution before returning the array.
 
     Parameters:
         item (dict): A STAC item.
         bands (dict): Mapping of asset keys to band names.
         data_dir (str): Local directory for output.
         debug (bool): Whether to print debug output.
+        mission (str, optional): Mission name (e.g. "sentinel-2").
+        downsample_to_landsat_res (bool): If True and mission is
+            "sentinel-2", resample the band to ``target_resolution``.
+        target_resolution (float): Target pixel size in meters
+            when downsampling (default 30).
 
     Returns:
         str: Path to the last band written for this item.
@@ -566,31 +616,37 @@ def download_satellite_bands_from_item(
                 return key, name, arr, src.transform, src.crs
 
     band_order = list(bands.keys())
-    band_data = []
+    band_data: list[tuple[int, np.ndarray, Affine, str]] = []
+
     with ThreadPoolExecutor(max_workers=len(bands)) as pool:
         for key, name, data, trf, crs in pool.map(_fetch_one, bands.items()):
+            if downsample_to_landsat_res and mission == "sentinel-2":
+                data, trf = downsample_to_landsat(
+                    data, trf, crs, target_resolution
+                )
+
             band_index = band_order.index(key) + 1
             band_data.append((band_index, data, trf, crs))
 
             if to_disk:
                 out_path = data_dir / f"{item.id}_{name}.tif"
-
                 profile = {
                     "driver": "GTiff",
-                    "dtype": "float32",
+                    "dtype":  "float32",
                     "nodata": np.nan,
-                    "crs": crs,
+                    "crs":    crs,
                     "transform": trf,
                     "height": data.shape[0],
-                    "width": data.shape[1],
+                    "width":  data.shape[1],
                 }
-
-                with rasterio.open(out_path, "w", **profile) as dst:
+                with rasterio.open(out_path, "w", **profile, BIGTIFF="YES") as dst:
                     dst.write(data, 1)
-        else:
-            print(
-                f"[WARNING] Band {key} not available in item {item.id}. Available bands: {list(item.assets.keys())}"
-            )
+
+            if debug:
+                nan_pct = np.isnan(data).sum() / data.size
+                logging.debug(
+                    f"{item.id} – {name}: {data.shape}  NaNs={nan_pct:.2%}"
+                )
 
     return band_data
 
@@ -782,7 +838,7 @@ def patchwise_query_download_mosaic(
     gdf_patches = gdf_patches.to_crs("EPSG:4326")  # back to WGS84 for querying
     total_patches = len(gdf_patches)
     logging.warning(f"[INFO] Total Patch Count: {total_patches}")
-
+    
     with ProcessPoolExecutor(max_workers=os.cpu_count() // 2) as pool:
         patch_runner = partial(
             _download_patch, mission=mission, date_range=date_range, bands=bands
@@ -791,17 +847,18 @@ def patchwise_query_download_mosaic(
 
         for fut in as_completed(futures):
             out = fut.result()
-            if out is None:
-                continue  # empty patch
-            i, stack, tfm, crs = out  # unpack
-            for b in range(stack.shape[0]):  # write band-by-band
+            if out is None:        # no imagery found for this patch
+                continue
+            i, stack, tfm, crs = out
+            for b in range(stack.shape[0]):      # write band-by-band
                 add_image_to_mosaic(b + 1, stack[b], tfm, crs, mosaic_path)
 
-            size_gb = os.path.getsize(mosaic_path) / (1024**3)
+            size_gb = os.path.getsize(mosaic_path) / (1024 ** 3)
             print(f"[PATCH {i+1}/{total_patches}] mosaic ≈ {size_gb:,.2f} GB")
 
     # Final step: compress the mosaic after all patches are added
     compress_mosaic(mosaic_path)
+
 
 
 def should_skip_mosaic(path, mission_config, date_str, threshold=0.8):

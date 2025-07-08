@@ -1,0 +1,10 @@
+# large or unnecessary stuff
+__pycache__/
+*.tif
+*__pycache__*
+swmaps/data/
+swmaps/sample_data/
+*.ipynb
+.dagster_home/
+tmp*/
+

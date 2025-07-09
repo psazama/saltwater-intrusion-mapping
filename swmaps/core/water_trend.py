@@ -18,7 +18,7 @@ __all__ = [
 ]
 
 
-def load_wet_year(mask_glob: str) -> xr.DataArray:
+def load_wet_year(mask_glob):
     """Load monthly water masks and convert to yearly wet fraction.
 
     Parameters
@@ -61,13 +61,13 @@ def theil_sen_slope(ts: np.ndarray) -> np.float32:
     return np.median(slopes)
 
 
-def mk_p(ts: np.ndarray, years: np.ndarray) -> np.float32:
+def mk_p(ts, years):
     """Mann‑Kendall p‑value for a time series."""
     tau, p = kendalltau(years, ts)
     return np.float32(1.0 if np.isnan(p) else p)
 
 
-def pixel_trend(wet_year: xr.DataArray) -> tuple[xr.DataArray, xr.DataArray]:
+def pixel_trend(wet_year):
     """Calculate per‑pixel Theil–Sen slope and MK p‑value."""
     years = np.arange(wet_year.shape[0], dtype=np.float32)
 
@@ -98,12 +98,12 @@ def pixel_trend(wet_year: xr.DataArray) -> tuple[xr.DataArray, xr.DataArray]:
 
 
 def plot_trend_heatmap(
-    slope: xr.DataArray,
-    signif: xr.DataArray | np.ndarray,
-    vmin: float = -0.05,
-    vmax: float = 0.05,
-    title: str | None = None,
-    ax: plt.Axes | None = None,
+    slope,
+    signif,
+    vmin=-0.05,
+    vmax=0.05,
+    title=None,
+    ax=None,
 ):
     """Plot a heatmap of water trend with significance mask."""
     if ax is None:

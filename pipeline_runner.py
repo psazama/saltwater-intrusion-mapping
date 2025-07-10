@@ -9,6 +9,7 @@ from tqdm import tqdm
 
 from swmaps.config import data_path
 from swmaps.core.download_tools import (
+    compute_ndwi,
     create_coastal_poly,
     download_matching_images,
     find_satellite_coverage,
@@ -20,6 +21,7 @@ from swmaps.core.salinity_tools import (
     extract_salinity_features_from_mosaic,
     load_salinity_truth,
 )
+from swmaps.core.water_trend import load_wet_year, pixel_trend, plot_trend_heatmap
 
 
 def main():
@@ -31,9 +33,13 @@ def main():
         type=int,
         default=0,
         required=False,
-        choices=[0, 1, 2],
-        help="Processing step to begin on (0 = data download, 1 = water mask creation, 2 = water map time comparison)",
-    ),
+        choices=[0, 1, 2, 3, 4],
+        help=(
+            "Processing step to begin on ("
+            "0 = coastal polygon, 1 = data download, 2 = water mask creation, "
+            "3 = water trend heatmap, 4 = salinity pipeline)"
+        ),
+    )
     parser.add_argument(
         "--salinity_truth_directory",
         type=str,
@@ -133,12 +139,56 @@ def main():
                     print(f"[{result['date']}] Errors: {result['errors']}")
         return
 
-    ### Get Water Masks ###
+    ### Generate Water Masks ###
     if args.step == 2:
+        data_dir = data_path()
+        tifs = sorted(data_dir.glob("*.tif"))
+
+        for tif in tifs:
+            if tif.name.endswith("_mask.tif") or tif.name.endswith("_features.tif"):
+                continue
+
+            if "sentinel" in tif.name:
+                mission = "sentinel-2"
+            elif "landsat5" in tif.name:
+                mission = "landsat-5"
+            elif "landsat7" in tif.name:
+                mission = "landsat-7"
+            else:
+                continue
+
+            out_mask = tif.with_name(f"{tif.stem}_mask.tif")
+            try:
+                compute_ndwi(str(tif), mission, out_path=str(out_mask), display=False)
+            except:
+                # skip any invalid tifs
+                continue
+
+        print("Water masks generated")
+        return
+
+    ### Water Trend Heatmap ###
+    if args.step == 3:
+        data_dir = data_path("masks")
+        mask_files = sorted(data_dir.glob("*_mask.tif"))
+
+        mask_glob = [str(p) for p in mask_files if p.exists()]
+        if mask_glob:
+            wet_year = load_wet_year(mask_glob[::20])
+            slope, pval = pixel_trend(wet_year)
+            signif = pval < 0.05
+            ax = plot_trend_heatmap(
+                slope, signif, title="Trend in % wet months per year"
+            )
+            heatmap_file = data_path("water_trend_heatmap.png")
+            ax.figure.savefig(heatmap_file, bbox_inches="tight")
+            print(f"Saved trend heatmap to {heatmap_file}")
+        else:
+            print("No mask files found for water trend analysis")
         return
 
     ### Find Overlaps of Salinity Measures ###
-    if args.step == 3:
+    if args.step == 4:
         if args.salinity_truth_directory:
             codc_files = sorted(Path(args.salinity_truth_directory).glob("*.nc"))
             build_salinity_truth(

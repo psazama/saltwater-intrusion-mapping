@@ -17,7 +17,7 @@ from pyproj import Transformer
 from pystac_client import Client
 from rasterio.enums import Resampling
 from rasterio.session import AWSSession
-from rasterio.transform import from_bounds, Affine
+from rasterio.transform import Affine, from_bounds
 from rasterio.warp import calculate_default_transform, reproject
 from rasterio.windows import Window
 from shapely.geometry import box
@@ -621,9 +621,7 @@ def download_satellite_bands_from_item(
     with ThreadPoolExecutor(max_workers=len(bands)) as pool:
         for key, name, data, trf, crs in pool.map(_fetch_one, bands.items()):
             if downsample_to_landsat_res and mission == "sentinel-2":
-                data, trf = downsample_to_landsat(
-                    data, trf, crs, target_resolution
-                )
+                data, trf = downsample_to_landsat(data, trf, crs, target_resolution)
 
             band_index = band_order.index(key) + 1
             band_data.append((band_index, data, trf, crs))
@@ -632,21 +630,19 @@ def download_satellite_bands_from_item(
                 out_path = data_dir / f"{item.id}_{name}.tif"
                 profile = {
                     "driver": "GTiff",
-                    "dtype":  "float32",
+                    "dtype": "float32",
                     "nodata": np.nan,
-                    "crs":    crs,
+                    "crs": crs,
                     "transform": trf,
                     "height": data.shape[0],
-                    "width":  data.shape[1],
+                    "width": data.shape[1],
                 }
                 with rasterio.open(out_path, "w", **profile, BIGTIFF="YES") as dst:
                     dst.write(data, 1)
 
             if debug:
                 nan_pct = np.isnan(data).sum() / data.size
-                logging.debug(
-                    f"{item.id} – {name}: {data.shape}  NaNs={nan_pct:.2%}"
-                )
+                logging.debug(f"{item.id} – {name}: {data.shape}  NaNs={nan_pct:.2%}")
 
     return band_data
 
@@ -838,7 +834,7 @@ def patchwise_query_download_mosaic(
     gdf_patches = gdf_patches.to_crs("EPSG:4326")  # back to WGS84 for querying
     total_patches = len(gdf_patches)
     logging.warning(f"[INFO] Total Patch Count: {total_patches}")
-    
+
     with ProcessPoolExecutor(max_workers=os.cpu_count() // 2) as pool:
         patch_runner = partial(
             _download_patch, mission=mission, date_range=date_range, bands=bands
@@ -847,18 +843,17 @@ def patchwise_query_download_mosaic(
 
         for fut in as_completed(futures):
             out = fut.result()
-            if out is None:        # no imagery found for this patch
+            if out is None:  # no imagery found for this patch
                 continue
             i, stack, tfm, crs = out
-            for b in range(stack.shape[0]):      # write band-by-band
+            for b in range(stack.shape[0]):  # write band-by-band
                 add_image_to_mosaic(b + 1, stack[b], tfm, crs, mosaic_path)
 
-            size_gb = os.path.getsize(mosaic_path) / (1024 ** 3)
+            size_gb = os.path.getsize(mosaic_path) / (1024**3)
             print(f"[PATCH {i+1}/{total_patches}] mosaic ≈ {size_gb:,.2f} GB")
 
     # Final step: compress the mosaic after all patches are added
     compress_mosaic(mosaic_path)
-
 
 
 def should_skip_mosaic(path, mission_config, date_str, threshold=0.8):

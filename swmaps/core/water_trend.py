@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
+import matplotlib.pyplot as plt
 import numpy as np
+import rioxarray as rxr
 import xarray as xr
 from numba import njit
 from scipy.stats import kendalltau
-import matplotlib.pyplot as plt
-
 
 __all__ = [
     "load_wet_year",
@@ -18,7 +20,7 @@ __all__ = [
 ]
 
 
-def load_wet_year(mask_glob):
+def load_wet_year(paths):
     """Load monthly water masks and convert to yearly wet fraction.
 
     Parameters
@@ -33,17 +35,19 @@ def load_wet_year(mask_glob):
     xr.DataArray
         DataArray of yearly water fraction with dimensions (time, y, x).
     """
-    ds = xr.open_mfdataset(
-        mask_glob,
-        concat_dim="time",
-        combine="nested",
-        engine="rasterio",
-    )
-    var = list(ds.data_vars)[0]
-    da = ds[var]
-    if "band" in da.dims:
-        da = da.squeeze("band", drop=True)
+    datasets = [rxr.open_rasterio(p, masked=True) for p in paths]
 
+    # Extract start date from filename: sentinel_eastern_shore_YYYY-MM-DD_YYYY-MM-DD_mask.tif
+    def extract_start_date(path):
+        parts = Path(path).stem.split("_")
+        return np.datetime64(parts[-3])  # third-to-last is the start date
+
+    times = [extract_start_date(p) for p in paths]
+    ds = xr.concat(datasets, dim="time")
+    ds = ds.assign_coords(time=("time", times))
+    ds = ds.sortby("time")
+
+    da = ds.squeeze("band", drop=True) if "band" in ds.dims else ds
     wet_year = da.resample(time="1Y", label="left").mean(dim="time")
     return wet_year
 

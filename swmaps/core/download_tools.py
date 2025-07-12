@@ -792,7 +792,7 @@ def compress_mosaic(mosaic_path):
     print(f"[INFO] Compressed mosaic saved: {mosaic_path}")
 
 
-def _download_patch(idx_patch, mission, date_range, bands):
+def _download_patch(idx_patch, mission, date_range, bands, max_items):
     """
     Runs in its own process.
     Returns (patch_index, stack, transform, crs)  OR  None if no imagery.
@@ -801,7 +801,7 @@ def _download_patch(idx_patch, mission, date_range, bands):
     sub_bbox = patch.geometry.bounds
 
     items, _ = query_satellite_items(
-        mission=mission, bbox=sub_bbox, date_range=date_range, max_items=1
+        mission=mission, bbox=sub_bbox, date_range=date_range, max_items=max_items
     )
     if not items:
         return None
@@ -821,6 +821,7 @@ def patchwise_query_download_mosaic(
     to_disk=False,
     patch_size_meters=None,
     multithreaded=False,
+    max_items=1,
 ):
     """
     Breaks region into patches and processes each separately,
@@ -839,7 +840,11 @@ def patchwise_query_download_mosaic(
     if multithreaded:
         with ProcessPoolExecutor(max_workers=os.cpu_count() // 2) as pool:
             patch_runner = partial(
-                _download_patch, mission=mission, date_range=date_range, bands=bands
+                _download_patch,
+                mission=mission,
+                date_range=date_range,
+                bands=bands,
+                max_items=max_items,
             )
             futures = {
                 pool.submit(patch_runner, p): p[0] for p in gdf_patches.iterrows()
@@ -857,7 +862,11 @@ def patchwise_query_download_mosaic(
                 print(f"[PATCH {i+1}/{total_patches}] mosaic ≈ {size_gb:,.2f} GB")
     else:
         patch_runner = partial(
-            _download_patch, mission=mission, date_range=date_range, bands=bands
+            _download_patch,
+            mission=mission,
+            date_range=date_range,
+            bands=bands,
+            max_items=max_items,
         )
 
         for i, patch in tqdm(
@@ -946,6 +955,7 @@ def process_date(
     landsat7_mosaic_path,
     inline_mask=False,
     multithreaded=False,
+    max_items=1,
 ):
     """
     Processes satellite data for a single date by creating and populating mosaics for Landsat-5, Landsat-7, and Sentinel-2.
@@ -1007,6 +1017,7 @@ def process_date(
                 None,
                 to_disk=False,
                 multithreaded=multithreaded,
+                max_items=max_items,
             )
             logging.info(f"[MOSAIC] Saved {mname}")
 

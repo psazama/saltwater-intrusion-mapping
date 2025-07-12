@@ -70,6 +70,12 @@ def main():
         action="store_true",
         help="Use full bounding box instead of coastal band.",
     )
+    parser.add_argument(
+        "--max_items",
+        type=int,
+        default=1,
+        help="Number of items to get for each patch region during imagery download",
+    )
     args = parser.parse_args()
 
     if args.bbox:
@@ -131,6 +137,7 @@ def main():
                         landsat5_mosaic,
                         landsat7_mosaic,
                         args.inline_mask,
+                        max_items=args.max_items,
                     ): date
                     for date in dates_to_run
                 }
@@ -153,6 +160,7 @@ def main():
                     landsat5_mosaic,
                     landsat7_mosaic,
                     args.inline_mask,
+                    max_items=args.max_items,
                 )
                 print(f"finished processing: {date}")
                 results.append(result)

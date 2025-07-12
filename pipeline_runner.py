@@ -106,19 +106,44 @@ def main():
 
     ##### Data Downloading ######
     if args.step == 1:
+        multithread = False
         with open(
             Path(__file__).resolve().parent / "config" / "date_range.json", "r"
         ) as fh:
             dates = json.load(fh)["date_ranges"]
 
-        dates_to_run = dates[7:36:12]
+        dates_to_run = dates[7:120:12]
+        print(dates_to_run)
         results = []
 
-        max_workers = os.cpu_count() // 2
-        with ProcessPoolExecutor(max_workers=max_workers) as executor:
-            futures = {
-                executor.submit(
-                    process_date,
+        if multithread:
+            max_workers = os.cpu_count() // 2
+            with ProcessPoolExecutor(max_workers=max_workers) as executor:
+                futures = {
+                    executor.submit(
+                        process_date,
+                        date,
+                        bbox,
+                        missions["sentinel-2"],
+                        missions["landsat-5"],
+                        missions["landsat-7"],
+                        sentinel2_mosaic,
+                        landsat5_mosaic,
+                        landsat7_mosaic,
+                        args.inline_mask,
+                    ): date
+                    for date in dates_to_run
+                }
+
+                for future in tqdm(as_completed(futures), total=len(futures)):
+                    result = future.result()
+                    results.append(result)
+                    if result["errors"]:
+                        print(f"[{result['date']}] Errors: {result['errors']}")
+        else:
+            for date in tqdm(dates_to_run):
+                print(date)
+                result = process_date(
                     date,
                     bbox,
                     missions["sentinel-2"],
@@ -128,15 +153,12 @@ def main():
                     landsat5_mosaic,
                     landsat7_mosaic,
                     args.inline_mask,
-                ): date
-                for date in dates_to_run
-            }
-
-            for future in tqdm(as_completed(futures), total=len(futures)):
-                result = future.result()
+                )
+                print(f"finished processing: {date}")
                 results.append(result)
                 if result["errors"]:
                     print(f"[{result['date']}] Errors: {result['errors']}")
+
         return
 
     ### Generate Water Masks ###
@@ -160,8 +182,9 @@ def main():
             out_mask = tif.with_name(f"{tif.stem}_mask.tif")
             try:
                 compute_ndwi(str(tif), mission, out_path=str(out_mask), display=False)
-            except:
+            except Exception as e:
                 # skip any invalid tifs
+                print(f"[ERROR] skipping invalid tiff: {tif}, {e}")
                 continue
 
         print("Water masks generated")

@@ -820,6 +820,7 @@ def patchwise_query_download_mosaic(
     base_output_path,
     to_disk=False,
     patch_size_meters=None,
+    multithreaded=False,
 ):
     """
     Breaks region into patches and processes each separately,
@@ -835,14 +836,34 @@ def patchwise_query_download_mosaic(
     total_patches = len(gdf_patches)
     logging.warning(f"[INFO] Total Patch Count: {total_patches}")
 
-    with ProcessPoolExecutor(max_workers=os.cpu_count() // 2) as pool:
+    if multithreaded:
+        with ProcessPoolExecutor(max_workers=os.cpu_count() // 2) as pool:
+            patch_runner = partial(
+                _download_patch, mission=mission, date_range=date_range, bands=bands
+            )
+            futures = {
+                pool.submit(patch_runner, p): p[0] for p in gdf_patches.iterrows()
+            }
+
+            for fut in as_completed(futures):
+                out = fut.result()
+                if out is None:  # no imagery found for this patch
+                    continue
+                i, stack, tfm, crs = out
+                for b in range(stack.shape[0]):  # write band-by-band
+                    add_image_to_mosaic(b + 1, stack[b], tfm, crs, mosaic_path)
+
+                size_gb = os.path.getsize(mosaic_path) / (1024**3)
+                print(f"[PATCH {i+1}/{total_patches}] mosaic ≈ {size_gb:,.2f} GB")
+    else:
         patch_runner = partial(
             _download_patch, mission=mission, date_range=date_range, bands=bands
         )
-        futures = {pool.submit(patch_runner, p): p[0] for p in gdf_patches.iterrows()}
 
-        for fut in as_completed(futures):
-            out = fut.result()
+        for i, patch in tqdm(
+            gdf_patches.iterrows(), total=len(gdf_patches), desc="Patches"
+        ):
+            out = patch_runner((i, patch))
             if out is None:  # no imagery found for this patch
                 continue
             i, stack, tfm, crs = out
@@ -851,9 +872,10 @@ def patchwise_query_download_mosaic(
 
             size_gb = os.path.getsize(mosaic_path) / (1024**3)
             print(f"[PATCH {i+1}/{total_patches}] mosaic ≈ {size_gb:,.2f} GB")
+        print("finished downloading mosaic")
 
     # Final step: compress the mosaic after all patches are added
-    compress_mosaic(mosaic_path)
+    # compress_mosaic(mosaic_path) # commenting out to test speed change.
 
 
 def should_skip_mosaic(path, mission_config, date_str, threshold=0.8):
@@ -923,6 +945,7 @@ def process_date(
     landsat5_mosaic_path,
     landsat7_mosaic_path,
     inline_mask=False,
+    multithreaded=False,
 ):
     """
     Processes satellite data for a single date by creating and populating mosaics for Landsat-5, Landsat-7, and Sentinel-2.
@@ -958,6 +981,7 @@ def process_date(
 
     result = {"date": date, "errors": []}
     for mission_number, mission_name in enumerate(missions):
+        logging.info(f"[MOSAIC] Starting download for {mission_name}")
         try:
             mission_config = get_mission(mission_name)
             base, _ = os.path.splitext(mission_paths[mission_number])
@@ -982,7 +1006,9 @@ def process_date(
                 date,
                 None,
                 to_disk=False,
+                multithreaded=multithreaded,
             )
+            logging.info(f"[MOSAIC] Saved {mname}")
 
             # ---- optional mask-and-cleanup ----
             if inline_mask:

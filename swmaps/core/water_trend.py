@@ -55,6 +55,9 @@ def load_wet_year(paths):
 @njit(parallel=True, fastmath=True)
 def theil_sen_slope(ts: np.ndarray) -> np.float32:
     """Return Theil–Sen slope for a 1‑D array."""
+    if np.isnan(ts).all() or np.nanstd(ts) == 0:
+        return np.nan
+
     n = ts.shape[0]
     k = 0
     slopes = np.empty(n * (n - 1) // 2, dtype=np.float32)

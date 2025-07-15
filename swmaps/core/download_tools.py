@@ -9,6 +9,8 @@ from functools import partial
 from pathlib import Path
 from typing import Optional
 
+import pystac
+
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -20,14 +22,15 @@ from rasterio.session import AWSSession
 from rasterio.transform import Affine, from_bounds
 from rasterio.warp import calculate_default_transform, reproject
 from rasterio.windows import Window
-from shapely.geometry import box
+from rasterio.crs import CRS
+from shapely.geometry import MultiPolygon, Polygon, box
 from tqdm import tqdm
 
 from swmaps.config import data_path
 from swmaps.core.aoi import iter_square_patches
 
 
-def get_mission(mission):
+def get_mission(mission: str) -> dict[str, object]:
     if mission == "sentinel-2":
         collection = "sentinel-2-l2a"
         query_filter = {"eo:cloud_cover": {"lt": 10}}
@@ -103,7 +106,12 @@ def get_mission(mission):
     }
 
 
-def create_coastal_poly(bounding_box_file, out_file=None, buf_km=2, offshore_km=1):
+def create_coastal_poly(
+    bounding_box_file: str | Path,
+    out_file: str | Path | None = None,
+    buf_km: float = 2,
+    offshore_km: float = 1,
+) -> gpd.GeoDataFrame:
     """
     Build a coastal band polygon (buffered coastline, clipped to bbox) and save it once.
 
@@ -259,7 +267,7 @@ def downsample_to_landsat(
     return dst, dst_transform
 
 
-def init_logger(log_path="process_log.txt"):
+def init_logger(log_path: str = "process_log.txt") -> None:
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(process)d] %(levelname)s: %(message)s",
@@ -267,7 +275,10 @@ def init_logger(log_path="process_log.txt"):
     )
 
 
-def _stack_bands(item, bands):
+def _stack_bands(
+    item: pystac.Item,
+    bands: dict[str, str],
+) -> tuple[np.ndarray, Affine, rasterio.crs.CRS]:
     session = AWSSession(requester_pays=True)
     arrays = []
     transforms = None
@@ -283,8 +294,12 @@ def _stack_bands(item, bands):
 
 
 def find_non_nan_window(
-    tif_path, bands=None, window_size=512, stride=256, threshold_ratio=0.5
-):
+    tif_path: str,
+    bands: list[int] | None = None,
+    window_size: int = 512,
+    stride: int = 256,
+    threshold_ratio: float = 0.5,
+) -> tuple[np.ndarray | list[np.ndarray], dict, Window] | None:
     """
     Finds a window in a raster where the data is mostly valid (not NaN or near-zero).
 
@@ -363,8 +378,10 @@ def find_non_nan_window(
 
 
 def find_satellite_coverage(
-    df, missions=["sentinel-2", "landsat-5", "landsat-7"], buffer_km=5
-):
+    df: pd.DataFrame,
+    missions: list[str] = ["sentinel-2", "landsat-5", "landsat-7"],
+    buffer_km: float = 5,
+) -> pd.DataFrame:
     results = []
 
     for _, row in tqdm(df.iterrows(), total=len(df)):
@@ -413,11 +430,11 @@ def find_satellite_coverage(
 
 
 def download_matching_images(
-    df,
-    missions=["sentinel-2", "landsat-5", "landsat-7"],
-    buffer_km=0.1,
-    output_dir=None,
-):
+    df: pd.DataFrame,
+    missions: list[str] = ["sentinel-2", "landsat-5", "landsat-7"],
+    buffer_km: float = 0.1,
+    output_dir: str | Path | None = None,
+) -> pd.DataFrame:
     output_dir = Path(output_dir) if output_dir else data_path("matched_downloads")
     output_dir.mkdir(parents=True, exist_ok=True)
     downloaded_paths = []
@@ -502,7 +519,18 @@ def download_matching_images(
     return df
 
 
-def reproject_bbox(bbox, src_crs="EPSG:4326", dst_crs="EPSG:32618"):
+def reproject_bbox(
+    bbox: (
+        list[float]
+        | tuple[float, float, float, float]
+        | gpd.GeoDataFrame
+        | gpd.GeoSeries
+        | Polygon
+        | MultiPolygon
+    ),
+    src_crs: str = "EPSG:4326",
+    dst_crs: str = "EPSG:32618",
+) -> list[float]:
     if isinstance(bbox, (list, tuple)) and len(bbox) == 4:
         geom = None
         minx, miny = bbox[0], bbox[1]
@@ -529,8 +557,12 @@ def reproject_bbox(bbox, src_crs="EPSG:4326", dst_crs="EPSG:32618"):
 
 
 def query_satellite_items(
-    mission="sentinel-2", bbox=None, date_range=None, max_items=None, debug=False
-):
+    mission: str = "sentinel-2",
+    bbox: list[float] | None = None,
+    date_range: str | None = None,
+    max_items: int | None = None,
+    debug: bool = False,
+) -> tuple[list[pystac.Item], dict[str, str]]:
     """
     Queries available satellite imagery items using the AWS Earth Search STAC API.
 
@@ -570,15 +602,15 @@ def query_satellite_items(
 
 
 def download_satellite_bands_from_item(
-    item,
-    bands,
-    to_disk=True,
-    data_dir=None,
-    debug=False,
-    mission=None,
-    downsample_to_landsat_res=False,
-    target_resolution=30,
-):
+    item: pystac.Item,
+    bands: dict[str, str],
+    to_disk: bool = True,
+    data_dir: str | Path | None = None,
+    debug: bool = False,
+    mission: str | None = None,
+    downsample_to_landsat_res: bool = False,
+    target_resolution: float = 30,
+) -> list[tuple[int, np.ndarray, Affine, CRS]]:
     """
     Downloads selected bands from a single STAC item.
     Optionally downsamples Sentinel-2 imagery to Landsat
@@ -648,7 +680,12 @@ def download_satellite_bands_from_item(
 
 
 def create_mosaic_placeholder(
-    mosaic_path, bbox, mission, resolution, crs="EPSG:32618", dtype="float32"
+    mosaic_path: str | Path,
+    bbox: tuple[float, float, float, float],
+    mission: str,
+    resolution: float,
+    crs: str = "EPSG:32618",
+    dtype: str = "float32",
 ):
     """
     Create an empty mosaic GeoTIFF file to be filled later.
@@ -698,7 +735,13 @@ def create_mosaic_placeholder(
     return transform, width, height, crs, bands
 
 
-def add_image_to_mosaic(band_index, image_data, src_transform, src_crs, mosaic_path):
+def add_image_to_mosaic(
+    band_index: int,
+    image_data: np.ndarray,
+    src_transform: Affine,
+    src_crs: str | CRS,
+    mosaic_path: str | Path,
+) -> None:
     """
     Reproject and insert a satellite image array into the mosaic placeholder.
 
@@ -751,7 +794,7 @@ def add_image_to_mosaic(band_index, image_data, src_transform, src_crs, mosaic_p
         )
 
 
-def compress_mosaic(mosaic_path):
+def compress_mosaic(mosaic_path: str | Path) -> None:
     """
     Rewrites the mosaic file with compression.
     """
@@ -792,7 +835,13 @@ def compress_mosaic(mosaic_path):
     print(f"[INFO] Compressed mosaic saved: {mosaic_path}")
 
 
-def _download_patch(idx_patch, mission, date_range, bands, max_items):
+def _download_patch(
+    idx_patch: tuple[int, gpd.GeoSeries],
+    mission: str,
+    date_range: str,
+    bands: dict[str, str],
+    max_items: int,
+) -> tuple[int, np.ndarray, Affine, CRS] | None:
     """
     Runs in its own process.
     Returns (patch_index, stack, transform, crs)  OR  None if no imagery.
@@ -811,18 +860,24 @@ def _download_patch(idx_patch, mission, date_range, bands, max_items):
 
 
 def patchwise_query_download_mosaic(
-    mosaic_path,
-    bbox,
-    mission,
-    resolution,
-    bands,
-    date_range,
-    base_output_path,
-    to_disk=False,
-    patch_size_meters=None,
-    multithreaded=False,
-    max_items=1,
-):
+    mosaic_path: str | Path,
+    bbox: (
+        Sequence[float]
+        | Polygon
+        | MultiPolygon
+        | gpd.GeoDataFrame
+        | gpd.GeoSeries
+    ),
+    mission: str,
+    resolution: float,
+    bands: dict[str, str],
+    date_range: str,
+    base_output_path: str | Path,
+    to_disk: bool = False,
+    patch_size_meters: float | None = None,
+    multithreaded: bool = False,
+    max_items: int = 1,
+) -> dict:
     """
     Breaks region into patches and processes each separately,
     then compresses the resulting mosaic.
@@ -887,7 +942,12 @@ def patchwise_query_download_mosaic(
     # compress_mosaic(mosaic_path) # commenting out to test speed change.
 
 
-def should_skip_mosaic(path, mission_config, date_str, threshold=0.8):
+def should_skip_mosaic(
+    path: str | Path,
+    mission_config: dict,
+    date_str: str,
+    threshold: float = 0.8,
+) -> bool:
     """
     Determines if mosaic processing should be skipped based on:
     1. Date being outside the valid mission date range
@@ -945,17 +1005,23 @@ def should_skip_mosaic(path, mission_config, date_str, threshold=0.8):
 
 
 def process_date(
-    date,
-    bbox,
-    sentinel_mission,
-    landsat5_mission,
-    landsat7_mission,
-    sentinel2_mosaic_path,
-    landsat5_mosaic_path,
-    landsat7_mosaic_path,
-    inline_mask=False,
-    multithreaded=False,
-    max_items=1,
+    date: str,
+    bbox: (
+        Sequence[float]
+        | Polygon
+        | MultiPolygon
+        | gpd.GeoDataFrame
+        | gpd.GeoSeries
+    ),
+    sentinel_mission: dict,
+    landsat5_mission: dict,
+    landsat7_mission: dict,
+    sentinel2_mosaic_path: str | Path,
+    landsat5_mosaic_path: str | Path,
+    landsat7_mosaic_path: str | Path,
+    inline_mask: bool = False,
+    multithreaded: bool = False,
+    max_items: int = 1,
 ):
     """
     Processes satellite data for a single date by creating and populating mosaics for Landsat-5, Landsat-7, and Sentinel-2.
@@ -1040,7 +1106,13 @@ def process_date(
     return result
 
 
-def compute_ndwi(path, mission, out_path=None, display=False, threshold=0.2):
+def compute_ndwi(
+    path: str | Path,
+    mission: str,
+    out_path: str | Path | None = None,
+    display: bool = False,
+    threshold: float = 0.2,
+) -> np.ndarray:
     """
     Computes the NDWI mask from a GeoTIFF based on mission-specific green and NIR bands.
 

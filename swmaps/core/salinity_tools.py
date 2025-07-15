@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import Sequence
 
 import joblib
 import numpy as np
@@ -21,11 +22,11 @@ def _default_wod_example() -> Path:
 
 
 def build_salinity_truth(
-    dataset_files=None,
-    output_csv=None,
-    depth=1.0,
-    prof_limit=None,
-):
+    dataset_files: Sequence[str | Path] | None = None,
+    output_csv: str | Path | None = None,
+    depth: float = 1.0,
+    prof_limit: int | None = None,
+) -> None:
     dataset_files = (
         list(dataset_files) if dataset_files is not None else [_default_wod_example()]
     )
@@ -135,7 +136,7 @@ def build_salinity_truth(
         print("......")
 
 
-def load_salinity_truth(truth_file=None):
+def load_salinity_truth(truth_file: str | Path | None = None) -> pd.DataFrame:
     truth_file = (
         Path(truth_file)
         if truth_file
@@ -147,15 +148,15 @@ def load_salinity_truth(truth_file=None):
 
 
 def process_salinity_features_chunk(
-    src,
-    win,
-    band_index,
-    src_lbl=None,
-    dst_y=None,
-    dst_y_win=None,
-    water_threshold=0.2,
-    profile=None,
-):
+    src: rasterio.io.DatasetReader,
+    win: Window,
+    band_index: dict[str, int],
+    src_lbl: rasterio.io.DatasetReader | None = None,
+    dst_y: rasterio.io.DatasetWriter | None = None,
+    dst_y_win: Window | None = None,
+    water_threshold: float = 0.2,
+    profile: dict | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
     """Read bands and compute feature stack, water mask, and optionally write labels for a given window."""
     blue = src.read(band_index["blue"], window=win)
     green = src.read(band_index["green"], window=win)
@@ -204,15 +205,15 @@ def process_salinity_features_chunk(
 
 
 def extract_salinity_features_from_mosaic(
-    mosaic_path,
-    mission_band_index,
-    output_feature_path,
-    output_mask_path,
-    label_path=None,
-    output_label_path=None,
-    chunk_size=512,
-    water_threshold=0.2,
-):
+    mosaic_path: str | Path,
+    mission_band_index: dict[str, int],
+    output_feature_path: str | Path,
+    output_mask_path: str | Path,
+    label_path: str | Path | None = None,
+    output_label_path: str | Path | None = None,
+    chunk_size: int = 512,
+    water_threshold: float = 0.2,
+) -> None:
     """
     Windowed salinity feature extraction and disk-based writing.
 
@@ -275,7 +276,13 @@ def extract_salinity_features_from_mosaic(
                     dst_y.close()
 
 
-def train_salinity_deng(X, y, test_size=0.2, random_state=42, save_model_path=None):
+def train_salinity_deng(
+    X: np.ndarray,
+    y: np.ndarray,
+    test_size: float = 0.2,
+    random_state: int = 42,
+    save_model_path: str | Path | None = None,
+) -> tuple[xgb.XGBRegressor, dict[str, float]]:
     """
     Train an XGBoost regressor on salinity feature data.:
     Deng et al., 2024. Monitoring Salinity in Inner Mongolian Lakes Based on Sentinel‑2 Images and Machine Learning.

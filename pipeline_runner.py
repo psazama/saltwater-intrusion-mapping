@@ -76,6 +76,11 @@ def main():
         default=1,
         help="Number of items to get for each patch region during imagery download",
     )
+    parser.add_argument(
+        "--multithreaded",
+        action="store_true",
+        help="Use the multithreaded version of the download functions",
+    )
     args = parser.parse_args()
 
     if args.bbox:
@@ -112,17 +117,17 @@ def main():
 
     ##### Data Downloading ######
     if args.step == 1:
-        multithread = False
         with open(
             Path(__file__).resolve().parent / "config" / "date_range.json", "r"
         ) as fh:
             dates = json.load(fh)["date_ranges"]
 
-        dates_to_run = dates[7:120:12]
+        # dates_to_run = dates[7::12]
+        dates_to_run = dates[6::12] + dates[7::12] + dates[8::12]
         print(dates_to_run)
         results = []
 
-        if multithread:
+        if args.multithreaded:
             max_workers = os.cpu_count() // 2
             with ProcessPoolExecutor(max_workers=max_workers) as executor:
                 futures = {
@@ -174,7 +179,7 @@ def main():
         data_dir = data_path()
         tifs = sorted(data_dir.glob("*.tif"))
 
-        for tif in tifs:
+        for tif in tqdm(tifs):
             if tif.name.endswith("_mask.tif") or tif.name.endswith("_features.tif"):
                 continue
 
@@ -205,7 +210,7 @@ def main():
 
         mask_glob = [str(p) for p in mask_files if p.exists()]
         if mask_glob:
-            wet_year = load_wet_year(mask_glob[::20])
+            wet_year = load_wet_year(mask_glob[::20], chunks={"x": 512, "y": 512})
             slope, pval = pixel_trend(wet_year)
             signif = pval < 0.05
             ax = plot_trend_heatmap(

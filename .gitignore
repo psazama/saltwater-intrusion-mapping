@@ -83,6 +83,7 @@ data/
 sample_data/
 nohup.out
 download_worker_log.txt
+water_trend_log.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

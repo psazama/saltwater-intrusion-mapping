@@ -20,7 +20,7 @@ __all__ = [
 ]
 
 
-def load_wet_year(paths):
+def load_wet_year(paths, chunks=None):
     """Load monthly water masks and convert to yearly wet fraction.
 
     Parameters
@@ -29,13 +29,22 @@ def load_wet_year(paths):
         Glob pattern or list of files for monthly binary masks. Files must be
         readable by :func:`xarray.open_mfdataset` with ``engine='rasterio'`` and
         contain a ``time`` dimension.
+    chunks: dict, optional
+        Dask chunk sizes to apply when reading each raster. Pass a mapping
+        like ``{"x": 512, "y": 512}`` to enable lazy loading and progress
+        reporting during downstream computations.
 
     Returns
     -------
     xr.DataArray
         DataArray of yearly water fraction with dimensions (time, y, x).
     """
-    datasets = [rxr.open_rasterio(p, masked=True) for p in paths]
+    datasets = []
+    for p in paths:
+        da = rxr.open_rasterio(p, masked=True)
+        if chunks:
+            da = da.chunk(chunks)
+        datasets.append(da)
 
     # Extract start date from filename: sentinel_eastern_shore_YYYY-MM-DD_YYYY-MM-DD_mask.tif
     def extract_start_date(path):
@@ -74,9 +83,19 @@ def mk_p(ts, years):
     return np.float32(1.0 if np.isnan(p) else p)
 
 
-def pixel_trend(wet_year):
-    """Calculate per‑pixel Theil–Sen slope and MK p‑value."""
+def pixel_trend(wet_year, progress=True):
+    """Calculate per‑pixel Theil–Sen slope and MK p‑value.
+
+    Parameters
+    ----------
+    wet_year : xr.DataArray
+        Yearly fraction of wet months with dimensions ``(time, y, x)``.
+    progress : bool, optional
+        If ``True``, display a progress bar while computing the trend.
+    """
     years = np.arange(wet_year.shape[0], dtype=np.float32)
+
+    wet_year = wet_year.chunk({"time": -1})
 
     slope = xr.apply_ufunc(
         theil_sen_slope,
@@ -100,6 +119,16 @@ def pixel_trend(wet_year):
         dask="parallelized",
         output_dtypes=[np.float32],
     )
+
+    if progress:
+        try:
+            import dask
+            from dask.diagnostics import ProgressBar
+        except Exception:
+            slope, pval = xr.compute(slope, pval)
+        else:
+            with ProgressBar():
+                slope, pval = dask.compute(slope, pval)
 
     return slope, pval
 

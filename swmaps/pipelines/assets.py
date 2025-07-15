@@ -13,6 +13,7 @@ from pathlib import Path
 
 import geopandas as gpd
 from dagster import (
+    AssetExecutionContext,
     StaticPartitionsDefinition,
     asset,
 )
@@ -61,7 +62,7 @@ _LS7_TIF = data_path("landsat7_eastern_shore.tif")
     partitions_def=partitions_def,
     io_manager_key="local_files",  # swap to gcs_io_manager in prod
 )
-def masks_by_range(context) -> list[str]:
+def masks_by_range(context: AssetExecutionContext) -> list[str]:
     """Materialise NDWI water masks for a single date range (e.g. 1984‑03‑01/1984‑03‑31)."""
 
     date_range: str = context.partition_key  # already in the correct "start/end" form
@@ -97,7 +98,7 @@ def masks_by_range(context) -> list[str]:
     partitions_def=partitions_def,
     io_manager_key="local_files",  # swap to gcs_io_manager in prod
 )
-def download_range(context) -> list[str]:
+def download_range(context: AssetExecutionContext) -> list[str]:
     """Materialise NDWI water masks for a single date range (e.g. 1984‑03‑01/1984‑03‑31)."""
 
     date_range: str = context.partition_key  # already in the correct "start/end" form

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -20,7 +21,10 @@ __all__ = [
 ]
 
 
-def load_wet_year(paths, chunks=None):
+def load_wet_year(
+    paths: Sequence[str | Path],
+    chunks: dict[str, int] | None = None,
+) -> xr.DataArray:
     """Load monthly water masks and convert to yearly wet fraction.
 
     Parameters
@@ -77,13 +81,16 @@ def theil_sen_slope(ts: np.ndarray) -> np.float32:
     return np.median(slopes)
 
 
-def mk_p(ts, years):
+def mk_p(ts: np.ndarray, years: np.ndarray) -> np.float32:
     """Mann‑Kendall p‑value for a time series."""
     tau, p = kendalltau(years, ts)
     return np.float32(1.0 if np.isnan(p) else p)
 
 
-def pixel_trend(wet_year, progress=True):
+def pixel_trend(
+    wet_year: xr.DataArray,
+    progress: bool = True,
+) -> tuple[xr.DataArray, xr.DataArray]:
     """Calculate per‑pixel Theil–Sen slope and MK p‑value.
 
     Parameters
@@ -134,13 +141,13 @@ def pixel_trend(wet_year, progress=True):
 
 
 def plot_trend_heatmap(
-    slope,
-    signif,
-    vmin=-0.05,
-    vmax=0.05,
-    title=None,
-    ax=None,
-):
+    slope: xr.DataArray,
+    signif: xr.DataArray,
+    vmin: float = -0.05,
+    vmax: float = 0.05,
+    title: str | None = None,
+    ax: plt.Axes | None = None,
+) -> plt.Axes:
     """Plot a heatmap of water trend with significance mask."""
     if ax is None:
         fig, ax = plt.subplots(figsize=(10, 8))

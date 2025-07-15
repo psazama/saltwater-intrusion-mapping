@@ -24,7 +24,7 @@ from swmaps.core.salinity_tools import (
 from swmaps.core.water_trend import load_wet_year, pixel_trend, plot_trend_heatmap
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Saltwater Intrustion Detection Runner"
     )

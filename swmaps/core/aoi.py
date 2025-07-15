@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from typing import Iterable, Sequence
+
 import geopandas as gpd
 import numpy as np
 from shapely.geometry import MultiPolygon, Polygon, box
 
 
-def to_polygon(aoi):
+def to_polygon(aoi: Sequence[float] | Polygon | MultiPolygon) -> Polygon | MultiPolygon:
     """
     Accepts either a 4-tuple bbox or a shapely polygon (EPSG:4326).
     Returns a shapely Polygon/MultiPolygon (still in EPSG:4326).
@@ -23,10 +25,10 @@ def to_polygon(aoi):
 
 
 def iter_square_patches(
-    aoi,
-    patch_size_m,
-    metric_crs="EPSG:32618",
-):
+    aoi: Sequence[float] | Polygon | MultiPolygon,
+    patch_size_m: float,
+    metric_crs: str = "EPSG:32618",
+) -> Iterable[Polygon]:
     """
     Yield **patch polygons in metric_crs** that intersect the AOI.
 

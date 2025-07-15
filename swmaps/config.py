@@ -1,5 +1,6 @@
 # swmaps/config.py
 from pathlib import Path
+from os import PathLike
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
@@ -18,6 +19,7 @@ class Settings(BaseSettings):
 settings = Settings()
 
 
-def data_path(*parts) -> Path:
-    """Convenience for building paths inside the data_root."""
+def data_path(*parts: str | PathLike[str]) -> Path:
+    """Convenience for building paths inside the :data:`data_root`."""
+
     return settings.data_root.joinpath(*parts)

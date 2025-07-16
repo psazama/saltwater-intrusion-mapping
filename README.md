@@ -67,12 +67,19 @@ This salinity dataset enables spatial validation and supervised learning, bridgi
 Use `swmaps.core.water_trend` to model how long each pixel stays water-covered and how that changes over time.
 
 ```python
-from swmaps.core.water_trend import load_wet_year, pixel_trend, plot_trend_heatmap
+from swmaps.core.water_trend import (
+    load_wet_year,
+    pixel_trend,
+    plot_trend_heatmap,
+    save_trend_results,
+)
 
 wet_year = load_wet_year("masks/*.tif")
 slope, pval = pixel_trend(wet_year)
 signif = pval < 0.05
 plot_trend_heatmap(slope, signif, title="Trend in % wet months per year")
+# Save arrays to GeoTIFF and NumPy for later inspection
+save_trend_results(slope, pval, "water_trend")
 ```
 
 

@@ -18,6 +18,7 @@ __all__ = [
     "mk_p",
     "pixel_trend",
     "plot_trend_heatmap",
+    "save_trend_results",
 ]
 
 
@@ -158,3 +159,49 @@ def plot_trend_heatmap(
     ax.axis("equal")
     ax.axis("off")
     return ax
+
+
+def save_trend_results(
+    slope: xr.DataArray,
+    pval: xr.DataArray,
+    output_stem: str | Path,
+) -> tuple[Path, Path]:
+    """Save slope and p-value arrays to GeoTIFF and NumPy files.
+
+    Parameters
+    ----------
+    slope, pval : xr.DataArray
+        Arrays returned by :func:`pixel_trend`.
+    output_stem : str or Path
+        Path stem for output files (without extension). ``_slope`` and
+        ``_pval`` plus the extensions ``.tif`` and ``.npy`` will be appended.
+
+    Returns
+    -------
+    tuple[Path, Path]
+        Paths to the generated GeoTIFF files for ``slope`` and ``pval``.
+    """
+
+    output_stem = Path(output_stem)
+
+    slope_tif = output_stem.with_name(output_stem.name + "_slope.tif")
+    pval_tif = output_stem.with_name(output_stem.name + "_pval.tif")
+    slope_npy = output_stem.with_name(output_stem.name + "_slope.npy")
+    pval_npy = output_stem.with_name(output_stem.name + "_pval.npy")
+
+    # Ensure arrays are loaded before writing to disk
+    slope = slope.load()
+    pval = pval.load()
+
+    try:
+        slope.rio.to_raster(slope_tif)
+        pval.rio.to_raster(pval_tif)
+    except Exception:
+        # Fall back to netCDF if GeoTIFF writing fails (e.g., missing CRS)
+        slope.to_netcdf(slope_tif.with_suffix(".nc"))
+        pval.to_netcdf(pval_tif.with_suffix(".nc"))
+
+    np.save(slope_npy, slope.values)
+    np.save(pval_npy, pval.values)
+
+    return slope_tif, pval_tif

@@ -21,7 +21,12 @@ from swmaps.core.salinity_tools import (
     extract_salinity_features_from_mosaic,
     load_salinity_truth,
 )
-from swmaps.core.water_trend import load_wet_year, pixel_trend, plot_trend_heatmap
+from swmaps.core.water_trend import (
+    load_wet_year,
+    pixel_trend,
+    plot_trend_heatmap,
+    save_trend_results,
+)
 
 
 def main() -> None:
@@ -219,6 +224,8 @@ def main() -> None:
             heatmap_file = data_path("water_trend_heatmap.png")
             ax.figure.savefig(heatmap_file, bbox_inches="tight")
             print(f"Saved trend heatmap to {heatmap_file}")
+
+            save_trend_results(slope, pval, data_path("water_trend"))
         else:
             print("No mask files found for water trend analysis")
         return

@@ -3,26 +3,27 @@ import math
 import os
 import shutil
 import tempfile
+from collections.abc import Sequence
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from functools import partial
 from pathlib import Path
 from typing import Optional
 
-import pystac
-
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+import pystac
 import rasterio
 from pyproj import Transformer
 from pystac_client import Client
+from rasterio.crs import CRS
 from rasterio.enums import Resampling
 from rasterio.session import AWSSession
 from rasterio.transform import Affine, from_bounds
 from rasterio.warp import calculate_default_transform, reproject
 from rasterio.windows import Window
-from rasterio.crs import CRS
 from shapely.geometry import MultiPolygon, Polygon, box
 from tqdm import tqdm
 
@@ -861,13 +862,7 @@ def _download_patch(
 
 def patchwise_query_download_mosaic(
     mosaic_path: str | Path,
-    bbox: (
-        Sequence[float]
-        | Polygon
-        | MultiPolygon
-        | gpd.GeoDataFrame
-        | gpd.GeoSeries
-    ),
+    bbox: Sequence[float] | Polygon | MultiPolygon | gpd.GeoDataFrame | gpd.GeoSeries,
     mission: str,
     resolution: float,
     bands: dict[str, str],
@@ -1006,13 +1001,7 @@ def should_skip_mosaic(
 
 def process_date(
     date: str,
-    bbox: (
-        Sequence[float]
-        | Polygon
-        | MultiPolygon
-        | gpd.GeoDataFrame
-        | gpd.GeoSeries
-    ),
+    bbox: Sequence[float] | Polygon | MultiPolygon | gpd.GeoDataFrame | gpd.GeoSeries,
     sentinel_mission: dict,
     landsat5_mission: dict,
     landsat7_mission: dict,

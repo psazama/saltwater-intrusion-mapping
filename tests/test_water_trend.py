@@ -1,10 +1,9 @@
-import importlib
 import pytest
 
-np = pytest.importorskip('numpy')
-xr = pytest.importorskip('xarray')
-
 from swmaps.core import water_trend
+
+np = pytest.importorskip("numpy")
+xr = pytest.importorskip("xarray")
 
 
 def test_theil_sen_slope_linear():
@@ -22,9 +21,11 @@ def test_mk_p_trend():
 
 def test_pixel_trend_small():
     arr = xr.DataArray(
-        np.stack([np.zeros((2,2), dtype=np.float32), np.ones((2,2), dtype=np.float32)]),
+        np.stack(
+            [np.zeros((2, 2), dtype=np.float32), np.ones((2, 2), dtype=np.float32)]
+        ),
         dims=("time", "y", "x"),
     )
     slope, pval = water_trend.pixel_trend(arr, progress=False)
-    assert slope.shape == (2,2)
-    assert pval.shape == (2,2)
+    assert slope.shape == (2, 2)
+    assert pval.shape == (2, 2)

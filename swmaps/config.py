@@ -1,6 +1,6 @@
 # swmaps/config.py
-from pathlib import Path
 from os import PathLike
+from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings

@@ -16,6 +16,10 @@ class Settings(BaseSettings):
         env_prefix = "SW_"
 
 
+def get_settings():
+    return Settings()
+
+
 settings = Settings()
 
 

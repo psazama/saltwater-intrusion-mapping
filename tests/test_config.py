@@ -3,6 +3,9 @@ from pathlib import Path
 
 import pytest
 
+import swmaps.config
+from swmaps.config import get_settings
+
 pytest.importorskip("pydantic_settings")
 
 # Import swmaps.config without executing swmaps.__init__
@@ -22,8 +25,9 @@ def test_data_path_env_override(monkeypatch):
     monkeypatch.setenv("SW_DATA_ROOT", str(tmp_root))
     import importlib
 
-    importlib.reload(config)
-    assert config.settings.data_root == tmp_root
-    assert config.data_path("a") == tmp_root / "a"
+    settings = get_settings()
+
+    assert settings.data_root == tmp_root
+    assert settings.data_root / "a" == tmp_root / "a"
     monkeypatch.delenv("SW_DATA_ROOT", raising=False)
-    importlib.reload(config)
+    importlib.reload(swmaps.config)

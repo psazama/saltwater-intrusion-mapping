@@ -5,6 +5,13 @@ dependencies = [
     "dagster",
     "dagster-k8s",
     "dagster-gcp[gcs]",
+    "numpy",
+    "pandas",
+    "rasterio",
+    "geopandas",
+    "shapely",
+    "xarray",
+    "scikit-learn",
 ]
 
 [tool.setuptools]

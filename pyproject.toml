@@ -5,6 +5,7 @@ dependencies = [
     "dagster",
     "dagster-k8s",
     "dagster-gcp[gcs]",
+    "dask",
     "numpy",
     "pandas",
     "rasterio",

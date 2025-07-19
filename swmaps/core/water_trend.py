@@ -5,12 +5,36 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Sequence
 
-import matplotlib.pyplot as plt
-import numpy as np
-import rioxarray as rxr
-import xarray as xr
-from numba import njit
-from scipy.stats import kendalltau
+try:
+    import matplotlib.pyplot as plt
+except Exception:  # pragma: no cover - optional dependency
+    plt = None  # type: ignore[assignment]
+
+try:
+    import numpy as np
+except Exception:  # pragma: no cover - optional dependency
+    np = None  # type: ignore[assignment]
+
+try:
+    import rioxarray as rxr
+    import xarray as xr
+except Exception:  # pragma: no cover - optional dependency
+    rxr = None  # type: ignore[assignment]
+    xr = None  # type: ignore[assignment]
+
+try:
+    from numba import njit
+except Exception:  # pragma: no cover - optional dependency
+    def njit(*args, **kwargs):  # type: ignore[override]
+        def wrapper(func):
+            return func
+
+        return wrapper
+
+try:
+    from scipy.stats import kendalltau
+except Exception:  # pragma: no cover - optional dependency
+    kendalltau = None  # type: ignore[assignment]
 
 __all__ = [
     "load_wet_year",
@@ -44,6 +68,9 @@ def load_wet_year(
     xr.DataArray
         DataArray of yearly water fraction with dimensions (time, y, x).
     """
+    if rxr is None or xr is None or np is None:
+        raise RuntimeError("rioxarray, xarray and numpy are required for load_wet_year")
+
     datasets = []
     for p in paths:
         da = rxr.open_rasterio(p, masked=True)
@@ -69,6 +96,9 @@ def load_wet_year(
 @njit(parallel=True, fastmath=True)
 def theil_sen_slope(ts: np.ndarray) -> np.float32:
     """Return Theil–Sen slope for a 1‑D array."""
+    if np is None:
+        raise RuntimeError("numpy is required for theil_sen_slope")
+
     if np.isnan(ts).all() or np.nanstd(ts) == 0:
         return np.nan
 
@@ -84,6 +114,8 @@ def theil_sen_slope(ts: np.ndarray) -> np.float32:
 
 def mk_p(ts: np.ndarray, years: np.ndarray) -> np.float32:
     """Mann‑Kendall p‑value for a time series."""
+    if kendalltau is None or np is None:
+        raise RuntimeError("scipy and numpy are required for mk_p")
     tau, p = kendalltau(years, ts)
     return np.float32(1.0 if np.isnan(p) else p)
 
@@ -101,6 +133,9 @@ def pixel_trend(
     progress : bool, optional
         If ``True``, display a progress bar while computing the trend.
     """
+    if xr is None or np is None:
+        raise RuntimeError("xarray and numpy are required for pixel_trend")
+
     years = np.arange(wet_year.shape[0], dtype=np.float32)
 
     wet_year = wet_year.chunk({"time": -1})
@@ -181,6 +216,9 @@ def save_trend_results(
     tuple[Path, Path]
         Paths to the generated GeoTIFF files for ``slope`` and ``pval``.
     """
+
+    if xr is None or np is None:
+        raise RuntimeError("xarray and numpy are required for save_trend_results")
 
     output_stem = Path(output_stem)
 

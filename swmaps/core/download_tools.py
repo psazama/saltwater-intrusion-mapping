@@ -1101,6 +1101,7 @@ def compute_ndwi(
     out_path: str | Path | None = None,
     display: bool = False,
     threshold: float = 0.2,
+    center_size: int | None = None,
 ) -> np.ndarray:
     """
     Computes the NDWI mask from a GeoTIFF based on mission-specific green and NIR bands.
@@ -1111,6 +1112,7 @@ def compute_ndwi(
         out_path (str, optional): Where to save NDWI GeoTIFF.
         display (bool): Whether to show the NDWI mask.
         threshold (float): NDWI threshold to define water (default 0.2).
+        center_size (int): Set the pixel size if using the center of the image only.
 
     Returns:
         np.ndarray: Binary NDWI mask (1 = water, 0 = non-water).
@@ -1123,8 +1125,24 @@ def compute_ndwi(
     scale_reflectance = "landsat" in mission
 
     with rasterio.open(path) as src:
-        green = src.read(green_band).astype(np.float32)
-        nir = src.read(nir_band).astype(np.float32)
+        if center_size:
+            # Get image size in pixels
+            img_width = src.width
+            img_height = src.height
+
+            # Compute top-left corner of the centered window
+            col_off = (img_width - center_size) // 2
+            row_off = (img_height - center_size) // 2
+
+            window = Window(
+                col_off=col_off, row_off=row_off, width=center_size, height=center_size
+            )
+
+            green = src.read(green_band, window=window).astype(np.float32)
+            nir = src.read(nir_band, window=window).astype(np.float32)
+        else:
+            green = src.read(green_band).astype(np.float32)
+            nir = src.read(nir_band).astype(np.float32)
 
         if scale_reflectance:
             green = green * 0.0000275 - 0.2
@@ -1134,7 +1152,22 @@ def compute_ndwi(
         ndwi_mask = (ndwi > threshold).astype(float)
 
         profile = src.profile.copy()
-        profile.update({"count": 1, "dtype": "float32", "nodata": np.nan})
+        profile.update(
+            {
+                "count": 1,
+                "dtype": "float32",
+                "nodata": np.nan,
+            }
+        )
+        if center_size:
+            transform = src.window_transform(window)
+            profile.update(
+                {
+                    "height": center_size,
+                    "width": center_size,
+                    "transform": transform,
+                }
+            )
 
         if out_path:
             with rasterio.open(out_path, "w", **profile, BIGTIFF="YES") as dst:

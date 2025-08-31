@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
+import rasterio
 import rioxarray as rxr
 import xarray as xr
 from numba import njit
+from rasterio.windows import Window
 from scipy.stats import kendalltau
 
 __all__ = [
@@ -20,6 +23,51 @@ __all__ = [
     "plot_trend_heatmap",
     "save_trend_results",
 ]
+
+
+def check_center_for_nans(
+    path: str,
+    center_size: int = 100,
+) -> bool:
+    """Check if the center of the given image contains any nans
+
+    Parameters
+    ----------
+    path:
+        The path to the image to check, passed as a string
+    center_size:
+        The size of the center chunk to check for NaNs as an int. Default
+        value is set to 100px by 100px square.
+
+    Returns
+    -------
+        bool
+            A boolean value that indicates if there are any NaNs in the center
+            square of the image.
+    """
+    try:
+        with rasterio.open(path) as src:
+            # Get image size in pixels
+            img_width = src.width
+            img_height = src.height
+
+            # Compute top-left corner of the centered window
+            col_off = (img_width - center_size) // 2
+            row_off = (img_height - center_size) // 2
+
+            window = Window(
+                col_off=col_off, row_off=row_off, width=center_size, height=center_size
+            )
+
+            data = src.read(window=window)
+
+            nan_total = np.isnan(data).sum()
+            if nan_total > 0:
+                return True
+            else:
+                return False
+    except Exception as e:
+        logging.warning(f"[WARNING] Could not read {path}: {e}")
 
 
 def load_wet_year(

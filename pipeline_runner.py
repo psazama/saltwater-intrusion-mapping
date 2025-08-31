@@ -22,6 +22,7 @@ from swmaps.core.salinity_tools import (
     load_salinity_truth,
 )
 from swmaps.core.water_trend import (
+    check_center_for_nans,
     load_wet_year,
     pixel_trend,
     plot_trend_heatmap,
@@ -85,6 +86,12 @@ def main() -> None:
         "--multithreaded",
         action="store_true",
         help="Use the multithreaded version of the download functions",
+    )
+    parser.add_argument(
+        "--center_size",
+        type=int,
+        default=None,
+        help="Number of items to get for each patch region during imagery download",
     )
     args = parser.parse_args()
 
@@ -187,6 +194,8 @@ def main() -> None:
         for tif in tqdm(tifs):
             if tif.name.endswith("_mask.tif") or tif.name.endswith("_features.tif"):
                 continue
+            if check_center_for_nans(str(tif)):
+                continue
 
             if "sentinel" in tif.name:
                 mission = "sentinel-2"
@@ -199,7 +208,13 @@ def main() -> None:
 
             out_mask = tif.with_name(f"{tif.stem}_mask.tif")
             try:
-                compute_ndwi(str(tif), mission, out_path=str(out_mask), display=False)
+                compute_ndwi(
+                    str(tif),
+                    mission,
+                    out_path=str(out_mask),
+                    display=False,
+                    center_size=args.center_size,
+                )
             except Exception as e:
                 # skip any invalid tifs
                 print(f"[ERROR] skipping invalid tiff: {tif}, {e}")

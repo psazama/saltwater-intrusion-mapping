@@ -25,6 +25,6 @@ repos:
     hooks:
       - id: run-tests
         name: Run tests
-        entry: pytest
+        entry: pytest --maxfail=1 --disable-warnings -q tests/
         language: system
         types: [python]

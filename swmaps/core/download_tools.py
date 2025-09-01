@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd
 import pystac
 import rasterio
+import requests
 from pyproj import Transformer
 from pystac_client import Client
 from rasterio.crs import CRS
@@ -107,6 +108,22 @@ def get_mission(mission: str) -> dict[str, object]:
     }
 
 
+def download_coastal_poly() -> None:
+    file_types = ["cpg", "dbf", "prj", "shp", "shx"]
+
+    for file_type in file_types:
+        # URL and destination path
+        url = f"https://raw.githubusercontent.com/nvkelso/natural-earth-vector/refs/heads/master/10m_physical/ne_10m_coastline.{file_type}"
+        extract_dir = data_path("coastline/")
+        extract_path = data_path(f"coastline/ne_10m_coastline.{file_type}")
+
+        # Download the file
+        os.makedirs(extract_dir, exist_ok=True)
+        response = requests.get(url)
+        with open(extract_path, "wb") as f:
+            f.write(response.content)
+
+
 def create_coastal_poly(
     bounding_box_file: str | Path,
     out_file: str | Path | None = None,
@@ -143,6 +160,9 @@ def create_coastal_poly(
     )
 
     coast_file = data_path("coastline/ne_10m_coastline.shp")
+    if not os.path.exists(coast_file):
+        download_coastal_poly()
+
     coast = gpd.read_file(
         coast_file,
         bbox=qbox,

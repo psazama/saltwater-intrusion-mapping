@@ -109,6 +109,7 @@ def main() -> None:
     else:
         band_path = Path(__file__).resolve().parent / "config" / "coastal_band.gpkg"
         bbox = gpd.read_file(band_path, layer="coastal_band").geometry.iloc[0]
+        geojson = band_path
 
     missions = {
         "sentinel-2": get_mission("sentinel-2"),

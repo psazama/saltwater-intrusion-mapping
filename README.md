@@ -46,9 +46,9 @@ saltwater-intrusion-mapping/
 
 -----
 
-## ⚙️ `main.py` CLI Tool 
+## ⚙️ `pipeline_runner.py` CLI Tool 
 
-The `main.py` script is a command-line interface (CLI) that orchestrates the project's workflow. It allows you to run specific steps of the saltwater intrusion detection pipeline, from data download to trend analysis.
+The `pipeline_runner.py` script is a command-line interface (CLI) that orchestrates the project's workflow. It allows you to run specific steps of the saltwater intrusion detection pipeline, from data download to trend analysis.
 
 ### How to Use
 
@@ -57,7 +57,7 @@ You must specify the desired processing step using the `--step` argument. The st
 **Syntax:**
 
 ```bash
-python main.py --step <number> [options]
+python pipeline_runner.py --step <number> [options]
 ```
 
 ### Command-line Arguments
@@ -93,31 +93,31 @@ Here is a breakdown of the available arguments:
 **1. Create a coastal polygon:**
 
 ```bash
-python main.py --step 0
+python pipeline_runner.py --step 0
 ```
 
 **2. Download satellite imagery with multithreading:**
 
 ```bash
-python main.py --step 1 --multithreaded
+python pipeline_runner.py --step 1 --multithreaded
 ```
 
 **3. Generate water masks and delete original mosaics:**
 
 ```bash
-python main.py --step 2 --inline_mask
+python pipeline_runner.py --step 2 --inline_mask
 ```
 
 **4. Analyze water trends and plot a heatmap:**
 
 ```bash
-python main.py --step 3
+python pipeline_runner.py --step 3
 ```
 
 **5. Run the full salinity pipeline:**
 
 ```bash
-python main.py --step 4 --salinity_truth_directory /path/to/salinity/data
+python pipeline_runner.py --step 4 --salinity_truth_directory /path/to/salinity/data
 ```
 
 -----

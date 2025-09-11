@@ -28,41 +28,6 @@ This project detects and visualizes saltwater intrusion in coastal agricultural 
 | NDTI (Normalized Difference Turbidity Index) | (B3 − B2)/(B3 + B2)   | Surface turbidity                                  |
 | Salinity-sensitive Vegetation Mask | NDVI around water         | Nearby plant stress as salinity indicator          |
 
-## 🤖 Machine Learning Model Approaches (References)
-### 📘 1. *Monitoring Salinity in Inner Mongolian Lakes Based on Sentinel‑2 Images and Machine Learning*  
-**Deng et al., Remote Sensing, 2024, 16(20), 3881**  
-[Link to paper (MDPI)](https://www.mdpi.com/2072-4292/16/20/3881)
-
-- **Data:** Sentinel‑2 MSI bands (VIS to SWIR) and 231 field salinity measurements across eight Inner Mongolian lakes.  
-- **Methods:** Evaluated six atmospheric correction techniques (e.g., ACOLITE, Sen2Cor) and ML models including XGBoost, Random Forest, CNN, and DNN.  
-- **Outcome:** Best performance achieved with XGBoost on ACOLITE-corrected reflectance. Produced detailed lake salinity maps at 10–20 m resolution with temporal variation analysis.
-
----
-
-### 📘 2. *Monitoring Soil Salinity in Coastal Wetlands with Sentinel‑2 MSI + Fractional‑Order Derivatives*  
-**Lao et al., Agricultural Water Management, 2024, 306:109147**  
-[Link to paper (ScienceDirect)](https://doi.org/10.1016/j.agwat.2024.109147)
-
-- **Data:** Sentinel‑2 MSI imagery targeting coastal wetlands.  
-- **Features:** Employed fractional‑order derivatives (e.g., 0.25-order) to boost spectral sensitivity to salinity.  
-- **Models:** Combined Elastic Net, SVR, ANN, XGBoost, and RF in a stacked ensemble using a non-negative least-squares meta-learner.  
-- **Outcome:** Fractional derivatives improved correlation with salinity by ~13%. Final ensemble model achieved **R² ≈ 0.82**, **RMSE ≈ 10.19 ppt**, outperforming single-model baselines by 8–9%.
-
----
-
-## 🎯 Salinity Ground Truth
-This project uses in situ oceanographic salinity data from the **World Ocean Database (WOD)** via the **Chinese Ocean Data Center (CODC)**:
-
-- **Format:** NetCDF (`.nc`)
-- **Example filename:** `WOD_CAS_T_S_2020_1.nc`
-- **Data type:** Conductivity-Temperature-Depth (CTD) profiles
-- **Spatial filtering:** Surface-level only (≤ 1 meter)
-- **Variable used:** `Salinity`, with optional comparison to `Salinity_origin`
-- **Instrument filtering:** Profiles identified as CTD from `Profile_info_str_all`
-- **Output:** Cleaned salinity point data with geographic coordinates for validation and training
-
-This salinity dataset enables spatial validation and supervised learning, bridging field measurements with satellite-derived features.
-
 ## 🌡️ Water Trend Analysis
 Use `swmaps.core.water_trend` to model how long each pixel stays water-covered and how that changes over time.
 

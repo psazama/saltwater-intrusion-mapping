@@ -96,10 +96,10 @@ Here is a breakdown of the available arguments:
 python pipeline_runner.py --step 0
 ```
 
-**2. Download satellite imagery with multithreading:**
+**2. Download satellite imagery for test geojson bounding box:**
 
 ```bash
-python pipeline_runner.py --step 1 --multithreaded
+python pipeline_runner.py --step 1 --bbox
 ```
 
 **3. Generate water masks and delete original mosaics:**

@@ -226,7 +226,7 @@ def main() -> None:
 
     ### Water Trend Heatmap ###
     if args.step == 3:
-        data_dir = data_path("masks")
+        data_dir = data_path()
         mask_files = sorted(data_dir.glob("*_mask.tif"))
 
         mask_glob = [str(p) for p in mask_files if p.exists()]

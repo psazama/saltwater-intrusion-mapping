@@ -22,7 +22,8 @@ from swmaps.core.salinity_tools import (
     load_salinity_truth,
 )
 from swmaps.core.water_trend import (
-    check_center_for_nans,
+    check_image_for_nans,
+    check_image_for_valid_signal,
     load_wet_year,
     pixel_trend,
     plot_trend_heatmap,
@@ -195,7 +196,9 @@ def main() -> None:
         for tif in tqdm(tifs):
             if tif.name.endswith("_mask.tif") or tif.name.endswith("_features.tif"):
                 continue
-            if check_center_for_nans(str(tif)):
+            if check_image_for_nans(str(tif)) or not check_image_for_valid_signal(
+                str(tif)
+            ):
                 continue
 
             if "sentinel" in tif.name:

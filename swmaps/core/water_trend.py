@@ -70,6 +70,84 @@ def check_center_for_nans(
         logging.warning(f"[WARNING] Could not read {path}: {e}")
 
 
+def check_image_for_nans(
+    path: str,
+    nan_threshold: float = 0.1,
+) -> bool:
+    """Check if the entire image contains at least a threshold
+    fraction of NaNs.
+
+    Parameters
+    ----------
+    path : str
+        Path to the image to check.
+    nan_threshold : float, optional
+        Fraction of NaNs (0–1) allowed before returning True.
+        Default is 0.1 (10%).
+
+    Returns
+    -------
+    bool
+        True if the fraction of NaNs in the image >= nan_threshold,
+        False otherwise.
+    """
+    try:
+        with rasterio.open(path) as src:
+            data = src.read()  # reads all bands
+
+            nan_frac = np.isnan(data).sum() / data.size
+
+            return nan_frac >= nan_threshold
+
+    except Exception as e:
+        logging.warning(f"[WARNING] Could not read {path}: {e}")
+        return False
+
+
+def check_image_for_valid_signal(
+    path: str,
+    variance_threshold: float = 1e-6,
+    nonzero_threshold: float = 0.01,
+) -> bool:
+    """Check if the entire image contains meaningful signal
+    rather than being empty or constant.
+
+    Parameters
+    ----------
+    path : str
+        Path to the image to check.
+    variance_threshold : float, optional
+        Minimum variance required to consider the image valid.
+        Default is 1e-6.
+    nonzero_threshold : float, optional
+        Minimum fraction of nonzero pixels required.
+        Default is 0.01 (1%).
+
+    Returns
+    -------
+    bool
+        True if the image has valid signal, False if it appears empty or constant.
+    """
+    try:
+        with rasterio.open(path) as src:
+            data = src.read()  # all bands
+
+            # Compute variance across all pixels
+            if np.var(data) < variance_threshold:
+                return False
+
+            # Compute fraction of nonzero pixels
+            nonzero_frac = np.count_nonzero(data) / data.size
+            if nonzero_frac < nonzero_threshold:
+                return False
+
+            return True
+
+    except Exception as e:
+        logging.warning(f"[WARNING] Could not read {path}: {e}")
+        return False
+
+
 def load_wet_year(
     paths: Sequence[str | Path],
     chunks: dict[str, int] | None = None,

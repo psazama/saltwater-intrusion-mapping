@@ -1364,9 +1364,14 @@ def download_nlcd(
     }
 
     if resolution_m is not None:
-        deg = resolution_m / 111_320.0
-        params["resx"] = f"{deg:.8f}"
-        params["resy"] = f"{deg:.8f}"
+        METERS_PER_DEGREE_AT_EQUATOR = 111_320.0
+        center_lat_deg = (bounds[1] + bounds[3]) / 2.0
+
+        res_y_deg = resolution_m / METERS_PER_DEGREE_AT_EQUATOR
+        res_x_deg = resolution_m / (METERS_PER_DEGREE_AT_EQUATOR * math.cos(math.radians(center_lat_deg)))
+
+        params["resx"] = f"{res_x_deg:.8f}"
+        params["resy"] = f"{res_y_deg:.8f}"
 
     logging.info("Requesting NLCD '%s' coverage for bounds %s", coverage, bounds)
     response, _ = _request_raster_with_format_fallback(

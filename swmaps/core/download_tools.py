@@ -1272,16 +1272,15 @@ def _request_raster_with_format_fallback(
         params = dict(base_params)
         params["format"] = fmt
         logging.debug("Attempting request to %s with format '%s'", url, fmt)
-        response = requests.get(url, params=params, timeout=timeout)
-
         try:
+            response = requests.get(url, params=params, timeout=timeout)
             response.raise_for_status()
-        except requests.HTTPError as exc:  # pragma: no cover - network error handling
+        except requests.RequestException as exc:  # pragma: no cover - network error handling
             logging.debug(
-                "Request to %s with format '%s' failed with status %s.",
+                "Request to %s with format '%s' failed: %s",
                 url,
                 fmt,
-                exc.response.status_code if exc.response is not None else "<unknown>",
+                exc,
             )
             last_error = exc
             continue

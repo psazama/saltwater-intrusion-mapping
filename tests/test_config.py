@@ -3,6 +3,8 @@ from pathlib import Path
 
 import pytest
 
+pytest.importorskip("dagster")
+
 import swmaps.config
 from swmaps.config import get_settings
 

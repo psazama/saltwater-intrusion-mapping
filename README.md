@@ -11,6 +11,7 @@ This project detects and visualizes saltwater intrusion in coastal agricultural 
   - Cloud-aware download skipping based on NaN proportion checks
   - In-memory mosaicking of image patches (compressed GeoTIFF output)
   - NDWI and custom index calculation to identify surface water and salinity indicators
+  - Heuristic salinity classification combining NDWI/MNDWI, turbidity, chlorophyll, and SWIR proxies
   - Support for multiband TIFF reading and georeferenced patch extraction
   - Modular functions for salinity feature engineering and truth data extraction
   - Tools to track downloaded scenes and support fault-tolerant re-runs
@@ -132,6 +133,24 @@ python pipeline_runner.py --step 4 --salinity_truth_directory /path/to/salinity/
 | Salinity Proxy Index (custom) | B11 + B12 (SWIR) | High reflectance in saline water/salt crusts |
 | NDTI (Normalized Difference Turbidity Index) | (B3 − B2)/(B3 + B2) | Surface turbidity |
 | Salinity-sensitive Vegetation Mask | NDVI around water | Nearby plant stress as salinity indicator |
+
+### Estimating salinity classes in code
+
+The helper `estimate_salinity_level` in `swmaps.core.salinity_tools` combines the proxies above to
+return a per-pixel salinity score and qualitative class (fresh, brackish, saline). Provide the
+individual band arrays (either in raw Sentinel-2 scale 0–10,000 or already scaled reflectances) and
+the function handles the rest:
+
+```python
+from swmaps.core.salinity_tools import estimate_salinity_level
+
+result = estimate_salinity_level(blue, green, red, nir, swir1, swir2)
+class_map = result["class_map"]  # string labels per pixel
+salinity_score = result["score"]  # 0–1 heuristic intensity (NaN outside water)
+```
+
+Tune the optional thresholds (e.g., `water_threshold`, `salinity_proxy_threshold`) if you have
+region-specific calibration data.
 
 -----
 

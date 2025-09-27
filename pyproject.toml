@@ -13,6 +13,7 @@ dependencies = [
     "shapely",
     "xarray",
     "scikit-learn",
+    "xgboost",
 ]
 
 [tool.setuptools]

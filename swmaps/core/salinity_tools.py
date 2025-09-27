@@ -17,6 +17,56 @@ from swmaps.config import data_path
 from swmaps.core.download_tools import compute_ndwi
 
 
+def estimate_salinity_level(
+    ndwi: np.ndarray,
+    mndwi: np.ndarray | None,
+    salinity_proxy: np.ndarray | None,
+    ndwi_threshold: float = 0.2,
+    mndwi_threshold: float = 0.2,
+    salinity_override_threshold: float = 0.4,
+    weak_water_threshold: float = 0.0,
+) -> np.ndarray:
+    """Estimate a combined water mask using NDWI, MNDWI, and a salinity proxy.
+
+    The salinity proxy can optionally *expand* the water mask, but only when there is
+    at least weak water evidence from NDWI or MNDWI (values above
+    ``weak_water_threshold``). This guards against bright SWIR pixels from overriding
+    strongly negative NDWI/MNDWI values on dry land.
+
+    Args:
+        ndwi: Normalized Difference Water Index values.
+        mndwi: Modified NDWI values. ``None`` skips MNDWI checks.
+        salinity_proxy: Sum (or other proxy) of SWIR bands representing salinity.
+        ndwi_threshold: Threshold for water classification from NDWI.
+        mndwi_threshold: Threshold for water classification from MNDWI.
+        salinity_override_threshold: Minimum salinity proxy value to expand water.
+        weak_water_threshold: Minimum NDWI/MNDWI value considered "weak" water
+            evidence for allowing salinity overrides.
+
+    Returns:
+        np.ndarray: Boolean mask where ``True`` indicates water pixels.
+    """
+
+    ndwi_arr = np.asarray(ndwi, dtype=float)
+    mndwi_arr = None if mndwi is None else np.asarray(mndwi, dtype=float)
+    salinity_arr = None if salinity_proxy is None else np.asarray(salinity_proxy, dtype=float)
+
+    water_mask = ndwi_arr > ndwi_threshold
+
+    if mndwi_arr is not None:
+        water_mask = water_mask | (mndwi_arr > mndwi_threshold)
+
+    if salinity_arr is not None:
+        weak_water_mask = ndwi_arr > weak_water_threshold
+        if mndwi_arr is not None:
+            weak_water_mask = weak_water_mask | (mndwi_arr > weak_water_threshold)
+
+        salinity_override = (salinity_arr > salinity_override_threshold) & weak_water_mask
+        water_mask = water_mask | salinity_override
+
+    return water_mask
+
+
 def _default_wod_example() -> Path:
     return data_path("salinity_labels", "WOD", "WOD_CAS_T_S_2020_1.nc")
 

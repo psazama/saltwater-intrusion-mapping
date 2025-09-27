@@ -1266,7 +1266,7 @@ def _request_raster_with_format_fallback(
         If none of the formats succeed.
     """
 
-    last_error: requests.HTTPError | None = None
+    last_error: requests.RequestException | None = None
 
     for fmt in format_preferences:
         params = dict(base_params)

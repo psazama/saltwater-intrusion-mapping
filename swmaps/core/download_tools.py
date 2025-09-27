@@ -1,3 +1,4 @@
+import io
 import logging
 import math
 import os
@@ -9,6 +10,7 @@ from datetime import datetime, timedelta
 from functools import partial
 from pathlib import Path
 from typing import Optional
+import zipfile
 
 import geopandas as gpd
 import matplotlib.pyplot as plt
@@ -29,7 +31,7 @@ from shapely.geometry import MultiPolygon, Polygon, box
 from tqdm import tqdm
 
 from swmaps.config import data_path
-from swmaps.core.aoi import iter_square_patches
+from swmaps.core.aoi import iter_square_patches, to_polygon
 
 
 def get_mission(mission: str) -> dict[str, object]:
@@ -1200,3 +1202,231 @@ def compute_ndwi(
         plt.show()
 
     return ndwi_mask
+
+
+def _region_tag(bounds: Sequence[float]) -> str:
+    """Return a filesystem-friendly tag for the provided bounds."""
+
+    return "_".join(f"{coord:.6f}".replace("-", "m").replace(".", "p") for coord in bounds)
+
+
+def _save_response_to_raster(content: bytes, destination: Path) -> Path:
+    """Save a WCS/WMS response to a raster file, unzipping when necessary."""
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+
+    # Many services return zipped GeoTIFFs. Detect and extract them if present.
+    if content[:2] == b"PK":  # ZIP file signature
+        with zipfile.ZipFile(io.BytesIO(content)) as zf:
+            tif_names = [name for name in zf.namelist() if name.lower().endswith((".tif", ".tiff"))]
+            if not tif_names:
+                raise ValueError("ZIP archive did not contain any GeoTIFF files.")
+            # If multiple GeoTIFFs are present, take the first one but warn the user.
+            if len(tif_names) > 1:
+                logging.warning(
+                    "Multiple GeoTIFFs found in archive; defaulting to the first entry '%s'.",
+                    tif_names[0],
+                )
+            with zf.open(tif_names[0]) as tif:
+                destination.write_bytes(tif.read())
+    else:
+        destination.write_bytes(content)
+
+    return destination
+
+
+def _request_raster_with_format_fallback(
+    url: str,
+    base_params: dict[str, object],
+    format_preferences: Sequence[str],
+    timeout: int = 300,
+) -> tuple[requests.Response, str]:
+    """Request a raster preferring formats earlier in ``format_preferences``.
+
+    Parameters
+    ----------
+    url
+        Endpoint to query.
+    base_params
+        Parameters to include with each request *except* ``format``.
+    format_preferences
+        Ordered sequence of format strings to try. The first successful
+        response is returned. All remaining formats serve as fallbacks.
+    timeout
+        Request timeout in seconds.
+
+    Returns
+    -------
+    Response, str
+        The successful response object and the format string that produced it.
+
+    Raises
+    ------
+    requests.HTTPError
+        If none of the formats succeed.
+    """
+
+    last_error: requests.RequestException | None = None
+
+    for fmt in format_preferences:
+        params = dict(base_params)
+        params["format"] = fmt
+        logging.debug("Attempting request to %s with format '%s'", url, fmt)
+        try:
+            response = requests.get(url, params=params, timeout=timeout)
+            response.raise_for_status()
+        except requests.RequestException as exc:  # pragma: no cover - network error handling
+            logging.debug(
+                "Request to %s with format '%s' failed: %s",
+                url,
+                fmt,
+                exc,
+            )
+            last_error = exc
+            continue
+
+        content_type = response.headers.get("Content-Type", "").lower()
+        if "xml" in content_type and "tiff" not in content_type:
+            # Services sometimes return XML exception reports with HTTP 200.
+            logging.debug(
+                "Request to %s with format '%s' returned XML content; trying fallback format.",
+                url,
+                fmt,
+            )
+            last_error = requests.HTTPError("Service returned XML response instead of raster.", response=response)
+            continue
+
+        logging.info("Successfully retrieved raster using format '%s'.", fmt)
+        return response, fmt
+
+    if last_error is not None:
+        raise last_error
+
+    raise requests.HTTPError("All requested formats failed but no error response was captured.")
+
+
+def download_nlcd(
+    region: Sequence[float] | Polygon | MultiPolygon,
+    year: int = 2021,
+    product: str = "land_cover",
+    resolution_m: float | None = 30.0,
+    output_path: str | Path | None = None,
+    overwrite: bool = False,
+) -> Path:
+    """Download NLCD data for the provided region.
+
+    Parameters
+    ----------
+    region
+        Bounding box or polygon in EPSG:4326.
+    year
+        NLCD product year (e.g., 2019, 2021).
+    product
+        Currently supported option is ``"land_cover"``.
+    resolution_m
+        Desired output resolution in metres. ``None`` lets the service decide.
+    output_path
+        Where to save the GeoTIFF. Defaults to ``data/nlcd`` with an auto-generated
+        filename based on the region bounds.
+    overwrite
+        Whether to replace an existing file.
+    """
+
+    product_map = {
+        "land_cover": "Land_Cover_L48",
+    }
+
+    if product not in product_map:
+        raise ValueError(f"Unsupported NLCD product '{product}'.")
+
+    coverage = f"NLCD_{year}_{product_map[product]}"
+    base_url = "https://www.mrlc.gov/geoserver/mrlc_download/wcs"
+
+    polygon = to_polygon(region)
+    bounds = polygon.bounds  # minx, miny, maxx, maxy
+
+    if output_path is None:
+        tag = _region_tag(bounds)
+        output_path = data_path(f"nlcd/{coverage}_{tag}.tif")
+
+    destination = Path(output_path)
+    if destination.exists() and not overwrite:
+        logging.info("NLCD file already exists at %s; skipping download.", destination)
+        return destination
+
+    params: dict[str, object] = {
+        "service": "WCS",
+        "version": "1.0.0",
+        "request": "GetCoverage",
+        "coverage": coverage,
+        "crs": "EPSG:4326",
+        "bbox": ",".join(map(str, bounds)),
+    }
+
+    if resolution_m is not None:
+        METERS_PER_DEGREE_AT_EQUATOR = 111_320.0
+        center_lat_deg = (bounds[1] + bounds[3]) / 2.0
+
+        res_y_deg = resolution_m / METERS_PER_DEGREE_AT_EQUATOR
+        res_x_deg = resolution_m / (METERS_PER_DEGREE_AT_EQUATOR * math.cos(math.radians(center_lat_deg)))
+
+        params["resx"] = f"{res_x_deg:.8f}"
+        params["resy"] = f"{res_y_deg:.8f}"
+
+    logging.info("Requesting NLCD '%s' coverage for bounds %s", coverage, bounds)
+    response, _ = _request_raster_with_format_fallback(
+        base_url,
+        params,
+        (
+            "COG",
+            "image/tiff;subtype=cloud-optimized",
+            "image/tiff; application=geotiff; profile=cloud-optimized",
+            "GeoTIFF",
+        ),
+    )
+
+    return _save_response_to_raster(response.content, destination)
+
+
+def download_nass_cdl(
+    region: Sequence[float] | Polygon | MultiPolygon,
+    year: int,
+    output_path: str | Path | None = None,
+    overwrite: bool = False,
+) -> Path:
+    """Download the USDA NASS Cropland Data Layer for the provided region."""
+
+    base_url = "https://nassgeodata.gmu.edu/axis/services/CDLService"
+
+    polygon = to_polygon(region)
+    bounds = polygon.bounds
+
+    if output_path is None:
+        tag = _region_tag(bounds)
+        output_path = data_path(f"cdl/CDL_{year}_{tag}.tif")
+
+    destination = Path(output_path)
+    if destination.exists() and not overwrite:
+        logging.info("CDL file already exists at %s; skipping download.", destination)
+        return destination
+
+    params = {
+        "year": str(year),
+        "bbox": ",".join(map(str, bounds)),
+        "epsg": "4326",
+    }
+
+    logging.info("Requesting CDL for year %s and bounds %s", year, bounds)
+    response, _ = _request_raster_with_format_fallback(
+        base_url,
+        params,
+        (
+            "cog",
+            "COG",
+            "image/tiff;subtype=cloud-optimized",
+            "geotiff",
+        ),
+    )
+
+    return _save_response_to_raster(response.content, destination)
+

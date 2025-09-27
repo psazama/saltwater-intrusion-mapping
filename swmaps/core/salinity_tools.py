@@ -176,14 +176,15 @@ def estimate_salinity_level(
 
     class_map = np.full(score.shape, "land", dtype="<U8")
     score_filled = np.nan_to_num(score, nan=0.0)
-    class_map = np.where(score_filled < 0.35, "fresh", class_map)
     class_map = np.where(
-        (score_filled >= 0.35) & (score_filled < 0.6),
-        "brackish",
-        class_map,
+        water_mask,
+        np.select(
+            [score_filled < 0.35, score_filled < 0.6],
+            ["fresh", "brackish"],
+            default="saline",
+        ),
+        "land",
     )
-    class_map = np.where(score_filled >= 0.6, "saline", class_map)
-    class_map = np.where(water_mask, class_map, "land")
 
     indices = {
         "ndwi": ndwi,

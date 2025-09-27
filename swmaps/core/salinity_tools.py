@@ -152,11 +152,15 @@ def estimate_salinity_level(
     ndwi_scaled = np.clip((ndwi + 1.0) / 2.0, 0.0, 1.0)
     mndwi_scaled = np.clip((mndwi + 1.0) / 2.0, 0.0, 1.0)
 
-    water_mask = (
-        (ndwi > water_threshold)
-        | (mndwi > water_threshold)
-        | (salinity_proxy_norm > salinity_proxy_threshold)
-    )
+    # Base water detection
+    water_mask = (ndwi > water_threshold) | (mndwi > water_threshold)
+
+    # Define weak water evidence
+    weak_water = (ndwi > 0.0) | (mndwi > 0.0)
+
+    # Allow salinity proxy to expand mask only where weak water evidence exists
+    salinity_override = (salinity_proxy_norm > salinity_proxy_threshold) & weak_water
+    water_mask = water_mask | salinity_override
 
     dryness_component = 1.0 - ndwi_scaled
     saline_surface_component = 1.0 - mndwi_scaled

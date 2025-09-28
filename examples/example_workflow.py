@@ -18,7 +18,7 @@ Adjust the mission configuration or date ranges as needed for your analyses.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import geopandas as gpd
@@ -59,6 +59,16 @@ MISSION_DATE_RANGES: dict[str, list[str]] = {
     ],
 }
 
+# Amount of temporal padding (in days) applied to each configured date range
+# before querying satellite imagery. This helps avoid empty queries by widening
+# the search window around the target month.
+DATE_RANGE_PADDING_DAYS = 15
+
+# Maximum number of STAC items to request per patch. Allowing multiple
+# candidates gives the downloader flexibility to fall back to alternative
+# acquisitions when the first item is unavailable.
+MAX_ITEMS_PER_PATCH = 3
+
 # Mapping from the salinity class labels returned by ``estimate_salinity_level``
 # to compact integer codes for easier raster storage/visualisation.
 SALINITY_CLASS_CODES = {"land": 0, "fresh": 1, "brackish": 2, "saline": 3}
@@ -74,6 +84,23 @@ def _load_region_bounds() -> tuple[gpd.GeoSeries, list[float]]:
     geometry = gdf.geometry.unary_union
     bounds = list(geometry.bounds)
     return geometry, bounds
+
+
+def _expand_date_range(date_range: str, buffer_days: int) -> str:
+    """Return a widened ISO8601 date interval string.
+
+    Parameters
+    ----------
+    date_range:
+        The original "YYYY-MM-DD/YYYY-MM-DD" interval string.
+    buffer_days:
+        Number of days to expand before the start date and after the end date.
+    """
+
+    start_str, end_str = date_range.split("/")
+    start = datetime.strptime(start_str, "%Y-%m-%d") - timedelta(days=buffer_days)
+    end = datetime.strptime(end_str, "%Y-%m-%d") + timedelta(days=buffer_days)
+    return f"{start.date()}/{end.date()}"
 
 
 def _landsat_reflectance_stack(src: rasterio.io.DatasetReader) -> list[np.ndarray]:
@@ -141,6 +168,8 @@ def process_landsat_history() -> None:
             # ------------------------------------------------------------------
             # Step 1: Build/refresh the Landsat mosaic for this date range
             # ------------------------------------------------------------------
+            expanded_date_range = _expand_date_range(date_range, DATE_RANGE_PADDING_DAYS)
+
             if not mosaic_path.exists():
                 logging.info("Creating mosaic placeholder at %s", mosaic_path)
                 mosaic_path.parent.mkdir(parents=True, exist_ok=True)
@@ -153,18 +182,23 @@ def process_landsat_history() -> None:
                     dtype="float32",
                 )
 
-                logging.info("Downloading %s imagery for %s", mission, date_range)
+                logging.info(
+                    "Downloading %s imagery for %s (expanded to %s)",
+                    mission,
+                    date_range,
+                    expanded_date_range,
+                )
                 patchwise_query_download_mosaic(
                     mosaic_path=mosaic_path,
                     bbox=bounds,
                     mission=mission,
                     resolution=mission_cfg["resolution"],
                     bands=mission_cfg["bands"],
-                    date_range=date_range,
+                    date_range=expanded_date_range,
                     base_output_path=mosaic_path.parent,
                     to_disk=False,
                     multithreaded=False,
-                    max_items=1,
+                    max_items=MAX_ITEMS_PER_PATCH,
                 )
             else:
                 logging.info("Reusing existing mosaic at %s", mosaic_path)

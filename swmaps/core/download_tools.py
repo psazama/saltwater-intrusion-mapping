@@ -4,13 +4,12 @@ import math
 import os
 import shutil
 import tempfile
-from collections.abc import Sequence
+import zipfile
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from functools import partial
 from pathlib import Path
-from typing import Optional
-import zipfile
+from typing import Optional, Sequence, Union
 
 import geopandas as gpd
 import matplotlib.pyplot as plt
@@ -32,6 +31,9 @@ from tqdm import tqdm
 
 from swmaps.config import data_path
 from swmaps.core.aoi import iter_square_patches, to_polygon
+
+LEGACY_YEARS = {2001, 2006, 2011, 2016, 2019, 2021}
+ANNUAL_RANGE = range(1985, 2025)
 
 
 def get_mission(mission: str) -> dict[str, object]:
@@ -1207,7 +1209,9 @@ def compute_ndwi(
 def _region_tag(bounds: Sequence[float]) -> str:
     """Return a filesystem-friendly tag for the provided bounds."""
 
-    return "_".join(f"{coord:.6f}".replace("-", "m").replace(".", "p") for coord in bounds)
+    return "_".join(
+        f"{coord:.6f}".replace("-", "m").replace(".", "p") for coord in bounds
+    )
 
 
 def _save_response_to_raster(content: bytes, destination: Path) -> Path:
@@ -1218,7 +1222,11 @@ def _save_response_to_raster(content: bytes, destination: Path) -> Path:
     # Many services return zipped GeoTIFFs. Detect and extract them if present.
     if content[:2] == b"PK":  # ZIP file signature
         with zipfile.ZipFile(io.BytesIO(content)) as zf:
-            tif_names = [name for name in zf.namelist() if name.lower().endswith((".tif", ".tiff"))]
+            tif_names = [
+                name
+                for name in zf.namelist()
+                if name.lower().endswith((".tif", ".tiff"))
+            ]
             if not tif_names:
                 raise ValueError("ZIP archive did not contain any GeoTIFF files.")
             # If multiple GeoTIFFs are present, take the first one but warn the user.
@@ -1275,7 +1283,9 @@ def _request_raster_with_format_fallback(
         try:
             response = requests.get(url, params=params, timeout=timeout)
             response.raise_for_status()
-        except requests.RequestException as exc:  # pragma: no cover - network error handling
+        except (
+            requests.RequestException
+        ) as exc:  # pragma: no cover - network error handling
             logging.debug(
                 "Request to %s with format '%s' failed: %s",
                 url,
@@ -1293,7 +1303,9 @@ def _request_raster_with_format_fallback(
                 url,
                 fmt,
             )
-            last_error = requests.HTTPError("Service returned XML response instead of raster.", response=response)
+            last_error = requests.HTTPError(
+                "Service returned XML response instead of raster.", response=response
+            )
             continue
 
         logging.info("Successfully retrieved raster using format '%s'.", fmt)
@@ -1302,90 +1314,147 @@ def _request_raster_with_format_fallback(
     if last_error is not None:
         raise last_error
 
-    raise requests.HTTPError("All requested formats failed but no error response was captured.")
+    raise requests.HTTPError(
+        "All requested formats failed but no error response was captured."
+    )
+
+
+# ScienceBase item for Annual NLCD Land Cover CONUS
+ANNUAL_SCIENCEBASE_ITEM = (
+    "https://www.sciencebase.gov/catalog/item/63475ce5d34ed907bf70c6d5?format=json"
+)
+
+
+def _detect_region(bounds: tuple[float, float, float, float]) -> str:
+    """Infer NLCD region code from bounding box (EPSG:4326)."""
+    minx, miny, maxx, maxy = bounds
+    if -170 <= minx <= -154 and 18 <= miny <= 23:
+        return "HI"
+    elif -180 <= minx <= -129 and 50 <= miny <= 72:
+        return "AK"
+    elif -67 <= minx <= -65 and 17 <= miny <= 19:
+        return "PR"
+    else:
+        return "L48"  # default CONUS
+
+
+def _download_file(url: str, destination: Path) -> Path:
+    logging.info("Downloading from %s", url)
+    r = requests.get(url, stream=True)
+    r.raise_for_status()
+    with open(destination, "wb") as f:
+        for chunk in r.iter_content(chunk_size=8192):
+            f.write(chunk)
+    return destination
+
+
+def _get_annual_nlcd_url(year: int) -> str:
+    """Fetch the ScienceBase item JSON and return the official URL for the given year."""
+    r = requests.get(ANNUAL_SCIENCEBASE_ITEM)
+    r.raise_for_status()
+    data = r.json()
+
+    for f in data.get("files", []):
+        if f["name"].startswith(f"{year}_NLCD_Land_Cover_L48"):
+            return f["url"]
+
+    raise ValueError(f"No Annual NLCD file found for year {year} in ScienceBase.")
 
 
 def download_nlcd(
-    region: Sequence[float] | Polygon | MultiPolygon,
+    region: Union[Sequence[float], Polygon, MultiPolygon],
     year: int = 2021,
     product: str = "land_cover",
     resolution_m: float | None = 30.0,
-    output_path: str | Path | None = None,
+    output_path: Union[str, Path] | None = None,
     overwrite: bool = False,
 ) -> Path:
-    """Download NLCD data for the provided region.
+    """Download NLCD for the given region and year.
 
-    Parameters
-    ----------
-    region
-        Bounding box or polygon in EPSG:4326.
-    year
-        NLCD product year (e.g., 2019, 2021).
-    product
-        Currently supported option is ``"land_cover"``.
-    resolution_m
-        Desired output resolution in metres. ``None`` lets the service decide.
-    output_path
-        Where to save the GeoTIFF. Defaults to ``data/nlcd`` with an auto-generated
-        filename based on the region bounds.
-    overwrite
-        Whether to replace an existing file.
+    Sources:
+      - Epoch NLCD (2001–2021): MRLC WCS
+      - Annual NLCD (1985–2024): USGS ScienceBase
     """
 
-    product_map = {
-        "land_cover": "Land_Cover_L48",
-    }
-
-    if product not in product_map:
-        raise ValueError(f"Unsupported NLCD product '{product}'.")
-
-    coverage = f"NLCD_{year}_{product_map[product]}"
-    base_url = "https://www.mrlc.gov/geoserver/mrlc_download/wcs"
-
     polygon = to_polygon(region)
-    bounds = polygon.bounds  # minx, miny, maxx, maxy
+    bounds = polygon.bounds
+    region_code = _detect_region(bounds)
 
-    if output_path is None:
-        tag = _region_tag(bounds)
-        output_path = data_path(f"nlcd/{coverage}_{tag}.tif")
+    # Epoch products → WCS
+    if year in LEGACY_YEARS:
+        coverage = f"NLCD_{year}_Land_Cover_{region_code}"
+        base_url = "https://www.mrlc.gov/geoserver/mrlc_download/wcs"
 
-    destination = Path(output_path)
-    if destination.exists() and not overwrite:
-        logging.info("NLCD file already exists at %s; skipping download.", destination)
-        return destination
+        if output_path is None:
+            tag = _region_tag(bounds)
+            output_path = data_path(f"nlcd/{coverage}_{tag}.tif")
 
-    params: dict[str, object] = {
-        "service": "WCS",
-        "version": "1.0.0",
-        "request": "GetCoverage",
-        "coverage": coverage,
-        "crs": "EPSG:4326",
-        "bbox": ",".join(map(str, bounds)),
-    }
+        destination = Path(output_path)
+        if destination.exists() and not overwrite:
+            logging.info(
+                "NLCD file already exists at %s; skipping download.", destination
+            )
+            return destination
 
-    if resolution_m is not None:
-        METERS_PER_DEGREE_AT_EQUATOR = 111_320.0
-        center_lat_deg = (bounds[1] + bounds[3]) / 2.0
+        params: dict[str, object] = {
+            "service": "WCS",
+            "version": "1.0.0",
+            "request": "GetCoverage",
+            "coverage": coverage,
+            "crs": "EPSG:4326",
+            "bbox": ",".join(map(str, bounds)),
+        }
 
-        res_y_deg = resolution_m / METERS_PER_DEGREE_AT_EQUATOR
-        res_x_deg = resolution_m / (METERS_PER_DEGREE_AT_EQUATOR * math.cos(math.radians(center_lat_deg)))
+        if resolution_m is not None:
+            METERS_PER_DEGREE_AT_EQUATOR = 111_320.0
+            center_lat = (bounds[1] + bounds[3]) / 2.0
+            res_y = resolution_m / METERS_PER_DEGREE_AT_EQUATOR
+            res_x = resolution_m / (
+                METERS_PER_DEGREE_AT_EQUATOR * math.cos(math.radians(center_lat))
+            )
+            params["resx"] = f"{res_x:.8f}"
+            params["resy"] = f"{res_y:.8f}"
 
-        params["resx"] = f"{res_x_deg:.8f}"
-        params["resy"] = f"{res_y_deg:.8f}"
+        logging.info("Requesting NLCD coverage '%s' for bounds %s", coverage, bounds)
+        response, _ = _request_raster_with_format_fallback(
+            base_url,
+            params,
+            (
+                "COG",
+                "image/tiff;subtype=cloud-optimized",
+                "image/tiff; application=geotiff; profile=cloud-optimized",
+                "GeoTIFF",
+            ),
+        )
+        return _save_response_to_raster(response.content, destination)
 
-    logging.info("Requesting NLCD '%s' coverage for bounds %s", coverage, bounds)
-    response, _ = _request_raster_with_format_fallback(
-        base_url,
-        params,
-        (
-            "COG",
-            "image/tiff;subtype=cloud-optimized",
-            "image/tiff; application=geotiff; profile=cloud-optimized",
-            "GeoTIFF",
-        ),
-    )
+    # Annual products → ScienceBase
+    elif year in ANNUAL_RANGE:
+        if region_code != "L48":
+            raise ValueError(
+                f"Annual NLCD currently only available for CONUS, not {region_code}"
+            )
+        if product != "land_cover":
+            raise ValueError(
+                "Annual NLCD ScienceBase downloader currently supports only 'land_cover'."
+            )
 
-    return _save_response_to_raster(response.content, destination)
+        url = _get_annual_nlcd_url(year)
+
+        if output_path is None:
+            output_path = data_path(f"nlcd/NLCD_{year}_Land_Cover_L48.tif")
+
+        destination = Path(output_path)
+        if destination.exists() and not overwrite:
+            logging.info(
+                "NLCD file already exists at %s; skipping download.", destination
+            )
+            return destination
+
+        return _download_file(url, destination)
+
+    else:
+        raise ValueError(f"Year {year} not supported by NLCD (epoch or annual).")
 
 
 def download_nass_cdl(
@@ -1429,4 +1498,3 @@ def download_nass_cdl(
     )
 
     return _save_response_to_raster(response.content, destination)
-

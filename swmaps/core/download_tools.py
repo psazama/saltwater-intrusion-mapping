@@ -6,7 +6,7 @@ import shutil
 import tempfile
 import zipfile
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from functools import partial
 from pathlib import Path
 from typing import Optional, Sequence, Union
@@ -31,6 +31,12 @@ from tqdm import tqdm
 
 from swmaps.config import data_path
 from swmaps.core.aoi import iter_square_patches, to_polygon
+
+
+LEGACY_NLCD_WCS_YEARS = {2001, 2006, 2011, 2016, 2019}
+ANNUAL_NLCD_SCIENCEBASE_ITEM = (
+    "https://www.sciencebase.gov/catalog/item/63475ce5d34ed907bf70c6d5?format=json"
+)
 
 
 def get_mission(mission: str) -> dict[str, object]:
@@ -1259,21 +1265,104 @@ def _save_response_to_raster(
     return destination
 
 
-def _nlcd_coverage_candidates(year: int) -> list[str]:
+def _detect_region(bounds: tuple[float, float, float, float]) -> str:
+    """Infer NLCD region code from bounding box (EPSG:4326)."""
+
+    minx, miny, maxx, maxy = bounds
+    if -170 <= minx <= -154 and 18 <= miny <= 23:
+        return "HI"
+    if -180 <= minx <= -129 and 50 <= miny <= 72:
+        return "AK"
+    if -67 <= minx <= -65 and 17 <= miny <= 19:
+        return "PR"
+    return "L48"
+
+
+def _download_file(url: str, destination: Path, *, timeout: int = 300) -> Path:
+    """Download ``url`` to ``destination`` using streaming requests."""
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with requests.get(url, stream=True, timeout=timeout) as response:
+        response.raise_for_status()
+        with destination.open("wb") as fp:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    fp.write(chunk)
+    return destination
+
+
+def _get_annual_nlcd_url(year: int) -> str:
+    """Return the ScienceBase download URL for the requested NLCD year."""
+
+    response = requests.get(ANNUAL_NLCD_SCIENCEBASE_ITEM, timeout=120)
+    response.raise_for_status()
+    data = response.json()
+
+    target_prefix = f"nlcd_{year}_land_cover".lower()
+    for entry in data.get("files", []):
+        name = entry.get("name", "")
+        if not name:
+            continue
+        lower_name = name.lower()
+        if lower_name.startswith(target_prefix) and lower_name.endswith(
+            (".tif", ".tiff", ".tif.gz")
+        ):
+            url = entry.get("url")
+            if url:
+                return url
+
+    raise ValueError(f"No Annual NLCD ScienceBase asset found for year {year}.")
+
+
+def _nlcd_coverage_candidates(year: int, region_code: str) -> list[str]:
     """Return candidate MRLC coverage identifiers for a given NLCD year."""
 
     base = f"NLCD_{year}_Land_Cover"
-    suffixes = []
-    if year >= 2021:
-        suffixes.append("Science_Product_L48")
-    suffixes.extend(["L48", "Science_Product", ""])
+    candidates = [f"{base}_{region_code}", base]
 
-    candidates: list[str] = []
-    for suffix in suffixes:
-        coverage = f"{base}_{suffix}" if suffix else base
+    science_suffixes = [
+        f"{base}_Science_Product_{region_code}",
+        f"{base}_Science_Product",
+    ]
+
+    if region_code == "L48":
+        science_suffixes.append(f"{base}_Science_Product_L48")
+
+    for coverage in science_suffixes:
         if coverage not in candidates:
             candidates.append(coverage)
+
     return candidates
+
+
+def _cdl_time_parameters(year: int) -> list[str]:
+    """Return candidate ArcGIS ``time`` parameter values for the CDL service."""
+
+    start = datetime(year, 1, 1, tzinfo=timezone.utc)
+    end = datetime(year + 1, 1, 1, tzinfo=timezone.utc) - timedelta(milliseconds=1)
+
+    start_ms = int(start.timestamp() * 1000)
+    end_ms = int(end.timestamp() * 1000)
+
+    iso_start = start.isoformat().replace("+00:00", "Z")
+    iso_end = end.isoformat().replace("+00:00", "Z")
+
+    candidates = [
+        str(year),
+        f"{iso_start},{iso_end}",
+        str(start_ms),
+        f"{start_ms},{end_ms}",
+    ]
+
+    # Preserve order while removing duplicates
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for value in candidates:
+        if value not in seen:
+            seen.add(value)
+            ordered.append(value)
+
+    return ordered
 
 
 def download_nlcd(
@@ -1282,53 +1371,20 @@ def download_nlcd(
     output_path: Union[str, Path] | None = None,
     overwrite: bool = False,
 ) -> Path:
-    """Download the NLCD Land Cover layer for a bounding box and year.
-
-    The implementation intentionally mirrors the simplest possible workflow: it
-    builds a basic WCS ``GetCoverage`` request using the MRLC endpoint and saves
-    the GeoTIFF response to disk.
-    """
+    """Download the NLCD Land Cover layer for a bounding box and year."""
 
     polygon = to_polygon(region)
     bounds = polygon.bounds
-    base_url = "https://www.mrlc.gov/geoserver/mrlc_download/wcs"
+    region_code = _detect_region(bounds)
 
-    params: dict[str, object] = {
-        "service": "WCS",
-        "version": "1.0.0",
-        "request": "GetCoverage",
-        "crs": "EPSG:4326",
-        "bbox": ",".join(map(str, bounds)),
-        "format": "GeoTIFF",
-    }
-
-    candidates = _nlcd_coverage_candidates(year)
-    tag = _region_tag(bounds)
-
-    destination_override: Path | None = None
-    if output_path is not None:
-        destination_override = Path(output_path)
-        if destination_override.exists() and not overwrite:
-            logging.info(
-                "NLCD file already exists at %s; skipping download.",
-                destination_override,
-            )
-            return destination_override
-
-    last_error: Exception | None = None
-    tried_coverages: list[str] = []
-
-    for coverage in candidates:
-        tried_coverages.append(coverage)
-        params["coverage"] = coverage
-        logging.info(
-            "Requesting NLCD coverage '%s' for bounds %s", coverage, bounds
-        )
+    if year in LEGACY_NLCD_WCS_YEARS:
+        base_url = "https://www.mrlc.gov/geoserver/mrlc_download/wcs"
+        tag = _region_tag(bounds)
 
         destination = (
-            destination_override
-            if destination_override is not None
-            else Path(data_path(f"nlcd/{coverage}_{tag}.tif"))
+            Path(output_path)
+            if output_path is not None
+            else Path(data_path(f"nlcd/NLCD_{year}_Land_Cover_{region_code}_{tag}.tif"))
         )
 
         if destination.exists() and not overwrite:
@@ -1337,36 +1393,78 @@ def download_nlcd(
             )
             return destination
 
-        try:
-            response = requests.get(base_url, params=params, timeout=300)
-            response.raise_for_status()
-        except requests.HTTPError as exc:
-            logging.warning(
-                "NLCD coverage '%s' request failed with HTTP error: %s", coverage, exc
-            )
-            last_error = exc
-            continue
+        params: dict[str, object] = {
+            "service": "WCS",
+            "version": "1.0.0",
+            "request": "GetCoverage",
+            "crs": "EPSG:4326",
+            "bbox": ",".join(map(str, bounds)),
+            "format": "GeoTIFF",
+        }
 
-        try:
-            return _save_response_to_raster(
-                response.content,
-                destination,
-                content_type=response.headers.get("Content-Type"),
-            )
-        except ValueError as exc:
-            logging.warning(
-                "NLCD coverage '%s' returned a non-raster payload: %s", coverage, exc
-            )
-            last_error = exc
+        meters_per_degree = 111_320.0
+        center_lat = (bounds[1] + bounds[3]) / 2.0
+        cos_lat = math.cos(math.radians(center_lat)) or 1e-6
+        res_y = 30.0 / meters_per_degree
+        res_x = 30.0 / (meters_per_degree * cos_lat)
+        params["resx"] = f"{res_x:.8f}"
+        params["resy"] = f"{res_y:.8f}"
 
-    coverage_list = ", ".join(tried_coverages)
-    error_message = (
-        f"Failed to download NLCD coverage for year {year}. "
-        f"Tried coverages: {coverage_list}"
+        last_error: Exception | None = None
+        tried: list[str] = []
+
+        for coverage in _nlcd_coverage_candidates(year, region_code):
+            params["coverage"] = coverage
+            tried.append(coverage)
+            logging.info(
+                "Requesting NLCD coverage '%s' for bounds %s", coverage, bounds
+            )
+            try:
+                response = requests.get(base_url, params=params, timeout=300)
+                response.raise_for_status()
+                return _save_response_to_raster(
+                    response.content,
+                    destination,
+                    content_type=response.headers.get("Content-Type"),
+                )
+            except (requests.HTTPError, ValueError) as exc:
+                logging.warning("NLCD coverage '%s' request failed: %s", coverage, exc)
+                last_error = exc
+                continue
+
+        message = (
+            f"Failed to download NLCD coverage for year {year}. "
+            f"Tried coverages: {', '.join(tried)}"
+        )
+        if last_error is not None:
+            raise RuntimeError(message) from last_error
+        raise RuntimeError(message)
+
+    if year == 2021:
+        if region_code != "L48":
+            raise ValueError(
+                "NLCD 2021 ScienceBase downloads are currently only available for CONUS."
+            )
+
+        destination = (
+            Path(output_path)
+            if output_path is not None
+            else Path(data_path("nlcd/NLCD_2021_Land_Cover_L48.tif"))
+        )
+
+        if destination.exists() and not overwrite:
+            logging.info(
+                "NLCD file already exists at %s; skipping download.", destination
+            )
+            return destination
+
+        url = _get_annual_nlcd_url(year)
+        return _download_file(url, destination)
+
+    raise ValueError(
+        "NLCD year %s is not supported. Supported years: %s (WCS) or 2021 ScienceBase"
+        % (year, sorted(LEGACY_NLCD_WCS_YEARS))
     )
-    if last_error is not None:
-        raise RuntimeError(error_message) from last_error
-    raise RuntimeError(error_message)
 
 
 def _arcgis_export_size(
@@ -1421,11 +1519,11 @@ def download_nass_cdl(
         return destination
 
     export_url = (
-        f"https://nassgeodata.gmu.edu/arcgis/rest/services/CDL/CDL_{year}/MapServer/export"
+        "https://nassgeodata.gmu.edu/arcgis/rest/services/CDL/AnnualCDL/MapServer/export"
     )
 
     width, height = _arcgis_export_size(bounds)
-    params = {
+    base_params = {
         "f": "image",
         "format": "tiff",
         "bbox": ",".join(map(str, bounds)),
@@ -1445,11 +1543,34 @@ def download_nass_cdl(
         height,
     )
 
-    response = requests.get(export_url, params=params, timeout=300)
-    response.raise_for_status()
+    last_error: Exception | None = None
+    time_candidates = _cdl_time_parameters(year)
 
-    return _save_response_to_raster(
-        response.content,
-        destination,
-        content_type=response.headers.get("Content-Type"),
+    for time_value in time_candidates:
+        params = dict(base_params)
+        params["time"] = time_value
+        logging.debug("Attempting CDL export with time parameter '%s'", time_value)
+        try:
+            response = requests.get(export_url, params=params, timeout=300)
+            response.raise_for_status()
+            return _save_response_to_raster(
+                response.content,
+                destination,
+                content_type=response.headers.get("Content-Type"),
+            )
+        except (requests.HTTPError, ValueError) as exc:
+            logging.warning(
+                "CDL export for year %s failed with time='%s': %s",
+                year,
+                time_value,
+                exc,
+            )
+            last_error = exc
+
+    message = (
+        f"Failed to download CDL export for year {year}. "
+        f"Tried time parameters: {', '.join(time_candidates)}"
     )
+    if last_error is not None:
+        raise RuntimeError(message) from last_error
+    raise RuntimeError(message)

@@ -1222,7 +1222,8 @@ def _save_response_to_raster(
     destination.parent.mkdir(parents=True, exist_ok=True)
 
     if content_type and any(
-        marker in content_type.lower() for marker in ("xml", "html", "text")
+        marker in content_type.lower()
+        for marker in ("xml", "html", "text", "json")
     ):
         raise ValueError(
             "Response reported non-raster content type '%s'." % content_type
@@ -1231,6 +1232,8 @@ def _save_response_to_raster(
     stripped = content.lstrip()
     if stripped.startswith(b"<?xml") or stripped.startswith(b"<ServiceException"):
         raise ValueError("Service returned an XML error response instead of a GeoTIFF.")
+    if stripped.startswith(b"{\"error\""):
+        raise ValueError("Service returned a JSON error response instead of a GeoTIFF.")
 
     # Many services return zipped GeoTIFFs. Detect and extract them if present.
     if content[:2] == b"PK":  # ZIP file signature
@@ -1366,6 +1369,37 @@ def download_nlcd(
     raise RuntimeError(error_message)
 
 
+def _arcgis_export_size(
+    bounds: tuple[float, float, float, float],
+    *,
+    target_resolution: float = 30.0,
+    max_size: int = 4000,
+) -> tuple[int, int]:
+    """Estimate an appropriate ArcGIS ``Export`` size for the provided bounds."""
+
+    minx, miny, maxx, maxy = bounds
+    if minx >= maxx or miny >= maxy:
+        raise ValueError("Invalid bounding box provided for CDL download.")
+
+    transformer = Transformer.from_crs("EPSG:4326", "EPSG:5070", always_xy=True)
+
+    minx_m, miny_m = transformer.transform(minx, miny)
+    maxx_m, _ = transformer.transform(maxx, miny)
+    _, maxy_m = transformer.transform(minx, maxy)
+
+    width_m = abs(maxx_m - minx_m)
+    height_m = abs(maxy_m - miny_m)
+
+    width_px = max(1, math.ceil(width_m / target_resolution))
+    height_px = max(1, math.ceil(height_m / target_resolution))
+
+    scale = max(width_px / max_size, height_px / max_size, 1.0)
+    width_px = max(1, int(math.ceil(width_px / scale)))
+    height_px = max(1, int(math.ceil(height_px / scale)))
+
+    return width_px, height_px
+
+
 def download_nass_cdl(
     region: Sequence[float] | Polygon | MultiPolygon,
     year: int,
@@ -1373,10 +1407,6 @@ def download_nass_cdl(
     overwrite: bool = False,
 ) -> Path:
     """Download the USDA NASS Cropland Data Layer for the provided region."""
-
-    base_url = (
-        "https://nassgeodata.gmu.edu/axis/services/CDLService/GetCDLImage.ashx"
-    )
 
     polygon = to_polygon(region)
     bounds = polygon.bounds
@@ -1390,15 +1420,36 @@ def download_nass_cdl(
         logging.info("CDL file already exists at %s; skipping download.", destination)
         return destination
 
+    export_url = (
+        f"https://nassgeodata.gmu.edu/arcgis/rest/services/CDL/CDL_{year}/MapServer/export"
+    )
+
+    width, height = _arcgis_export_size(bounds)
     params = {
-        "year": str(year),
+        "f": "image",
+        "format": "tiff",
         "bbox": ",".join(map(str, bounds)),
-        "epsg": "4326",
-        "format": "geotiff",
+        "bboxSR": "4326",
+        "imageSR": "4326",
+        "size": f"{width},{height}",
+        "transparent": "false",
+        "dpi": "96",
+        "layers": "show:0",
     }
 
-    logging.info("Requesting CDL for year %s and bounds %s", year, bounds)
-    response = requests.get(base_url, params=params, timeout=300)
+    logging.info(
+        "Requesting CDL export for year %s and bounds %s with size %sx%s",
+        year,
+        bounds,
+        width,
+        height,
+    )
+
+    response = requests.get(export_url, params=params, timeout=300)
     response.raise_for_status()
 
-    return _save_response_to_raster(response.content, destination)
+    return _save_response_to_raster(
+        response.content,
+        destination,
+        content_type=response.headers.get("Content-Type"),
+    )

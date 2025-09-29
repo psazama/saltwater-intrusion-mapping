@@ -19,12 +19,15 @@ Adjust the mission configuration or date ranges as needed for your analyses.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import Any, TypeVar
 
 import geopandas as gpd
 import numpy as np
 import rasterio
+from rasterio.errors import RasterioError
 
 from swmaps.config import data_path
 from swmaps.core.download_tools import (
@@ -84,6 +87,26 @@ def _load_region_bounds() -> tuple[gpd.GeoSeries, list[float]]:
     geometry = gdf.geometry.unary_union
     bounds = list(geometry.bounds)
     return geometry, bounds
+
+
+T = TypeVar("T")
+
+
+def _safe_execute(
+    description: str,
+    func: Callable[..., T],
+    *args: Any,
+    **kwargs: Any,
+) -> T | None:
+    """Execute ``func`` while logging non-fatal errors and returning ``None`` on failure."""
+
+    try:
+        return func(*args, **kwargs)
+    except (FileNotFoundError, ValueError) as exc:
+        logging.warning("%s skipped: %s", description, exc)
+    except Exception:
+        logging.exception("%s failed unexpectedly", description)
+    return None
 
 
 def _expand_date_range(date_range: str, buffer_days: int) -> str:
@@ -196,7 +219,9 @@ def process_landsat_history() -> None:
                     date_range,
                     expanded_date_range,
                 )
-                patchwise_query_download_mosaic(
+                _safe_execute(
+                    f"Downloading imagery for {mission} {date_range}",
+                    patchwise_query_download_mosaic,
                     mosaic_path=mosaic_path,
                     bbox=bounds,
                     mission=mission,
@@ -222,8 +247,13 @@ def process_landsat_history() -> None:
             # ------------------------------------------------------------------
             if not water_mask_path.exists():
                 logging.info("Computing NDWI water mask -> %s", water_mask_path)
-                compute_ndwi(
-                    mosaic_path, mission, out_path=water_mask_path, threshold=0.2
+                _safe_execute(
+                    f"Computing NDWI water mask for {mission} {tag}",
+                    compute_ndwi,
+                    mosaic_path,
+                    mission,
+                    out_path=water_mask_path,
+                    threshold=0.2,
                 )
             else:
                 logging.info("Water mask already available at %s", water_mask_path)
@@ -236,15 +266,29 @@ def process_landsat_history() -> None:
                 or not salinity_class_path.exists()
                 or not salinity_water_mask_path.exists()
             ):
-                with rasterio.open(mosaic_path) as src:
-                    profile = src.profile
-                    reflectance_bands = _landsat_reflectance_stack(src)
+                try:
+                    with rasterio.open(mosaic_path) as src:
+                        profile = src.profile
+                        reflectance_bands = _landsat_reflectance_stack(src)
+                except RasterioError as exc:
+                    logging.warning(
+                        "Unable to open mosaic %s for salinity estimation: %s",
+                        mosaic_path,
+                        exc,
+                    )
+                    continue
 
-                salinity = estimate_salinity_level(
+                salinity = _safe_execute(
+                    f"Estimating salinity levels for {mission} {tag}",
+                    estimate_salinity_level,
                     *reflectance_bands,
                     reflectance_scale=None,
                     water_threshold=0.2,
                 )
+
+                if salinity is None:
+                    logging.warning("Salinity estimation skipped for %s", tag)
+                    continue
 
                 score = salinity["score"]
                 class_map = salinity["class_map"]
@@ -283,13 +327,25 @@ def process_landsat_history() -> None:
 
             if not nlcd_path.exists():
                 logging.info("Requesting NLCD overlay for %s", year)
-                download_nlcd(region=geometry, year=year, output_path=nlcd_path)
+                _safe_execute(
+                    f"Downloading NLCD overlay for {year}",
+                    download_nlcd,
+                    region=geometry,
+                    year=year,
+                    output_path=nlcd_path,
+                )
             else:
                 logging.info("NLCD overlay already cached at %s", nlcd_path)
 
             if not cdl_path.exists():
                 logging.info("Requesting CDL overlay for %s", year)
-                download_nass_cdl(region=geometry, year=year, output_path=cdl_path)
+                _safe_execute(
+                    f"Downloading CDL overlay for {year}",
+                    download_nass_cdl,
+                    region=geometry,
+                    year=year,
+                    output_path=cdl_path,
+                )
             else:
                 logging.info("CDL overlay already cached at %s", cdl_path)
 

@@ -22,19 +22,26 @@ def _load_somerset_polygon() -> shape:
     return shape(geojson["features"][0]["geometry"])
 
 
-@pytest.mark.integration
-@pytest.mark.network
-def test_download_nlcd_and_cdl_for_somerset(monkeypatch, tmp_path):
-    polygon = _load_somerset_polygon()
+@pytest.fixture
+def somerset_polygon() -> shape:
+    return _load_somerset_polygon()
 
+
+@pytest.fixture
+def patched_data_path(monkeypatch, tmp_path):
     def tmp_data_path(*parts: str) -> Path:
         path = tmp_path.joinpath(*parts)
         path.parent.mkdir(parents=True, exist_ok=True)
         return path
 
     monkeypatch.setattr(download_tools, "data_path", tmp_data_path)
+    return tmp_data_path
 
-    nlcd_path = download_tools.download_nlcd(polygon, 2021, overwrite=True)
+
+@pytest.mark.integration
+@pytest.mark.network
+def test_download_nlcd_for_somerset(patched_data_path, somerset_polygon):
+    nlcd_path = download_tools.download_nlcd(somerset_polygon, 2021, overwrite=True)
     assert nlcd_path.exists()
     assert nlcd_path.suffix.lower() == ".tif"
     assert nlcd_path.stat().st_size > 0
@@ -45,7 +52,11 @@ def test_download_nlcd_and_cdl_for_somerset(monkeypatch, tmp_path):
         assert dataset.width > 0
         assert dataset.height > 0
 
-    cdl_path = download_tools.download_nass_cdl(polygon, 2020, overwrite=True)
+
+@pytest.mark.integration
+@pytest.mark.network
+def test_download_cdl_for_somerset(patched_data_path, somerset_polygon):
+    cdl_path = download_tools.download_nass_cdl(somerset_polygon, 2020, overwrite=True)
     assert cdl_path.exists()
     assert cdl_path.suffix.lower() == ".tif"
     assert cdl_path.stat().st_size > 0

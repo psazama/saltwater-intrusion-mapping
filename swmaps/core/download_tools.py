@@ -1211,10 +1211,26 @@ def _region_tag(bounds: Sequence[float]) -> str:
     )
 
 
-def _save_response_to_raster(content: bytes, destination: Path) -> Path:
+def _save_response_to_raster(
+    content: bytes,
+    destination: Path,
+    *,
+    content_type: str | None = None,
+) -> Path:
     """Save a WCS/WMS response to a raster file, unzipping when necessary."""
 
     destination.parent.mkdir(parents=True, exist_ok=True)
+
+    if content_type and any(
+        marker in content_type.lower() for marker in ("xml", "html", "text")
+    ):
+        raise ValueError(
+            "Response reported non-raster content type '%s'." % content_type
+        )
+
+    stripped = content.lstrip()
+    if stripped.startswith(b"<?xml") or stripped.startswith(b"<ServiceException"):
+        raise ValueError("Service returned an XML error response instead of a GeoTIFF.")
 
     # Many services return zipped GeoTIFFs. Detect and extract them if present.
     if content[:2] == b"PK":  # ZIP file signature
@@ -1240,6 +1256,23 @@ def _save_response_to_raster(content: bytes, destination: Path) -> Path:
     return destination
 
 
+def _nlcd_coverage_candidates(year: int) -> list[str]:
+    """Return candidate MRLC coverage identifiers for a given NLCD year."""
+
+    base = f"NLCD_{year}_Land_Cover"
+    suffixes = []
+    if year >= 2021:
+        suffixes.append("Science_Product_L48")
+    suffixes.extend(["L48", "Science_Product", ""])
+
+    candidates: list[str] = []
+    for suffix in suffixes:
+        coverage = f"{base}_{suffix}" if suffix else base
+        if coverage not in candidates:
+            candidates.append(coverage)
+    return candidates
+
+
 def download_nlcd(
     region: Union[Sequence[float], Polygon, MultiPolygon],
     year: int,
@@ -1255,33 +1288,82 @@ def download_nlcd(
 
     polygon = to_polygon(region)
     bounds = polygon.bounds
-    coverage = f"NLCD_{year}_Land_Cover_L48"
     base_url = "https://www.mrlc.gov/geoserver/mrlc_download/wcs"
-
-    if output_path is None:
-        tag = _region_tag(bounds)
-        output_path = data_path(f"nlcd/{coverage}_{tag}.tif")
-
-    destination = Path(output_path)
-    if destination.exists() and not overwrite:
-        logging.info("NLCD file already exists at %s; skipping download.", destination)
-        return destination
 
     params: dict[str, object] = {
         "service": "WCS",
         "version": "1.0.0",
         "request": "GetCoverage",
-        "coverage": coverage,
         "crs": "EPSG:4326",
         "bbox": ",".join(map(str, bounds)),
         "format": "GeoTIFF",
     }
 
-    logging.info("Requesting NLCD coverage '%s' for bounds %s", coverage, bounds)
-    response = requests.get(base_url, params=params, timeout=300)
-    response.raise_for_status()
+    candidates = _nlcd_coverage_candidates(year)
+    tag = _region_tag(bounds)
 
-    return _save_response_to_raster(response.content, destination)
+    destination_override: Path | None = None
+    if output_path is not None:
+        destination_override = Path(output_path)
+        if destination_override.exists() and not overwrite:
+            logging.info(
+                "NLCD file already exists at %s; skipping download.",
+                destination_override,
+            )
+            return destination_override
+
+    last_error: Exception | None = None
+    tried_coverages: list[str] = []
+
+    for coverage in candidates:
+        tried_coverages.append(coverage)
+        params["coverage"] = coverage
+        logging.info(
+            "Requesting NLCD coverage '%s' for bounds %s", coverage, bounds
+        )
+
+        destination = (
+            destination_override
+            if destination_override is not None
+            else Path(data_path(f"nlcd/{coverage}_{tag}.tif"))
+        )
+
+        if destination.exists() and not overwrite:
+            logging.info(
+                "NLCD file already exists at %s; skipping download.", destination
+            )
+            return destination
+
+        try:
+            response = requests.get(base_url, params=params, timeout=300)
+            response.raise_for_status()
+        except requests.HTTPError as exc:
+            logging.warning(
+                "NLCD coverage '%s' request failed with HTTP error: %s", coverage, exc
+            )
+            last_error = exc
+            continue
+
+        try:
+            return _save_response_to_raster(
+                response.content,
+                destination,
+                content_type=response.headers.get("Content-Type"),
+            )
+        except ValueError as exc:
+            logging.warning(
+                "NLCD coverage '%s' returned a non-raster payload: %s", coverage, exc
+            )
+            last_error = exc
+
+    coverage_list = ", ".join(tried_coverages)
+    error_message = (
+        f"Failed to download NLCD coverage for year {year}. "
+        f"Tried coverages: {coverage_list}"
+    )
+    if last_error is not None:
+        raise RuntimeError(error_message) from last_error
+    raise RuntimeError(error_message)
 
 
 def download_nass_cdl(

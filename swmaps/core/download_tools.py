@@ -18,6 +18,7 @@ import pandas as pd
 import pystac
 import rasterio
 import requests
+from bs4 import BeautifulSoup
 from pyproj import Transformer
 from pystac_client import Client
 from rasterio.crs import CRS
@@ -34,9 +35,12 @@ from swmaps.core.aoi import iter_square_patches, to_polygon
 
 
 LEGACY_NLCD_WCS_YEARS = {2001, 2006, 2011, 2016, 2019}
-ANNUAL_NLCD_SCIENCEBASE_ITEM = (
+
+ANNUAL_SCIENCEBASE_ITEM = (
     "https://www.sciencebase.gov/catalog/item/63475ce5d34ed907bf70c6d5?format=json"
 )
+MRLC_ANNUAL_URL = "https://www.mrlc.gov/data?f%5B0%5D=category%3Aannual-nlcd"
+MRLC_BASE = "https://s3-us-west-2.amazonaws.com/mrlc/nlcd/annual/"
 
 
 def get_mission(mission: str) -> dict[str, object]:
@@ -1291,29 +1295,6 @@ def _download_file(url: str, destination: Path, *, timeout: int = 300) -> Path:
     return destination
 
 
-def _get_annual_nlcd_url(year: int) -> str:
-    """Return the ScienceBase download URL for the requested NLCD year."""
-
-    response = requests.get(ANNUAL_NLCD_SCIENCEBASE_ITEM, timeout=120)
-    response.raise_for_status()
-    data = response.json()
-
-    target_prefix = f"nlcd_{year}_land_cover".lower()
-    for entry in data.get("files", []):
-        name = entry.get("name", "")
-        if not name:
-            continue
-        lower_name = name.lower()
-        if lower_name.startswith(target_prefix) and lower_name.endswith(
-            (".tif", ".tiff", ".tif.gz")
-        ):
-            url = entry.get("url")
-            if url:
-                return url
-
-    raise ValueError(f"No Annual NLCD ScienceBase asset found for year {year}.")
-
-
 def _nlcd_coverage_candidates(year: int, region_code: str) -> list[str]:
     """Return candidate MRLC coverage identifiers for a given NLCD year."""
 
@@ -1337,7 +1318,6 @@ def _nlcd_coverage_candidates(year: int, region_code: str) -> list[str]:
 
 def _cdl_time_parameters(year: int) -> list[str]:
     """Return candidate ArcGIS ``time`` parameter values for the CDL service."""
-
     start = datetime(year, 1, 1, tzinfo=timezone.utc)
     end = datetime(year + 1, 1, 1, tzinfo=timezone.utc) - timedelta(milliseconds=1)
 
@@ -1347,12 +1327,7 @@ def _cdl_time_parameters(year: int) -> list[str]:
     iso_start = start.isoformat().replace("+00:00", "Z")
     iso_end = end.isoformat().replace("+00:00", "Z")
 
-    candidates = [
-        str(year),
-        f"{iso_start},{iso_end}",
-        str(start_ms),
-        f"{start_ms},{end_ms}",
-    ]
+    candidates = [str(year), f"{iso_start},{iso_end}", str(start_ms), f"{start_ms},{end_ms}"]
 
     # Preserve order while removing duplicates
     seen: set[str] = set()
@@ -1363,6 +1338,40 @@ def _cdl_time_parameters(year: int) -> list[str]:
             ordered.append(value)
 
     return ordered
+  
+def _get_annual_nlcd_url(year: int) -> str:
+    """Try ScienceBase first, then fall back to scraping MRLC's annual NLCD page."""
+
+    # --- Primary: ScienceBase ---
+    try:
+        r = requests.get(ANNUAL_SCIENCEBASE_ITEM, timeout=30)
+        r.raise_for_status()
+        data = r.json()
+        for f in data.get("files", []):
+            if f["name"].startswith(f"{year}_NLCD_Land_Cover_L48"):
+                return f["url"]
+    except Exception as e:
+        logging.warning(f"[NLCD] ScienceBase lookup failed for {year}: {e}")
+
+    # --- Fallback: MRLC webpage scrape ---
+    try:
+        r = requests.get(MRLC_ANNUAL_URL, timeout=30)
+        r.raise_for_status()
+        soup = BeautifulSoup(r.text, "html.parser")
+
+        links = [a["href"] for a in soup.find_all("a", href=True) if f"{year}_NLCD_Land_Cover_L48" in a["href"]]
+        if links:
+            return links[0]
+
+        candidate_url = f"{MRLC_BASE}{year}_NLCD_Land_Cover_L48.tif"
+        test = requests.head(candidate_url)
+        if test.status_code == 200:
+            return candidate_url
+
+    except Exception as e:
+        logging.warning(f"[NLCD] MRLC scrape fallback failed for {year}: {e}")
+
+    raise ValueError(f"Could not resolve Annual NLCD URL for {year}")
 
 
 def download_nlcd(
@@ -1370,8 +1379,15 @@ def download_nlcd(
     year: int,
     output_path: Union[str, Path] | None = None,
     overwrite: bool = False,
-) -> Path:
-    """Download the NLCD Land Cover layer for a bounding box and year."""
+) -> Path | None:
+    """Download NLCD for the given region and year.
+
+    Sources:
+      - Epoch NLCD (2001–2021): MRLC WCS
+      - Annual NLCD (1985–2024): USGS ScienceBase
+    Returns:
+      Path to the downloaded file, or None if not available.
+    """
 
     polygon = to_polygon(region)
     bounds = polygon.bounds
@@ -1442,31 +1458,33 @@ def download_nlcd(
 
     if year == 2021:
         if region_code != "L48":
-            raise ValueError(
-                "NLCD 2021 ScienceBase downloads are currently only available for CONUS."
+            logging.warning(
+                "Annual NLCD only available for CONUS (L48). Skipping year %s.", year
             )
+            return None
 
-        destination = (
-            Path(output_path)
-            if output_path is not None
-            else Path(data_path("nlcd/NLCD_2021_Land_Cover_L48.tif"))
-        )
+        try:
+            url = _get_annual_nlcd_url(year)
+        except Exception as e:
+            logging.error("Could not resolve Annual NLCD URL for %s: %s", year, e)
+            return None
 
+        if output_path is None:
+            output_path = data_path(f"nlcd/NLCD_{year}_Land_Cover_L48.tif")
+
+        destination = Path(output_path)
         if destination.exists() and not overwrite:
             logging.info(
                 "NLCD file already exists at %s; skipping download.", destination
             )
             return destination
 
-        url = _get_annual_nlcd_url(year)
         return _download_file(url, destination)
 
-    raise ValueError(
-        "NLCD year %s is not supported. Supported years: %s (WCS) or 2021 ScienceBase"
-        % (year, sorted(LEGACY_NLCD_WCS_YEARS))
-    )
-
-
+    else:
+        logging.warning("No NLCD available for year %s. Skipping.", year)
+        return None
+      
 def _arcgis_export_size(
     bounds: tuple[float, float, float, float],
     *,
@@ -1503,8 +1521,17 @@ def download_nass_cdl(
     year: int,
     output_path: str | Path | None = None,
     overwrite: bool = False,
-) -> Path:
-    """Download the USDA NASS Cropland Data Layer for the provided region."""
+) -> Path | None:
+    """Download the USDA NASS Cropland Data Layer for the provided region.
+
+    Available only for 2008 onward. Returns None if not available.
+    """
+
+    if year < 2008:
+        logging.warning(
+            "Skipping CDL: CDL is only available from 2008 onward (requested %s).", year
+        )
+        return None
 
     polygon = to_polygon(region)
     bounds = polygon.bounds

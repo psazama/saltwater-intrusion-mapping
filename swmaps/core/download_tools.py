@@ -36,7 +36,7 @@ from swmaps.core.aoi import iter_square_patches, to_polygon
 
 LEGACY_NLCD_WCS_YEARS = {2001, 2006, 2011, 2016, 2019}
 
-ANNUAL_SCIENCEBASE_ITEM = (
+ANNUAL_NLCD_SCIENCEBASE_ITEM = (
     "https://www.sciencebase.gov/catalog/item/63475ce5d34ed907bf70c6d5?format=json"
 )
 MRLC_ANNUAL_URL = "https://www.mrlc.gov/data?f%5B0%5D=category%3Aannual-nlcd"
@@ -1344,7 +1344,7 @@ def _get_annual_nlcd_url(year: int) -> str:
 
     # --- Primary: ScienceBase ---
     try:
-        r = requests.get(ANNUAL_SCIENCEBASE_ITEM, timeout=30)
+        r = requests.get(ANNUAL_NLCD_SCIENCEBASE_ITEM, timeout=30)
         r.raise_for_status()
         data = r.json()
         for f in data.get("files", []):

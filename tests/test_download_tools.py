@@ -78,7 +78,7 @@ def test_download_nlcd_for_somerset(monkeypatch, patched_data_path, somerset_pol
             return False
 
     expected_asset_url = "https://example.com/nlcd_2021_l48.tif"
-
+    
     def fake_get(url, *args, **kwargs):
         if url == download_tools.ANNUAL_NLCD_SCIENCEBASE_ITEM:
             sciencebase_calls.append({"url": url, "kwargs": kwargs})
@@ -93,15 +93,17 @@ def test_download_nlcd_for_somerset(monkeypatch, patched_data_path, somerset_pol
                     ]
                 },
             )
-
+    
         if url == expected_asset_url:
             download_calls.append({"url": url, "kwargs": kwargs})
+            # The real code uses both stream=True and timeout=300
             assert kwargs.get("stream") is True
+            assert kwargs.get("timeout") == 300
             return MockResponse(
                 content=geotiff_bytes,
                 headers={"Content-Type": "image/tiff"},
             )
-
+    
         raise AssertionError(f"Unexpected GET request for {url!r}")
 
     monkeypatch.setattr(download_tools.requests, "get", fake_get)

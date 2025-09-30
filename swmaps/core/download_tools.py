@@ -18,6 +18,7 @@ import pandas as pd
 import pystac
 import rasterio
 import requests
+from bs4 import BeautifulSoup
 from pyproj import Transformer
 from pystac_client import Client
 from rasterio.crs import CRS
@@ -34,6 +35,12 @@ from swmaps.core.aoi import iter_square_patches, to_polygon
 
 LEGACY_YEARS = {2001, 2006, 2011, 2016, 2019, 2021}
 ANNUAL_RANGE = range(1985, 2025)
+
+ANNUAL_SCIENCEBASE_ITEM = (
+    "https://www.sciencebase.gov/catalog/item/63475ce5d34ed907bf70c6d5?format=json"
+)
+MRLC_ANNUAL_URL = "https://www.mrlc.gov/data?f%5B0%5D=category%3Aannual-nlcd"
+MRLC_BASE = "https://s3-us-west-2.amazonaws.com/mrlc/nlcd/annual/"
 
 
 def get_mission(mission: str) -> dict[str, object]:
@@ -1349,16 +1356,44 @@ def _download_file(url: str, destination: Path) -> Path:
 
 
 def _get_annual_nlcd_url(year: int) -> str:
-    """Fetch the ScienceBase item JSON and return the official URL for the given year."""
-    r = requests.get(ANNUAL_SCIENCEBASE_ITEM)
-    r.raise_for_status()
-    data = r.json()
+    """Try ScienceBase first, then fall back to scraping MRLC's annual NLCD page."""
 
-    for f in data.get("files", []):
-        if f["name"].startswith(f"{year}_NLCD_Land_Cover_L48"):
-            return f["url"]
+    # --- Primary: ScienceBase ---
+    try:
+        r = requests.get(ANNUAL_SCIENCEBASE_ITEM, timeout=30)
+        r.raise_for_status()
+        data = r.json()
+        for f in data.get("files", []):
+            if f["name"].startswith(f"{year}_NLCD_Land_Cover_L48"):
+                return f["url"]
+    except Exception as e:
+        logging.warning(f"[NLCD] ScienceBase lookup failed for {year}: {e}")
 
-    raise ValueError(f"No Annual NLCD file found for year {year} in ScienceBase.")
+    # --- Fallback: MRLC webpage scrape ---
+    try:
+        r = requests.get(MRLC_ANNUAL_URL, timeout=30)
+        r.raise_for_status()
+        soup = BeautifulSoup(r.text, "html.parser")
+
+        # Look for hrefs that look like NLCD annual files
+        links = [
+            a["href"]
+            for a in soup.find_all("a", href=True)
+            if f"{year}_NLCD_Land_Cover_L48" in a["href"]
+        ]
+        if links:
+            return links[0]
+
+        # If no link found, construct the expected S3 path and test it
+        candidate_url = f"{MRLC_BASE}{year}_NLCD_Land_Cover_L48.tif"
+        test = requests.head(candidate_url)
+        if test.status_code == 200:
+            return candidate_url
+
+    except Exception as e:
+        logging.warning(f"[NLCD] MRLC scrape fallback failed for {year}: {e}")
+
+    raise ValueError(f"Could not resolve Annual NLCD URL for {year}")
 
 
 def download_nlcd(
@@ -1368,12 +1403,14 @@ def download_nlcd(
     resolution_m: float | None = 30.0,
     output_path: Union[str, Path] | None = None,
     overwrite: bool = False,
-) -> Path:
+) -> Path | None:
     """Download NLCD for the given region and year.
 
     Sources:
       - Epoch NLCD (2001–2021): MRLC WCS
       - Annual NLCD (1985–2024): USGS ScienceBase
+    Returns:
+      Path to the downloaded file, or None if not available.
     """
 
     polygon = to_polygon(region)
@@ -1431,15 +1468,22 @@ def download_nlcd(
     # Annual products → ScienceBase
     elif year in ANNUAL_RANGE:
         if region_code != "L48":
-            raise ValueError(
-                f"Annual NLCD currently only available for CONUS, not {region_code}"
+            logging.warning(
+                "Annual NLCD only available for CONUS (L48). Skipping year %s.", year
             )
+            return None
         if product != "land_cover":
-            raise ValueError(
-                "Annual NLCD ScienceBase downloader currently supports only 'land_cover'."
+            logging.warning(
+                "Annual NLCD downloader currently supports only 'land_cover'. Skipping year %s.",
+                year,
             )
+            return None
 
-        url = _get_annual_nlcd_url(year)
+        try:
+            url = _get_annual_nlcd_url(year)
+        except Exception as e:
+            logging.error("Could not resolve Annual NLCD URL for %s: %s", year, e)
+            return None
 
         if output_path is None:
             output_path = data_path(f"nlcd/NLCD_{year}_Land_Cover_L48.tif")
@@ -1454,7 +1498,8 @@ def download_nlcd(
         return _download_file(url, destination)
 
     else:
-        raise ValueError(f"Year {year} not supported by NLCD (epoch or annual).")
+        logging.warning("No NLCD available for year %s. Skipping.", year)
+        return None
 
 
 def download_nass_cdl(
@@ -1462,8 +1507,17 @@ def download_nass_cdl(
     year: int,
     output_path: str | Path | None = None,
     overwrite: bool = False,
-) -> Path:
-    """Download the USDA NASS Cropland Data Layer for the provided region."""
+) -> Path | None:
+    """Download the USDA NASS Cropland Data Layer for the provided region.
+
+    Available only for 2008 onward. Returns None if not available.
+    """
+
+    if year < 2008:
+        logging.warning(
+            "Skipping CDL: CDL is only available from 2008 onward (requested %s).", year
+        )
+        return None
 
     base_url = "https://nassgeodata.gmu.edu/axis/services/CDLService"
 

@@ -2,6 +2,7 @@
 name = "swmaps"
 version = "0.1.0"
 dependencies = [
+    "beautifulsoup4",
     "dagster",
     "dagster-k8s",
     "dagster-gcp[gcs]",

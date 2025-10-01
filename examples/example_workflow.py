@@ -30,15 +30,14 @@ import rasterio
 from rasterio.errors import RasterioError
 
 from swmaps.config import data_path
-from swmaps.core.download_tools import (
-    compute_ndwi,
+from swmaps.core.indices import compute_ndwi
+from swmaps.core.missions import get_mission
+from swmaps.core.mosaic import (
     create_mosaic_placeholder,
-    download_nass_cdl,
-    download_nlcd,
-    get_mission,
     patchwise_query_download_mosaic,
-    reproject_bbox,
 )
+from swmaps.core.nlcd_cdl import download_nass_cdl, download_nlcd
+from swmaps.core.raster_utils import reproject_bbox
 from swmaps.core.salinity_tools import estimate_salinity_level
 
 # ---------------------------------------------------------------------------

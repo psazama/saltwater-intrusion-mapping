@@ -1,7 +1,5 @@
 import pytest
 
-pytest.importorskip("dagster")
-
 from swmaps.core import water_trend
 
 np = pytest.importorskip("numpy")

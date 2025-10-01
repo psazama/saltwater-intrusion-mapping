@@ -1,7 +1,0 @@
-resources:
-  io_manager: {}
-
-execution:
-  in_process:
-    config:
-      max_concurrent: 4

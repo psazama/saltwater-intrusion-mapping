@@ -2,9 +2,6 @@
 name = "swmaps"
 version = "0.1.0"
 dependencies = [
-    "dagster",
-    "dagster-k8s",
-    "dagster-gcp[gcs]",
     "dask",
     "numpy",
     "pandas",

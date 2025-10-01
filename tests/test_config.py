@@ -1,14 +1,8 @@
 import importlib.util
 from pathlib import Path
 
-import pytest
-
-pytest.importorskip("dagster")
-
 import swmaps.config
 from swmaps.config import get_settings
-
-pytest.importorskip("pydantic_settings")
 
 # Import swmaps.config without executing swmaps.__init__
 CONFIG_PATH = Path(__file__).resolve().parents[1] / "swmaps" / "config.py"

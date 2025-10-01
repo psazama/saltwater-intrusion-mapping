@@ -34,14 +34,8 @@ saltwater-intrusion-mapping/
 ├── config/ # study area & date ranges
 ├── swmaps/ # Python package
 │ ├── core/ # download_tools, salinity_tools, …
-│ ├── pipelines/ # Dagster assets/resources
 │ └── data/ # generated rasters (git-ignored)
 ├── notebooks/ # experiments / visual demos
-├── pipeline_runner.py # legacy CLI (still works)
-├── dagster.yaml # local dev instance (optional)
-├── dagster_gke.yaml # run launcher for GKE
-├── workspace.yaml # loads swmaps.defs (from __init__.py)
-├── workspace_gke.yaml # loads swmaps.gke_defs
 └── pyproject.toml
 ```
 

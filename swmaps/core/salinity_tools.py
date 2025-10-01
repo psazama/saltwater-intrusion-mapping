@@ -14,7 +14,7 @@ from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
 from swmaps.config import data_path
-from swmaps.core.download_tools import compute_ndwi
+from swmaps.core.indices import compute_ndwi
 
 
 def _safe_normalized_difference(
@@ -99,7 +99,8 @@ def estimate_salinity_level(
     """
 
     bands = [
-        np.asarray(arr, dtype=np.float32, order="C") for arr in (blue, green, red, nir, swir1, swir2)
+        np.asarray(arr, dtype=np.float32, order="C")
+        for arr in (blue, green, red, nir, swir1, swir2)
     ]
 
     if reflectance_scale:
@@ -125,7 +126,9 @@ def estimate_salinity_level(
         where=blue_r != 0,
     ).astype(np.float32)
 
-    salinity_proxy = np.clip(swir1_r + swir2_r, a_min=0.0, a_max=None).astype(np.float32)
+    salinity_proxy = np.clip(swir1_r + swir2_r, a_min=0.0, a_max=None).astype(
+        np.float32
+    )
     salinity_proxy_norm = np.clip(
         np.divide(
             salinity_proxy,

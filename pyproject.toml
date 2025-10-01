@@ -10,6 +10,7 @@ dependencies = [
     "shapely",
     "xarray",
     "scikit-learn",
+    "tqdm",
     "xgboost",
 ]
 

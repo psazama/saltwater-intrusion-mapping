@@ -324,7 +324,11 @@ def process_landsat_history() -> None:
             # ------------------------------------------------------------------
             year = datetime.fromisoformat(date_range.split("/")[0]).year
 
-            if not nlcd_path.exists():
+            # Check for both exact and approximate NLCD
+            nlcd_path = OUTPUT_ROOT / f"nlcd_{mission_tag}_{tag}.tif"
+            nlcd_approx_path = OUTPUT_ROOT / f"nlcd_{mission_tag}_{tag}_approx.tif"
+
+            if not (nlcd_path.exists() or nlcd_approx_path.exists()):
                 logging.info("Requesting NLCD overlay for %s", year)
                 _safe_execute(
                     f"Downloading NLCD overlay for {year}",
@@ -334,7 +338,10 @@ def process_landsat_history() -> None:
                     output_path=nlcd_path,
                 )
             else:
-                logging.info("NLCD overlay already cached at %s", nlcd_path)
+                logging.info(
+                    "NLCD overlay already cached at %s",
+                    nlcd_path if nlcd_path.exists() else nlcd_approx_path,
+                )
 
             if not cdl_path.exists():
                 logging.info("Requesting CDL overlay for %s", year)

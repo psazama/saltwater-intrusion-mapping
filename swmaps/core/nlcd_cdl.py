@@ -3,8 +3,10 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Sequence, Union
 
+import pyproj
 import requests
-from shapely.geometry import MultiPolygon, Polygon
+from shapely.geometry import MultiPolygon, Polygon, box
+from shapely.ops import transform
 
 from swmaps.config import data_path
 
@@ -130,10 +132,20 @@ def download_nass_cdl(
     Download the USDA NASS Cropland Data Layer for the provided region.
     """
     cdl_url = "https://nassgeodata.gmu.edu/axis2/services/CDLService/GetCDLFile"
+
+    proj_wgs84 = pyproj.CRS("EPSG:4326")
+    proj_albers = pyproj.CRS("EPSG:5070")
+    transformer = pyproj.Transformer.from_crs(
+        proj_wgs84, proj_albers, always_xy=True
+    ).transform
+
     # bounds should be xmin, ymin, xmax, ymax
     if isinstance(region, (Polygon, MultiPolygon)):
+        region = transform(transformer, region)
         bounds = region.bounds
     else:
+        region = box(*region)
+        region = transform(transformer, region)
         bounds = region
     bbox_str = ",".join(map(str, bounds))
 
@@ -147,102 +159,16 @@ def download_nass_cdl(
     resp = requests.get(cdl_url, params=params, stream=True)
     resp.raise_for_status()
 
+    root = ET.fromstring(resp.content)
+    download_url = root.find(".//returnURL").text
+    print("Download URL:", download_url)
+
+    tif_resp = requests.get(download_url, stream=True)
+    tif_resp.raise_for_status()
+
     with open(output_path, "wb") as f:
-        for chunk in resp.iter_content(chunk_size=8192):
+        for chunk in tif_resp.iter_content(chunk_size=8192):
             f.write(chunk)
 
     print(f"Saved {output_path}")
     return output_path
-
-
-"""
-import requests
-import boto3
-
-# ScienceBase JSON feed
-
-# ScienceBase item with Annual NLCD collection
-item_id = "655ceb8ad34ee4b6e05cc51a"
-url = f"https://www.sciencebase.gov/catalog/item/{item_id}?format=json"
-
-resp = requests.get(url)
-resp.raise_for_status()
-data = resp.json()
-
-# Print available files
-for f in data["files"]:
-    print(f["name"], f["url"])
-
-# Download one file
-file_url = data["files"][0]["url"]
-out_path = "nlcd_1985.img"
-with requests.get(file_url, stream=True) as r:
-    r.raise_for_status()
-    with open(out_path, "wb") as f:
-        for chunk in r.iter_content(chunk_size=8192):
-            f.write(chunk)
-print(f"Saved {out_path}")
-
-
-# AWS S3 (usgs-landcover, requester pays)
-s3 = boto3.client("s3", region_name="us-west-2")
-
-# List contents of the annual-nlcd bucket
-resp = s3.list_objects_v2(
-    Bucket="usgs-landcover",
-    Prefix="annual-nlcd/c1/",
-    RequestPayer="requester"
-)
-
-for obj in resp.get("Contents", []):
-    print(obj["Key"])
-
-# Download one file
-key = "annual-nlcd/c1/1992_NLCD_Land_Cover_L48_20230630.img"
-s3.download_file(
-    Bucket="usgs-landcover",
-    Key=key,
-    Filename="nlcd_1992.img",
-    ExtraArgs={"RequestPayer": "requester"}
-)
-print("Saved nlcd_1992.img")
-
-
-# CDL (CropScape Web Service)
-cdl_url = "https://nassgeodata.gmu.edu/axis2/services/CDLService/GetCDLFile"
-params = {
-    "year": 2021,
-    "bbox": "-79,38,-76,40",  # xmin,ymin,xmax,ymax
-    "epsg": 4326
-}
-
-resp = requests.get(cdl_url, params=params, stream=True)
-resp.raise_for_status()
-
-with open("cdl_2021.tif", "wb") as f:
-    for chunk in resp.iter_content(chunk_size=8192):
-        f.write(chunk)
-print("Saved cdl_2021.tif")
-
-
-# NLCD WCS (Geoserver GetCoverage)
-wcs_url = "https://www.mrlc.gov/geoserver/mrlc_download/wcs"
-params = {
-    "service": "WCS",
-    "request": "GetCoverage",
-    "coverage": "NLCD_2019_Land_Cover_L48",
-    "crs": "EPSG:4326",
-    "bbox": "-77,38,-76.5,38.5",
-    "format": "image/tiff",
-    "width": 512,
-    "height": 512
-}
-
-resp = requests.get(wcs_url, params=params, stream=True)
-resp.raise_for_status()
-
-with open("nlcd_2019.tif", "wb") as f:
-    for chunk in resp.iter_content(chunk_size=8192):
-        f.write(chunk)
-print("Saved nlcd_2019.tif")
-"""

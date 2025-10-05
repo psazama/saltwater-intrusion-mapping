@@ -1,4 +1,21 @@
+"""Mission configuration helpers for Landsat and Sentinel sensors."""
+
+
 def get_mission(mission: str) -> dict[str, object]:
+    """Return metadata describing the requested satellite mission.
+
+    Args:
+        mission (str): Mission slug such as ``"sentinel-2"`` or
+            ``"landsat-5"``.
+
+    Returns:
+        dict[str, object]: Dictionary containing band mappings, band indices,
+        collection identifiers, query filters, resolution, and valid date
+        range.
+
+    Raises:
+        ValueError: If the mission slug is not recognised.
+    """
     if mission == "sentinel-2":
         collection = "sentinel-2-l2a"
         query_filter = {"eo:cloud_cover": {"lt": 10}}

@@ -1,3 +1,5 @@
+"""Helpers for querying STAC catalogs and downloading satellite imagery."""
+
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor
@@ -27,17 +29,22 @@ def query_satellite_items(
     max_items: int | None = None,
     debug: bool = False,
 ) -> tuple[list[pystac.Item], dict[str, str]]:
-    """
-    Queries available satellite imagery items using the AWS Earth Search STAC API.
+    """Query the AWS Earth Search STAC API for imagery matching the criteria.
 
-    Parameters:
-        mission (str): The satellite mission to use ("sentinel-2" or "landsat-5" or "landsat-7").
-        bbox (list): Bounding box [min_lon, min_lat, max_lon, max_lat].
-        date_range (str): ISO8601 date range string.
-        debug (bool): Whether to print debug output.
+    Args:
+        mission (str): Mission slug understood by :func:`get_mission`.
+        bbox (list[float] | None): Bounding box ``[minx, miny, maxx, maxy]``
+            in WGS84 coordinates.
+        date_range (str | None): ISO-8601 date or range string.
+        max_items (int | None): Maximum number of STAC items to fetch.
+        debug (bool): If ``True``, print identifiers for the retrieved items.
 
     Returns:
-        tuple: (list of STAC items, band mapping dictionary)
+        tuple[list[pystac.Item], dict[str, str]]: Matching STAC items and the
+        band mapping for the mission.
+
+    Raises:
+        ValueError: When no matching items are found.
     """
 
     mission_specs = get_mission(mission)
@@ -75,24 +82,22 @@ def download_satellite_bands_from_item(
     downsample_to_landsat_res: bool = False,
     target_resolution: float = 30,
 ) -> list[tuple[int, np.ndarray, Affine, CRS]]:
-    """
-    Downloads selected bands from a single STAC item.
-    Optionally downsamples Sentinel-2 imagery to Landsat
-    resolution before returning the array.
+    """Download selected bands for a STAC item.
 
-    Parameters:
-        item (dict): A STAC item.
-        bands (dict): Mapping of asset keys to band names.
-        data_dir (str): Local directory for output.
-        debug (bool): Whether to print debug output.
-        mission (str, optional): Mission name (e.g. "sentinel-2").
-        downsample_to_landsat_res (bool): If True and mission is
-            "sentinel-2", resample the band to ``target_resolution``.
-        target_resolution (float): Target pixel size in meters
-            when downsampling (default 30).
+    Args:
+        item (pystac.Item): STAC item describing the asset locations.
+        bands (dict[str, str]): Mapping of STAC asset keys to file suffixes.
+        to_disk (bool): When ``True``, persist downloaded bands to ``data_dir``.
+        data_dir (str | Path | None): Directory for saved rasters.
+        debug (bool): If ``True``, emit debug logging for each band.
+        mission (str | None): Mission slug, used to determine resampling.
+        downsample_to_landsat_res (bool): If ``True`` and mission is
+            Sentinel-2, resample to Landsat resolution.
+        target_resolution (float): Target resolution used when resampling.
 
     Returns:
-        str: Path to the last band written for this item.
+        list[tuple[int, np.ndarray, Affine, CRS]]: Tuples containing the
+        one-based band index, data array, transform, and CRS for each band.
     """
 
     session = AWSSession(requester_pays=True)
@@ -102,6 +107,17 @@ def download_satellite_bands_from_item(
     out_path = None
 
     def _fetch_one(k_n):
+        """Download a single band asset and replace nodata values with ``NaN``.
+
+        Args:
+            k_n (tuple[str, str]): Pair of the STAC asset key and the desired
+                filename stem for the downloaded band.
+
+        Returns:
+            tuple[str, str, np.ndarray, Affine, CRS]: Asset key, friendly band
+            name, array data, affine transform, and CRS captured from the
+            source dataset.
+        """
         key, name = k_n
         href = item.assets[key].href
         with rasterio.Env(session):
@@ -147,6 +163,16 @@ def _stack_bands(
     item: pystac.Item,
     bands: dict[str, str],
 ) -> tuple[np.ndarray, Affine, rasterio.crs.CRS]:
+    """Fetch and stack all requested bands for a STAC item into a single array.
+
+    Args:
+        item (pystac.Item): STAC item holding band assets.
+        bands (dict[str, str]): Mapping of band identifiers to asset keys.
+
+    Returns:
+        tuple[np.ndarray, Affine, rasterio.crs.CRS]: Stacked band array,
+        affine transform, and CRS associated with the imagery.
+    """
     session = AWSSession(requester_pays=True)
     arrays = []
     transforms = None
@@ -166,6 +192,18 @@ def find_satellite_coverage(
     missions: list[str] = ["sentinel-2", "landsat-5", "landsat-7"],
     buffer_km: float = 5,
 ) -> pd.DataFrame:
+    """Annotate salinity observations with missions that have nearby imagery.
+
+    Args:
+        df (pandas.DataFrame): Observation table containing ``latitude``,
+            ``longitude``, and ``date`` columns.
+        missions (list[str]): Mission slugs to consider.
+        buffer_km (float): Spatial buffer radius around each observation.
+
+    Returns:
+        pandas.DataFrame: Input frame with an added ``covered_by`` column
+        listing missions that provide imagery.
+    """
     results = []
 
     for _, row in tqdm(df.iterrows(), total=len(df)):
@@ -219,6 +257,18 @@ def download_matching_images(
     buffer_km: float = 0.1,
     output_dir: str | Path | None = None,
 ) -> pd.DataFrame:
+    """Download imagery for each observation's matched missions.
+
+    Args:
+        df (pandas.DataFrame): Observation table with ``covered_by`` details.
+        missions (list[str]): Mission slugs considered for download.
+        buffer_km (float): Buffer radius to define the query bounding box.
+        output_dir (str | Path | None): Destination directory for downloads.
+
+    Returns:
+        pandas.DataFrame: DataFrame with an additional ``downloaded_files``
+        column listing downloaded multiband rasters per observation.
+    """
     output_dir = Path(output_dir) if output_dir else data_path("matched_downloads")
     output_dir.mkdir(parents=True, exist_ok=True)
     downloaded_paths = []

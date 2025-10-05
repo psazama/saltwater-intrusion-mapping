@@ -1,15 +1,31 @@
+"""Tests for the salinity estimation utilities."""
+
 import pytest
 
 np = pytest.importorskip("numpy")
 
 from swmaps.core.salinity_tools import estimate_salinity_level
-
-
 def _scaled(values):
+    """Scale lists to the integer reflectance space used by Landsat sensors.
+
+    Args:
+        values (Iterable[float]): Reflectance values in the 0–1 range.
+
+    Returns:
+        numpy.ndarray: Values scaled to the integer reflectance domain.
+    """
     return (np.array(values, dtype=np.float32) * 10000.0).reshape(1, -1)
 
 
-def test_estimate_salinity_level_classification():
+def test_estimate_salinity_level_classification() -> None:
+    """Check salinity classification results when using scaled reflectance values.
+
+    Args:
+        None
+
+    Returns:
+        None: Assertions validate the classification outputs.
+    """
     blue = _scaled([0.05, 0.05, 0.05, 0.05])
     green = _scaled([0.6, 0.4, 0.28, 0.1])
     red = _scaled([0.05, 0.3, 0.25, 0.2])
@@ -31,7 +47,15 @@ def test_estimate_salinity_level_classification():
     assert np.all(~np.isnan(score[:, :3]))
 
 
-def test_estimate_salinity_level_reflectance_inputs():
+def test_estimate_salinity_level_reflectance_inputs() -> None:
+    """Ensure raw reflectance inputs bypass scaling and produce expected indices.
+
+    Args:
+        None
+
+    Returns:
+        None: Assertions confirm intermediate indices are present and shaped correctly.
+    """
     blue = np.array([[0.05, 0.05]], dtype=np.float32)
     green = np.array([[0.5, 0.25]], dtype=np.float32)
     red = np.array([[0.05, 0.2]], dtype=np.float32)

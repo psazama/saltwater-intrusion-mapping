@@ -1,3 +1,5 @@
+"""Pipeline entry point for generating water-trend heatmap products."""
+
 from swmaps.config import data_path
 from swmaps.core.water_trend import (
     load_wet_year,
@@ -7,8 +9,15 @@ from swmaps.core.water_trend import (
 )
 
 
-def trend_heatmap():
-    """Generate trend heatmap from mask files."""
+def trend_heatmap() -> None:
+    """Generate and save a trend heatmap from existing water masks.
+
+    Args:
+        None
+
+    Returns:
+        None: Heatmap and trend rasters are written to the data directory.
+    """
     mask_files = [str(p) for p in data_path().glob("*_mask.tif")]
     if not mask_files:
         print("No mask files found")

@@ -1,3 +1,5 @@
+"""Area-of-interest helpers for working with bounding boxes and patches."""
+
 from __future__ import annotations
 
 from typing import Iterable, Sequence
@@ -8,9 +10,20 @@ from shapely.geometry import MultiPolygon, Polygon, box
 
 
 def to_polygon(aoi: Sequence[float] | Polygon | MultiPolygon) -> Polygon | MultiPolygon:
-    """
-    Accepts either a 4-tuple bbox or a shapely polygon (EPSG:4326).
-    Returns a shapely Polygon/MultiPolygon (still in EPSG:4326).
+    """Normalize an AOI specification into a Shapely geometry.
+
+    Args:
+        aoi (Sequence[float] | Polygon | MultiPolygon): Either a bounding
+            box as ``(minx, miny, maxx, maxy)`` or an existing Shapely
+            polygon/multipolygon expressed in EPSG:4326.
+
+    Returns:
+        Polygon | MultiPolygon: A geometry representing the AOI in
+        EPSG:4326 coordinates.
+
+    Raises:
+        ValueError: If ``aoi`` cannot be interpreted as a bounding box or
+            geometry.
     """
     if isinstance(aoi, (Polygon, MultiPolygon)):
         return aoi
@@ -29,10 +42,18 @@ def iter_square_patches(
     patch_size_m: float,
     metric_crs: str = "EPSG:32618",
 ) -> Iterable[Polygon]:
-    """
-    Yield **patch polygons in metric_crs** that intersect the AOI.
+    """Yield square patches that cover the AOI in the requested CRS.
 
-    The AOI may be bbox or polygon (WGS-84).
+    Args:
+        aoi (Sequence[float] | Polygon | MultiPolygon): The AOI definition
+            accepted by :func:`to_polygon`.
+        patch_size_m (float): The edge length of the patches expressed in
+            meters.
+        metric_crs (str): Projected CRS used to build the grid of square
+            patches.
+
+    Yields:
+        Polygon: Square polygons in ``metric_crs`` that intersect the AOI.
     """
     poly = to_polygon(aoi)
     band_proj = gpd.GeoSeries([poly], crs="EPSG:4326").to_crs(metric_crs).iloc[0]

@@ -1,12 +1,20 @@
+"""CLI for downloading NLCD and CDL overlays for a provided region geometry."""
+
 import argparse
 from pathlib import Path
 
 import geopandas as gpd
 
 from swmaps.pipeline.overlays import fetch_cdl_overlay, fetch_nlcd_overlay
+def main() -> None:
+    """Download NLCD and CDL rasters for the requested region and year.
 
+    Args:
+        None
 
-def main():
+    Returns:
+        None: File paths for downloaded rasters are printed to stdout.
+    """
     parser = argparse.ArgumentParser(description="Fetch NLCD/CDL overlays")
     parser.add_argument(
         "--region", type=str, required=True, help="Path to region GeoJSON or GPKG file"

@@ -1,3 +1,5 @@
+"""CLI wrapper for generating NDWI water masks from downloaded mosaics."""
+
 import argparse
 
 from swmaps.pipeline.masks import generate_masks

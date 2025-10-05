@@ -1,3 +1,5 @@
+"""Pipeline helpers for deriving NDWI water masks from mosaics."""
+
 from tqdm import tqdm
 
 from swmaps.config import data_path
@@ -6,7 +8,15 @@ from swmaps.core.water_trend import check_image_for_nans, check_image_for_valid_
 
 
 def generate_masks(center_size=None):
-    """Generate NDWI water masks for all TIFs in data path."""
+    """Generate NDWI water masks for all mosaics in the data directory.
+
+    Args:
+        center_size (int | None): Optional pixel size of a centred window to
+            analyse when computing NDWI.
+
+    Returns:
+        None: Masks are written next to their source mosaics.
+    """
     for tif in tqdm(sorted(data_path().glob("*.tif"))):
         if tif.name.endswith(("_mask.tif", "_features.tif")):
             continue

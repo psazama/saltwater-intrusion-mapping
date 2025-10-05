@@ -1,3 +1,5 @@
+"""Utilities for downloading coastline data and building buffered coastal bands."""
+
 import os
 from pathlib import Path
 
@@ -7,8 +9,16 @@ from shapely.geometry import box
 
 from swmaps.config import data_path
 
-
 def download_coastal_poly() -> None:
+    """Download the Natural Earth coastline shapefile to the local data directory.
+
+    Args:
+        None
+
+    Returns:
+        None: Coastline files are written to ``config/coastline``; the function
+        has no in-memory output.
+    """
     file_types = ["cpg", "dbf", "prj", "shp", "shx"]
 
     for file_type in file_types:
@@ -30,21 +40,22 @@ def create_coastal_poly(
     buf_km: float = 2,
     offshore_km: float = 1,
 ) -> gpd.GeoDataFrame:
-    """
-    Build a coastal band polygon (buffered coastline, clipped to bbox) and save it once.
+    """Build and persist a buffered coastal band clipped to the project AOI.
 
     Parameters
     ----------
     bounding_box_file : str | Path
-        Vector file containing your big bbox (GeoJSON, Shapefile, etc.).
+        Vector file containing the larger bounding box (GeoJSON, Shapefile, etc.).
     out_file : str | Path | None
-        Where to save the band (defaults to  config/coastal_band.gpkg).
+        Destination for the generated band. Defaults to ``config/coastal_band.gpkg``.
     buf_km, offshore_km : float
-        Width of inland / offshore buffers (kilometres).
+        Width of inland and offshore buffers in kilometres—mirroring the inline
+        comments that explain why we widen the coastline before clipping.
 
     Returns
     -------
-    GeoDataFrame with a single Polygon feature (lat/long, EPSG:4326).
+    gpd.GeoDataFrame
+        GeoDataFrame with a single polygon feature in EPSG:4326 coordinates.
     """
 
     bbox_gdf = gpd.read_file(bounding_box_file).to_crs("EPSG:4326")

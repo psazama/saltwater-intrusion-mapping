@@ -1,3 +1,5 @@
+"""Support routines for downloading and storing ancillary raster products."""
+
 import io
 import logging
 import zipfile
@@ -8,7 +10,15 @@ import requests
 
 
 def _region_tag(bounds: Sequence[float]) -> str:
-    """Return a filesystem-friendly tag for the provided bounds."""
+    """Return a filesystem-friendly tag for the provided bounds.
+
+    Args:
+        bounds (Sequence[float]): Geographic bounds ordered as
+            ``(minx, miny, maxx, maxy)`` in degrees.
+
+    Returns:
+        str: A sanitized string suitable for use in file names.
+    """
 
     return "_".join(
         f"{coord:.6f}".replace("-", "m").replace(".", "p") for coord in bounds
@@ -16,7 +26,18 @@ def _region_tag(bounds: Sequence[float]) -> str:
 
 
 def _save_response_to_raster(content: bytes, destination: Path) -> Path:
-    """Save a WCS/WMS response to a raster file, unzipping when necessary."""
+    """Save a WCS/WMS response to a raster file, unzipping when necessary.
+
+    Args:
+        content (bytes): Raw response payload returned by the service.
+        destination (Path): Target path where the GeoTIFF should be written.
+
+    Returns:
+        Path: The path of the written GeoTIFF, matching ``destination``.
+
+    Raises:
+        ValueError: If a ZIP archive is provided without any GeoTIFF members.
+    """
 
     destination.parent.mkdir(parents=True, exist_ok=True)
 
@@ -54,19 +75,19 @@ def _request_raster_with_format_fallback(
 
     Parameters
     ----------
-    url
+    url : str
         Endpoint to query.
-    base_params
+    base_params : dict[str, object]
         Parameters to include with each request *except* ``format``.
-    format_preferences
+    format_preferences : Sequence[str]
         Ordered sequence of format strings to try. The first successful
         response is returned. All remaining formats serve as fallbacks.
-    timeout
+    timeout : int, default=300
         Request timeout in seconds.
 
     Returns
     -------
-    Response, str
+    tuple[requests.Response, str]
         The successful response object and the format string that produced it.
 
     Raises

@@ -36,7 +36,15 @@ MISSION_DATE_RANGES = {
 }
 
 
-def main():
+def main() -> None:
+    """Execute the Landsat example workflow for the Somerset study area.
+
+    Args:
+        None
+
+    Returns:
+        None: Results are written to disk and logged to stdout.
+    """
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
     )

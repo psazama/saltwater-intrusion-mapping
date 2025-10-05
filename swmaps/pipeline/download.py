@@ -14,7 +14,7 @@ def download_data(dates=None, inline_mask=False, max_items=1, multithreaded=Fals
     """Download imagery for given date ranges."""
     if dates is None:
         with open(
-            Path(__file__).resolve().parents[1] / "config" / "date_range.json"
+            Path(__file__).resolve().parents[2] / "config" / "date_range.json"
         ) as fh:
             dates = json.load(fh)["date_ranges"]
         dates = dates[6::12] + dates[7::12] + dates[8::12]

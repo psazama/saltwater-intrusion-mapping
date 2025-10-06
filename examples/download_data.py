@@ -1,3 +1,5 @@
+"""CLI helper for downloading imagery inputs for the pipeline."""
+
 import argparse
 
 from swmaps.pipeline.download import download_data

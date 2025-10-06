@@ -1,3 +1,5 @@
+"""CLI helper for building the study region's coastal polygon."""
+
 import argparse
 
 from swmaps.pipeline.coastal import create_coastal

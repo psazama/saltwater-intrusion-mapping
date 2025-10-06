@@ -1,3 +1,5 @@
+"""Utilities for downloading NLCD and CDL land-cover products."""
+
 import logging
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -14,8 +16,15 @@ from swmaps.config import data_path
 def validate_nlcd_year(
     given_year: int,
 ):
-    """Check if the requested year is an available product.
-    If exact year is not available, return closest
+    """Check if the requested NLCD year is available.
+
+    Args:
+        given_year (int): Desired NLCD land-cover year.
+
+    Returns:
+        tuple[int | None, str | None]: The closest available year and the
+        identifier of the coverage offering, or ``(None, None)`` when no
+        coverage is found.
     """
     url = "https://www.mrlc.gov/geoserver/mrlc_download/wcs"
 
@@ -70,11 +79,21 @@ def download_nlcd(
     overwrite: bool = False,
     allow_closest: bool = True,
 ) -> Path | None:
-    """Download Annual NLCD for the requested year.
+    """Download the annual NLCD land-cover product for the requested year.
 
-    If exact year is not available:
-      - with allow_closest=True (default), downloads nearest available year and saves as "{query_year}_approx".
-      - with allow_closest=False, returns None.
+    Args:
+        region (Sequence[float] | Polygon | MultiPolygon): AOI specified as a
+            bounding box in WGS84 or a Shapely geometry.
+        year (int): Target NLCD year.
+        output_path (Union[str, Path] | None): Optional destination path for
+            the GeoTIFF.
+        overwrite (bool): Currently unused placeholder for API compatibility.
+        allow_closest (bool): If ``True``, download the nearest available
+            year when the exact one is missing.
+
+    Returns:
+        Path | None: Path to the downloaded raster or ``None`` if the product
+        is unavailable and ``allow_closest`` is ``False``.
     """
 
     if output_path is None:
@@ -128,8 +147,18 @@ def download_nass_cdl(
     output_path: Union[str, Path] | None = None,
     overwrite: bool = False,
 ) -> Path | None:
-    """
-    Download the USDA NASS Cropland Data Layer for the provided region.
+    """Download the USDA NASS Cropland Data Layer for the provided region.
+
+    Args:
+        region (Sequence[float] | Polygon | MultiPolygon): AOI in WGS84
+            coordinates.
+        year (int): Target CDL year.
+        output_path (Union[str, Path] | None): Optional destination path.
+        overwrite (bool): Placeholder argument for compatibility.
+
+    Returns:
+        Path | None: Path to the downloaded CDL raster, or ``None`` if the
+        download fails.
     """
     cdl_url = "https://nassgeodata.gmu.edu/axis2/services/CDLService/GetCDLFile"
 

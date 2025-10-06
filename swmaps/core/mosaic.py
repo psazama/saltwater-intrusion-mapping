@@ -1,3 +1,5 @@
+"""Utilities for building multi-band mosaics from STAC imagery downloads."""
+
 import logging
 import math
 import os
@@ -35,16 +37,21 @@ def create_mosaic_placeholder(
     crs: str = "EPSG:32618",
     dtype: str = "float32",
 ):
-    """
-    Create an empty mosaic GeoTIFF file to be filled later.
+    """Create an empty mosaic GeoTIFF file to be filled later.
 
-    Parameters:
-        mosaic_path (str): Path where the placeholder file will be saved.
-        bbox (tuple): (minx, miny, maxx, maxy) in target CRS.
-        mission (str): The satellite mission to use ("sentinel-2" or "landsat-5").
-        resolution (float): Target pixel resolution in meters.
-        crs (str): Coordinate reference system.
-        dtype (str): Data type of the mosaic file.
+    Args:
+        mosaic_path (str | Path): Path where the placeholder file will be
+            saved.
+        bbox (tuple[float, float, float, float]): Bounding box expressed as
+            ``(minx, miny, maxx, maxy)`` in the target CRS.
+        mission (str): Satellite mission slug used to determine band count.
+        resolution (float): Target pixel resolution in metres.
+        crs (str): Coordinate reference system for the mosaic.
+        dtype (str): Data type to allocate for the raster bands.
+
+    Returns:
+        tuple[Affine, int, int, str | CRS, int]: The raster transform, width,
+        height, CRS, and number of bands for the mosaic.
     """
     mission_specs = get_mission(mission)
     bands = len(mission_specs["bands"])
@@ -90,14 +97,21 @@ def add_image_to_mosaic(
     src_crs: str | CRS,
     mosaic_path: str | Path,
 ) -> None:
-    """
-    Reproject and insert a satellite image array into the mosaic placeholder.
+    """Reproject and insert a satellite image array into the mosaic placeholder.
 
-    Parameters:
-        image_data (np.ndarray): The image array to reproject and insert.
+    Args:
+        band_index (int): One-based band index within the mosaic.
+        image_data (np.ndarray): Image array to reproject and merge.
         src_transform (Affine): Affine transform of the source image.
-        src_crs (str or CRS): CRS of the source image.
-        mosaic_path (str): Path to the mosaic file to update.
+        src_crs (str | CRS): Coordinate reference system of the source image.
+        mosaic_path (str | Path): Path to the mosaic file being updated.
+
+    Returns:
+        None: The mosaic file is updated in place.
+
+    Raises:
+        ValueError: If ``band_index`` exceeds the number of bands in the
+            mosaic file.
     """
     with rasterio.open(mosaic_path, "r+") as mosaic:
         if band_index > mosaic.count:
@@ -143,8 +157,13 @@ def add_image_to_mosaic(
 
 
 def compress_mosaic(mosaic_path: str | Path) -> None:
-    """
-    Rewrites the mosaic file with compression.
+    """Rewrite the mosaic file with compression to reduce disk usage.
+
+    Args:
+        mosaic_path (str | Path): Path to the mosaic GeoTIFF to compress.
+
+    Returns:
+        None: The file on disk is replaced with a compressed copy.
     """
     with rasterio.open(mosaic_path) as src:
         profile = src.profile.copy()
@@ -190,9 +209,20 @@ def _download_patch(
     bands: dict[str, str],
     max_items: int,
 ) -> tuple[int, np.ndarray, Affine, CRS] | None:
-    """
-    Runs in its own process.
-    Returns (patch_index, stack, transform, crs)  OR  None if no imagery.
+    """Download imagery for a single AOI patch.
+
+    Args:
+        idx_patch (tuple[int, gpd.GeoSeries]): Tuple containing the patch
+            index and its geometry.
+        mission (str): Mission slug passed through to the query helper.
+        date_range (str): Date or date range filter in ISO format.
+        bands (dict[str, str]): Mapping of band labels to STAC asset names.
+        max_items (int): Maximum number of STAC items to request.
+
+    Returns:
+        tuple[int, np.ndarray, Affine, CRS] | None: Tuple containing the
+        patch index, stacked band array, affine transform, and CRS, or
+        ``None`` if no imagery satisfied the query.
     """
     i, patch = idx_patch
     sub_bbox = patch.geometry.bounds
@@ -220,9 +250,30 @@ def patchwise_query_download_mosaic(
     multithreaded: bool = False,
     max_items: int = 1,
 ) -> dict:
-    """
-    Breaks region into patches and processes each separately,
-    then compresses the resulting mosaic.
+    """Download, mosaic, and optionally persist imagery patch by patch.
+
+    Args:
+        mosaic_path (str | Path): Path to the mosaic GeoTIFF that will be
+            created or updated.
+        bbox (Sequence[float] | Polygon | MultiPolygon | gpd.GeoDataFrame |
+            gpd.GeoSeries): AOI definition used to generate patches.
+        mission (str): Mission slug controlling band configuration and query
+            filters.
+        resolution (float): Target output pixel resolution in metres.
+        bands (dict[str, str]): Mapping of band aliases to STAC asset keys.
+        date_range (str): Date range string to filter imagery.
+        base_output_path (str | Path): Directory where optional exports are
+            saved when ``to_disk`` is ``True``.
+        to_disk (bool): If ``True``, persist each patch stack alongside the
+            mosaic.
+        patch_size_meters (float | None): Optional override for the patch
+            edge length in metres. Defaults to a multiple of ``resolution``.
+        multithreaded (bool): If ``True``, process patches in parallel using
+            a process pool.
+        max_items (int): Maximum number of STAC items requested per patch.
+
+    Returns:
+        dict: Summary metadata describing the download session.
     """
     # If caller passes ``None`` we default to 20× native pixel size
     if patch_size_meters is None:
@@ -290,19 +341,17 @@ def should_skip_mosaic(
     date_str: str,
     threshold: float = 0.8,
 ) -> bool:
-    """
-    Determines if mosaic processing should be skipped based on:
-    1. Date being outside the valid mission date range
-    2. Existing file with high NaN ratio
+    """Determine whether mosaic processing should be skipped for a date.
 
-    Parameters:
-        path (str): Path to the mosaic file
-        mission_config (dict): Mission configuration from get_mission()
-        date_str (str): Date string in format "YYYY-MM-DD/YYYY-MM-DD" or "YYYY-MM-DD"
-        threshold (float): NaN ratio threshold above which to skip
+    Args:
+        path (str | Path): Path to the mosaic file that would be created.
+        mission_config (dict): Mission configuration returned by
+            :func:`get_mission`.
+        date_str (str): Date string in ``YYYY-MM-DD`` or date-range form.
+        threshold (float): Maximum acceptable NaN ratio for existing mosaics.
 
     Returns:
-        bool: True if processing should be skipped, False otherwise
+        bool: ``True`` when processing should be skipped, ``False`` otherwise.
     """
     # Extract start date from date string (handles both single dates and ranges)
     if "/" in date_str:
@@ -359,31 +408,33 @@ def process_date(
     multithreaded: bool = False,
     max_items: int = 1,
 ):
-    """
-    Processes satellite data for a single date by creating and populating mosaics for Landsat-5, Landsat-7, and Sentinel-2.
+    """Process imagery for a single date across multiple missions.
 
-    For each mission:
-    - Constructs a dated filename for the output mosaic.
-    - Reprojects the bounding box to the target CRS (EPSG:32618).
-    - Creates an empty mosaic placeholder GeoTIFF.
-    - Downloads and inserts patchwise image data into the mosaic for the given date.
-
-    Errors encountered during processing are caught and stored in the returned result dictionary.
-
-    Parameters:
-        date (str): The date range to process (e.g., "2020-06-01/2020-06-15").
-        bbox (list): Bounding box in WGS84 [min_lon, min_lat, max_lon, max_lat].
-        sentinel_mission (dict): Sentinel-2 mission specs from get_mission().
-        landsat5_mission (dict): Landsat-5 mission specs from get_mission().
-        landsat7_mission (dict): Landsat-7 mission specs from get_mission().
-        sentinel2_mosaic_path (str): Base path to output Sentinel-2 mosaics.
-        landsat5_mosaic_path (str): Base path to output Landsat-5 mosaics.
-        landsat7_mosaic_path (str): Base path to output Landsat-7 mosaics.
-        inline_mask (bool): If True, write an NDWI water mask next to every finished mosaic and then delete the mosaic to save disk space.
-
+    Args:
+        date (str): Date or date range (``YYYY-MM-DD`` or
+            ``YYYY-MM-DD/YYYY-MM-DD``).
+        bbox (Sequence[float] | Polygon | MultiPolygon | gpd.GeoDataFrame |
+            gpd.GeoSeries): AOI definition in WGS84 coordinates.
+        sentinel_mission (dict): Sentinel-2 mission metadata from
+            :func:`get_mission`.
+        landsat5_mission (dict): Landsat-5 mission metadata from
+            :func:`get_mission`.
+        landsat7_mission (dict): Landsat-7 mission metadata from
+            :func:`get_mission`.
+        sentinel2_mosaic_path (str | Path): Base directory for Sentinel-2
+            mosaics.
+        landsat5_mosaic_path (str | Path): Base directory for Landsat-5
+            mosaics.
+        landsat7_mosaic_path (str | Path): Base directory for Landsat-7
+            mosaics.
+        inline_mask (bool): If ``True``, write NDWI masks next to each
+            completed mosaic and optionally delete the mosaic afterwards.
+        multithreaded (bool): If ``True``, process patches in parallel.
+        max_items (int): Maximum STAC items requested per patch.
 
     Returns:
-        dict: A result dictionary with the date and any errors encountered.
+        dict: Dictionary containing the processed date and any captured
+        errors.
     """
     init_logger("download_worker_log.txt")  # optional: make this configurable
 

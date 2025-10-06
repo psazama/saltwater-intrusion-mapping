@@ -1,3 +1,5 @@
+"""High-level CLI driving the end-to-end saltwater intrusion workflow."""
+
 import argparse
 from pathlib import Path
 
@@ -6,9 +8,15 @@ from swmaps.pipeline.download import download_data
 from swmaps.pipeline.masks import generate_masks
 from swmaps.pipeline.salinity import salinity_pipeline
 from swmaps.pipeline.trend import trend_heatmap
+def main() -> None:
+    """Parse arguments and run each stage of the pipeline sequentially.
 
+    Args:
+        None
 
-def main():
+    Returns:
+        None: The function triggers pipeline stages as side effects.
+    """
     parser = argparse.ArgumentParser(
         description="Run full saltwater intrusion pipeline"
     )

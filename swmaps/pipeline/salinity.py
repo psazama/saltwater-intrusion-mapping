@@ -1,3 +1,5 @@
+"""Salinity pipeline utilities for aligning truth data and imagery products."""
+
 from pathlib import Path
 
 from swmaps.config import data_path
@@ -14,7 +16,16 @@ from swmaps.core.satellite_query import (
 
 
 def salinity_pipeline(truth_dir=None, truth_file=None):
-    """Run salinity ground truth matching and feature extraction."""
+    """Run salinity ground-truth processing and feature extraction.
+
+    Args:
+        truth_dir (str | Path | None): Directory containing raw CODC NetCDF
+            profiles. When provided, profiles are ingested prior to matching.
+        truth_file (str | Path | None): Existing truth CSV to use or create.
+
+    Returns:
+        None: Artifacts and CSV outputs are written to ``data/``.
+    """
     if truth_file is None:
         truth_file = str(data_path("salinity_labels", "codc_salinity_profiles.csv"))
 

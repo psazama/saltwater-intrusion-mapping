@@ -1,3 +1,5 @@
+"""Download helpers for acquiring imagery used by the processing pipeline."""
+
 import json
 import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -11,7 +13,21 @@ from swmaps.core.mosaic import process_date
 
 
 def download_data(dates=None, inline_mask=False, max_items=1, multithreaded=False):
-    """Download imagery for given date ranges."""
+    """Download imagery for one or more date ranges.
+
+    Args:
+        dates (Iterable[str] | None): Dates or date ranges to download. When
+            ``None``, load the default schedule from ``config/date_range.json``.
+        inline_mask (bool): If ``True``, generate NDWI masks immediately after
+            building each mosaic.
+        max_items (int): Maximum STAC items per patch request.
+        multithreaded (bool): If ``True``, process dates in parallel using a
+            process pool.
+
+    Returns:
+        list[dict]: Result records produced by :func:`process_date` for each
+        processed date.
+    """
     if dates is None:
         with open(
             Path(__file__).resolve().parents[2] / "config" / "date_range.json"

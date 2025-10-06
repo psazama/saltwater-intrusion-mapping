@@ -1,3 +1,5 @@
+"""Minimal CLI wrapper around the salinity pipeline entry point."""
+
 import argparse
 
 from swmaps.pipeline.salinity import salinity_pipeline

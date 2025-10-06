@@ -80,7 +80,15 @@ SALINITY_CLASS_CODES = {"land": 0, "fresh": 1, "brackish": 2, "saline": 3}
 # Helper utilities
 # ---------------------------------------------------------------------------
 def _load_region_bounds() -> tuple[gpd.GeoSeries, list[float]]:
-    """Load the Somerset AOI and return its geometry plus WGS84 bounds."""
+    """Load the Somerset AOI and return its geometry plus WGS84 bounds.
+
+    Args:
+        None
+
+    Returns:
+        tuple[geopandas.GeoSeries, list[float]]: The merged AOI geometry and its
+        ``[minx, miny, maxx, maxy]`` bounds in WGS84.
+    """
 
     gdf = gpd.read_file(GEOJSON_PATH).to_crs("EPSG:4326")
     geometry = gdf.geometry.unary_union
@@ -97,7 +105,22 @@ def _safe_execute(
     *args: Any,
     **kwargs: Any,
 ) -> T | None:
-    """Execute ``func`` while logging non-fatal errors and returning ``None`` on failure."""
+    """Execute ``func`` while logging non-fatal errors and returning ``None`` on failure.
+
+    Parameters
+    ----------
+    description : str
+        Human-readable label used in log messages.
+    func : Callable
+        Callable to execute.
+    *args, **kwargs
+        Positional and keyword arguments forwarded to ``func``.
+
+    Returns
+    -------
+    T or None
+        Result of ``func(*args, **kwargs)`` or ``None`` if an exception occurs.
+    """
 
     try:
         return func(*args, **kwargs)
@@ -117,6 +140,10 @@ def _expand_date_range(date_range: str, buffer_days: int) -> str:
         The original "YYYY-MM-DD/YYYY-MM-DD" interval string.
     buffer_days:
         Number of days to expand before the start date and after the end date.
+    Returns
+    -------
+    str
+        Expanded date range preserving the ISO-8601 ``start/end`` format.
     """
 
     start_str, end_str = date_range.split("/")
@@ -126,7 +153,19 @@ def _expand_date_range(date_range: str, buffer_days: int) -> str:
 
 
 def _landsat_reflectance_stack(src: rasterio.io.DatasetReader) -> list[np.ndarray]:
-    """Convert raw Landsat digital numbers into reflectance arrays."""
+    """Convert raw Landsat digital numbers into reflectance arrays.
+
+    Parameters
+    ----------
+    src : rasterio.io.DatasetReader
+        Open Landsat dataset whose bands will be read and scaled.
+
+    Returns
+    -------
+    list[numpy.ndarray]
+        Float32 arrays scaled using the documented Landsat ``0.0000275`` scale
+        and ``-0.2`` offset described in the inline comment.
+    """
 
     # Landsat Collection 2 Level-2 SR scale/offset values from USGS docs.
     scale = 0.0000275
@@ -144,7 +183,26 @@ def _write_single_band(
     dtype: str,
     nodata: float | int | None = np.nan,
 ) -> None:
-    """Persist a single-band raster array using the provided profile template."""
+    """Persist a single-band raster array using the provided profile template.
+
+    Parameters
+    ----------
+    path : pathlib.Path
+        Output raster location.
+    profile : dict
+        Raster metadata template copied/updated before writing.
+    array : numpy.ndarray
+        Data array to write.
+    dtype : str
+        Dtype to apply when writing ``array``.
+    nodata : float | int | None, optional
+        Value used as nodata; ``None`` removes nodata from the output profile.
+
+    Returns
+    -------
+    None
+        Raster is written as a side effect.
+    """
 
     profile = profile.copy()
     profile.update({"count": 1, "dtype": dtype})
@@ -162,6 +220,14 @@ def _write_single_band(
 # Main workflow
 # ---------------------------------------------------------------------------
 def process_landsat_history() -> None:
+    """Run the full Landsat processing workflow for the Somerset AOI.
+
+    Args:
+        None
+
+    Returns:
+        None: The workflow performs processing steps and writes outputs to disk.
+    """
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
     )

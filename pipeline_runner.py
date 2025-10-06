@@ -1,3 +1,5 @@
+"""Command-line entry point for executing the saltwater intrusion pipeline."""
+
 import argparse
 import json
 import os
@@ -29,9 +31,17 @@ from swmaps.core.water_trend import (
     plot_trend_heatmap,
     save_trend_results,
 )
-
-
 def main() -> None:
+    """Parse CLI arguments and orchestrate the pipeline execution steps.
+
+    Args:
+        None
+
+    Returns:
+        None: The CLI performs work as a side effect—downloading imagery,
+        generating mosaics, and computing salinity/trend outputs based on the
+        requested step.
+    """
     parser = argparse.ArgumentParser(
         description="Saltwater Intrustion Detection Runner"
     )

@@ -1,3 +1,5 @@
+"""Spectral index utilities used to derive water masks from imagery."""
+
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -16,19 +18,24 @@ def compute_ndwi(
     threshold: float = 0.2,
     center_size: int | None = None,
 ) -> np.ndarray:
-    """
-    Computes the NDWI mask from a GeoTIFF based on mission-specific green and NIR bands.
+    """Compute the Normalized Difference Water Index (NDWI) mask.
 
-    Parameters:
-        path (str): Path to GeoTIFF file.
-        mission (str): One of ["landsat-5", "landsat-7", "sentinel-2"].
-        out_path (str, optional): Where to save NDWI GeoTIFF.
-        display (bool): Whether to show the NDWI mask.
-        threshold (float): NDWI threshold to define water (default 0.2).
-        center_size (int): Set the pixel size if using the center of the image only.
+    Args:
+        path (str | Path): Path to the source GeoTIFF file containing
+            multispectral imagery.
+        mission (str): Mission identifier, e.g. ``"landsat-5"``,
+            ``"landsat-7"``, or ``"sentinel-2"``.
+        out_path (str | Path | None): Optional path where the NDWI raster
+            should be written.
+        display (bool): If ``True``, render the NDWI mask using Matplotlib.
+        threshold (float): Threshold applied to the NDWI ratio to classify
+            water pixels.
+        center_size (int | None): If provided, limit the computation to a
+            centered square window with the specified edge length (pixels).
 
     Returns:
-        np.ndarray: Binary NDWI mask (1 = water, 0 = non-water).
+        np.ndarray: Binary NDWI mask where water pixels equal ``1`` and
+        other pixels equal ``0``.
     """
     mission_info = get_mission(mission)
     band_index = mission_info["band_index"]

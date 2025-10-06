@@ -1,10 +1,18 @@
+"""CLI example for generating salinity products from a Landsat mosaic."""
+
 import argparse
 from pathlib import Path
 
 from swmaps.pipeline.landsat import estimate_salinity_from_mosaic
+def main() -> None:
+    """Parse CLI arguments and run the salinity estimation workflow.
 
+    Args:
+        None
 
-def main():
+    Returns:
+        None: Outputs are printed to stdout and written to disk.
+    """
     parser = argparse.ArgumentParser(
         description="Estimate salinity from Landsat mosaic"
     )

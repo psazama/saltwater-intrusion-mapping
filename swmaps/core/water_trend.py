@@ -178,7 +178,20 @@ def load_wet_year(
         datasets.append(da)
 
     # Extract start date from filename: sentinel_eastern_shore_YYYY-MM-DD_YYYY-MM-DD_mask.tif
-    def extract_start_date(path):
+    def extract_start_date(path: str | Path) -> np.datetime64:
+        """Pull the acquisition start date embedded in the mask filename.
+
+        This mirrors the existing filename comment so that callers understand the
+        sentinel/landsat naming convention that stores the start date as the
+        third-to-last underscore-delimited token.
+
+        Args:
+            path (str | Path): Path to the monthly water-mask GeoTIFF.
+
+        Returns:
+            numpy.datetime64: Parsed start date extracted from the filename.
+        """
+
         parts = Path(path).stem.split("_")
         return np.datetime64(parts[-3])  # third-to-last is the start date
 
@@ -194,7 +207,18 @@ def load_wet_year(
 
 @njit(parallel=True, fastmath=True)
 def theil_sen_slope(ts: np.ndarray) -> np.float32:
-    """Return Theil–Sen slope for a 1‑D array."""
+    """Return the Theil–Sen slope for a 1‑D array of observations.
+
+    Parameters
+    ----------
+    ts : numpy.ndarray
+        One-dimensional time series values ordered chronologically.
+
+    Returns
+    -------
+    numpy.float32
+        Median pairwise slope; ``NaN`` when the series is constant or empty.
+    """
     if np.isnan(ts).all() or np.nanstd(ts) == 0:
         return np.nan
 
@@ -209,7 +233,20 @@ def theil_sen_slope(ts: np.ndarray) -> np.float32:
 
 
 def mk_p(ts: np.ndarray, years: np.ndarray) -> np.float32:
-    """Mann‑Kendall p‑value for a time series."""
+    """Compute the Mann‑Kendall p‑value for a time series.
+
+    Parameters
+    ----------
+    ts : numpy.ndarray
+        Observed values ordered by time.
+    years : numpy.ndarray
+        Numeric representation of time used to evaluate the trend statistic.
+
+    Returns
+    -------
+    numpy.float32
+        Two-sided p-value indicating the likelihood of the monotonic trend.
+    """
     tau, p = kendalltau(years, ts)
     return np.float32(1.0 if np.isnan(p) else p)
 
@@ -226,6 +263,11 @@ def pixel_trend(
         Yearly fraction of wet months with dimensions ``(time, y, x)``.
     progress : bool, optional
         If ``True``, display a progress bar while computing the trend.
+    Returns
+    -------
+    tuple[xr.DataArray, xr.DataArray]
+        Pair of arrays containing the Theil–Sen slope and Mann–Kendall
+        p-values for each pixel.
     """
     years = np.arange(wet_year.shape[0], dtype=np.float32)
 
@@ -242,6 +284,15 @@ def pixel_trend(
     )
 
     def _mk(ts):
+        """Wrapper used by :func:`xarray.apply_ufunc` to compute MK p-values.
+
+        Args:
+            ts (numpy.ndarray): Time series slice passed from ``wet_year``.
+
+        Returns:
+            numpy.float32: P-value calculated via :func:`mk_p` for ``ts``.
+        """
+
         return mk_p(ts, years)
 
     pval = xr.apply_ufunc(
@@ -275,7 +326,26 @@ def plot_trend_heatmap(
     title: str | None = None,
     ax: plt.Axes | None = None,
 ) -> plt.Axes:
-    """Plot a heatmap of water trend with significance mask."""
+    """Plot a heatmap of water trend with significance mask.
+
+    Parameters
+    ----------
+    slope : xr.DataArray
+        Theil–Sen slope values computed by :func:`pixel_trend`.
+    signif : xr.DataArray
+        Boolean mask marking statistically significant pixels.
+    vmin, vmax : float, optional
+        Symmetric limits applied to the diverging colour map.
+    title : str, optional
+        Title to display above the plot.
+    ax : matplotlib.axes.Axes, optional
+        Existing axes to draw on; one is created when omitted.
+
+    Returns
+    -------
+    matplotlib.axes.Axes
+        Axes containing the rendered heatmap for further customisation.
+    """
     if ax is None:
         fig, ax = plt.subplots(figsize=(10, 8))
     slope.plot(ax=ax, cmap="coolwarm", vmin=vmin, vmax=vmax)

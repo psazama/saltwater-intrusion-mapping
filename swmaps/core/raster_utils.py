@@ -1,3 +1,5 @@
+"""Raster utility helpers for reprojection, resampling, and diagnostics."""
+
 import logging
 import os
 from typing import Optional
@@ -83,7 +85,19 @@ def downsample_to_landsat(
     target_resolution: float = 30,
     resampling: Resampling = Resampling.average,
 ) -> tuple:
-    """Resample Sentinel-2 data to Landsat 30 m resolution."""
+    """Resample a raster array to Landsat-like 30 metre resolution.
+
+    Args:
+        data (np.ndarray): Source array to resample.
+        transform (Affine): Affine transform describing the source grid.
+        crs: Coordinate reference system associated with ``data``.
+        target_resolution (float): Desired output pixel size in metres.
+        resampling (Resampling): Resampling algorithm to use.
+
+    Returns:
+        tuple[np.ndarray, Affine]: The resampled array and its affine
+        transform.
+    """
 
     src_res = max(abs(transform.a), abs(transform.e))
     scale = target_resolution / src_res
@@ -108,6 +122,15 @@ def downsample_to_landsat(
 
 
 def init_logger(log_path: str = "process_log.txt") -> None:
+    """Configure a process-aware logger that writes to disk and stdout.
+
+    Args:
+        log_path (str): File path where log messages will be appended.
+
+    Returns:
+        None: Logging is configured as a side effect.
+    """
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(process)d] %(levelname)s: %(message)s",
@@ -122,21 +145,21 @@ def find_non_nan_window(
     stride: int = 256,
     threshold_ratio: float = 0.5,
 ) -> tuple[np.ndarray | list[np.ndarray], dict, Window] | None:
-    """
-    Finds a window in a raster where the data is mostly valid (not NaN or near-zero).
+    """Find a mostly valid window within a raster dataset.
 
-    Parameters:
-        tif_path (str): Path to the raster file.
-        bands (list or None): List of 1-based band indices to read and validate. If None, reads band 1.
-        window_size (int): Size of the square window.
-        stride (int): Step size for moving the window.
-        threshold_ratio (float): Minimum proportion of valid data required.
+    Args:
+        tif_path (str): Path to the raster file to inspect.
+        bands (list[int] | None): One-based band indices to read. When
+            ``None``, only band 1 is evaluated.
+        window_size (int): Edge length of the candidate window in pixels.
+        stride (int): Step size used while scanning the raster.
+        threshold_ratio (float): Minimum fraction of valid pixels required
+            within a window.
 
     Returns:
-        Tuple of:
-            - data (np.ndarray or list of np.ndarrays): Array(s) for the selected window.
-            - profile (dict): Raster profile updated for the window.
-            - window (Window): The selected rasterio window.
+        tuple[np.ndarray | list[np.ndarray], dict, Window] | None: Tuple
+        containing the extracted data array(s), an updated raster profile,
+        and the chosen window, or ``None`` if no valid window is found.
     """
     with rasterio.open(tif_path) as src:
         scale_reflectance = False
@@ -211,6 +234,19 @@ def reproject_bbox(
     src_crs: str = "EPSG:4326",
     dst_crs: str = "EPSG:32618",
 ) -> list[float]:
+    """Project a bounding box or geometry from one CRS into another.
+
+    Args:
+        bbox (sequence | GeoDataFrame | GeoSeries | Polygon | MultiPolygon):
+            Input bounds or geometry expressed in ``src_crs`` coordinates.
+        src_crs (str): Coordinate reference system describing ``bbox``.
+        dst_crs (str): Target coordinate reference system for the output bounds.
+
+    Returns:
+        list[float]: Reprojected bounding box ``[minx, miny, maxx, maxy]`` in
+        ``dst_crs``.
+    """
+
     if isinstance(bbox, (list, tuple)) and len(bbox) == 4:
         geom = None
         minx, miny = bbox[0], bbox[1]

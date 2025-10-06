@@ -1,4 +1,4 @@
-# cdl_classes.py
+"""Lookup table mapping CDL class identifiers to human-readable labels."""
 CDL_CLASSES = {
     1: "Corn",
     2: "Cotton",

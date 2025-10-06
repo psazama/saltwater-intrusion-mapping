@@ -1,6 +1,4 @@
-"""
-Pipeline utilities for Landsat processing and salinity estimation.
-"""
+"""Pipeline utilities for Landsat processing and salinity estimation."""
 
 import logging
 from pathlib import Path
@@ -16,8 +14,18 @@ SALINITY_CLASS_CODES = {"land": 0, "fresh": 1, "brackish": 2, "saline": 3}
 
 
 def landsat_reflectance_stack(src: rasterio.io.DatasetReader) -> list[np.ndarray]:
-    """
-    Convert Landsat Collection 2 Level-2 DN values to reflectance arrays.
+    """Convert Landsat Collection 2 Level-2 DN values to reflectance arrays.
+
+    Parameters
+    ----------
+    src : rasterio.io.DatasetReader
+        Open raster dataset from which to read Landsat spectral bands.
+
+    Returns
+    -------
+    list[numpy.ndarray]
+        List of float32 arrays scaled using the documented ``0.0000275`` scale
+        and ``-0.2`` offset noted in the inline comment.
     """
     scale = 0.0000275
     offset = -0.2
@@ -34,8 +42,25 @@ def write_single_band(
     dtype: str,
     nodata: float | int | None = np.nan,
 ) -> None:
-    """
-    Save a single-band raster to disk.
+    """Save a single-band raster to disk using a template profile.
+
+    Parameters
+    ----------
+    path : pathlib.Path
+        Destination file path for the raster.
+    profile : dict
+        Raster profile to copy/update when writing the output.
+    array : numpy.ndarray
+        Data array to persist.
+    dtype : str
+        Target dtype for the raster on disk.
+    nodata : float | int | None, optional
+        Value to mark as nodata; ``None`` removes nodata from the profile.
+
+    Returns
+    -------
+    None
+        Raster is written as a side effect.
     """
     profile = profile.copy()
     profile.update({"count": 1, "dtype": dtype})

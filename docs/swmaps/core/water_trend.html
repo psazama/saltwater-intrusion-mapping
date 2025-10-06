@@ -553,7 +553,7 @@
 
 <p>mask_glob:
     Glob pattern or list of files for monthly binary masks. Files must be
-    readable by :func:<code>xarray.open_mfdataset</code> with <code>engine='rasterio'</code> and
+    readable by <code>xarray.open_mfdataset()</code> with <code>engine='rasterio'</code> and
     contain a <code>time</code> dimension.
 chunks: dict, optional
     Dask chunk sizes to apply when reading each raster. Pass a mapping
@@ -824,7 +824,7 @@ progress : bool, optional
 <h2 id="parameters">Parameters</h2>
 
 <p>slope : xr.DataArray
-    Theil–Sen slope values computed by :func:<code><a href="#pixel_trend">pixel_trend</a></code>.
+    Theil–Sen slope values computed by <code><a href="#pixel_trend">pixel_trend()</a></code>.
 signif : xr.DataArray
     Boolean mask marking statistically significant pixels.
 vmin, vmax : float, optional
@@ -905,7 +905,7 @@ ax : matplotlib.axes.Axes, optional
 <h2 id="parameters">Parameters</h2>
 
 <p>slope, pval : xr.DataArray
-    Arrays returned by :func:<code><a href="#pixel_trend">pixel_trend</a></code>.
+    Arrays returned by <code><a href="#pixel_trend">pixel_trend()</a></code>.
 output_stem : str or Path
     Path stem for output files (without extension). <code>_slope</code> and
     <code>_pval</code> plus the extensions <code>.tif</code> and <code>.npy</code> will be appended.</p>

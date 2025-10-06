@@ -28,3 +28,9 @@ repos:
         entry: pytest --maxfail=1 --disable-warnings -q tests/
         language: system
         types: [python]
+
+      - id: pdoc-generate
+        name: Regenerate pdoc docs
+        entry: pdoc --output-dir docs swmaps
+        language: system
+        pass_filenames: false

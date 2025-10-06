@@ -1,0 +1,23 @@
+{
+  "type": "FeatureCollection",
+  "bbox": [-76.3343, 38.5426, -75.7194, 38.7171],
+  "features": [
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-76.3343, 38.7171],  // top left
+          [-75.7194, 38.7171],  // top right
+          [-75.7194, 38.5426],  // bottom right
+          [-76.3343, 38.5426],  // bottom left
+          [-76.3343, 38.7171]   // back to top left
+        ]]
+      },
+      "properties": {
+        "name": "Bounding Box"
+      }
+    }
+  ]
+}
+

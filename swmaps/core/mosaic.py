@@ -233,8 +233,21 @@ def _download_patch(
     if not items:
         return None
 
-    stack, tfm, crs = _stack_bands(items[0], bands)  # (bands, h, w)
-    return i, stack, tfm, crs
+    all_stacks = []
+    for item in items:
+        arr, tfm, crs = _stack_bands(item, bands)  # (bands, h, w)
+        all_stacks.append(arr)
+
+    # Shape: (num_items, bands, h, w)
+    data = np.stack(all_stacks, axis=0)
+
+    # Mask zeros as NaN so they don’t count
+    data_masked = np.where(data == 0, np.nan, data)
+
+    # Median along the item dimension (axis=0), ignoring NaNs
+    median_stack = np.nanmedian(data_masked, axis=0)  # shape: (bands, h, w)
+
+    return i, median_stack, tfm, crs
 
 
 def patchwise_query_download_mosaic(

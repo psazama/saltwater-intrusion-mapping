@@ -2,15 +2,16 @@
 set -euo pipefail
 
 # --------------------------------------------------------------------
-# End-to-end driver for the Somerset Landsat demo workflow
+# End-to-end driver for the demo workflow
 # --------------------------------------------------------------------
 
-# Config
-REGION="config/somerset.geojson"
-TRUTH_DIR=""        # set to your .nc salinity directory if available
-TRUTH_FILE=""       # set to an existing salinity CSV if available
-YEAR=2005           # year to fetch NLCD/CDL overlays
-WATER_THRESHOLD=0.2
+# Load config (defaults to config/demo.conf)
+CONFIG_FILE="${1:-config/demo.conf}"
+if [[ ! -f "$CONFIG_FILE" ]]; then
+    echo "Config file not found: $CONFIG_FILE" >&2
+    exit 1
+fi
+source "$CONFIG_FILE"
 
 echo "=== Step 0: Create coastal polygon ==="
 python examples/coastal_poly.py --use-bbox

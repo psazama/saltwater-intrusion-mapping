@@ -4,7 +4,7 @@ import pytest
 
 np = pytest.importorskip("numpy")
 
-from swmaps.core.salinity.utils import estimate_salinity_level
+from swmaps.core.salinity.heuristic import estimate_salinity_level
 
 
 def _scaled(values):

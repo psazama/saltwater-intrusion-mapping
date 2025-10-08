@@ -4,7 +4,9 @@ import pytest
 
 np = pytest.importorskip("numpy")
 
-from swmaps.core.salinity_tools import estimate_salinity_level
+from swmaps.core.salinity.utils import estimate_salinity_level
+
+
 def _scaled(values):
     """Scale lists to the integer reflectance space used by Landsat sensors.
 

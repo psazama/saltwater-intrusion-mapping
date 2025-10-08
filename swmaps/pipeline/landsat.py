@@ -7,7 +7,7 @@ import numpy as np
 import rasterio
 from rasterio.errors import RasterioError
 
-from swmaps.core.salinity_tools import estimate_salinity_level
+from swmaps.core.salinity.heuristic import estimate_salinity_level
 
 # Map salinity classes to integer codes for compact raster storage
 SALINITY_CLASS_CODES = {"land": 0, "fresh": 1, "brackish": 2, "saline": 3}

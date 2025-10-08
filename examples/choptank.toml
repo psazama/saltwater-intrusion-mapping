@@ -1,0 +1,50 @@
+# =====================================================================
+# Example config for Choptank River region workflow
+# Works with run_workflow.py (general driver)
+# =====================================================================
+
+# ---------------------------------------------------------------------
+# Global paths
+# ---------------------------------------------------------------------
+region = "config/choptank_river_region.geojson"
+output_root = "examples/choptank_landsat"
+
+# ---------------------------------------------------------------------
+# Missions and date ranges
+# For demo, you can add Landsat or Sentinel ranges as needed
+# ---------------------------------------------------------------------
+[missions]
+landsat-5 = ["2005-07-01/2005-07-31"]
+
+# ---------------------------------------------------------------------
+# Step toggles
+# Enable/disable steps for this demo
+# ---------------------------------------------------------------------
+[steps.demo]
+coastal   = true
+download  = true
+ndwi      = true
+trend     = true
+salinity-overlay  = true
+overlays  = true
+salinity-labels = true
+salinity-truth = false
+salinty-features = false
+xgboost-train = false
+
+# ---------------------------------------------------------------------
+# Parameters shared across steps
+# ---------------------------------------------------------------------
+[parameters]
+water_threshold = 0.2
+max_items       = 3
+center_size     = 64
+multithreaded   = false
+inline_mask     = false
+
+# Optional truth data for salinity pipeline
+truth_dir  = ""   # e.g. "data/truth_nc"
+truth_file = ""   # e.g. "data/truth_obs.csv"
+
+# Overlay year
+overlay_year = 2005

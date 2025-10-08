@@ -4,7 +4,7 @@ from pathlib import Path
 
 from swmaps.config import data_path
 from swmaps.core.missions import get_mission
-from swmaps.core.salinity_tools import (
+from swmaps.core.salinity.utils import (
     build_salinity_truth,
     extract_salinity_features_from_mosaic,
     load_salinity_truth,

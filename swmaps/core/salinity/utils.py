@@ -1,8 +1,10 @@
 """Analytical helpers for deriving water salinity products from imagery."""
 
 import os
+import shutil
 from pathlib import Path
 from typing import Sequence
+from urllib.request import urlopen
 
 import numpy as np
 import pandas as pd
@@ -47,6 +49,53 @@ def _default_wod_example() -> Path:
     """
 
     return data_path("salinity_labels", "WOD", "WOD_CAS_T_S_2020_1.nc")
+
+
+def download_salinity_datasets(
+    listing_file,
+    destination="salinity_labels/codc",
+    base_url="http://www.ocean.iap.ac.cn/ftp/cheng/CODCv2.1_Insitu_T_S_database/",
+):
+    """Download CODC salinity NetCDF files listed in a text file.
+
+    Args:
+        listing_file (str | Path): Text file with one filename per line.
+            Lines starting with '#' or blank lines are ignored.
+        destination (str | Path): Directory to save downloaded files.
+        base_url (str): Base URL hosting the CODC NetCDF files.
+
+    Returns:
+        list[Path]: Paths to the downloaded (or existing) files.
+    """
+
+    listing_path = Path(listing_file)
+    if not listing_path.exists():
+        raise FileNotFoundError(f"Listing file not found: {listing_file}")
+
+    target_dir = Path(destination)
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    with listing_path.open("r", encoding="utf-8") as f:
+        filenames = [line.strip() for line in f if line.strip() and not line.startswith("#")]
+
+    downloaded_paths = []
+    for fname in tqdm(filenames, desc="Downloading salinity datasets"):
+        dest = target_dir / fname
+        if dest.exists():
+            downloaded_paths.append(dest)
+            continue
+
+        url = base_url + fname
+        try:
+            with urlopen(url) as r, open(dest, "wb") as out:
+                shutil.copyfileobj(r, out)
+        except Exception as e:
+            print(f"Failed to download {url}: {e}")
+            continue
+
+        downloaded_paths.append(dest)
+
+    return downloaded_paths
 
 
 def build_salinity_truth(

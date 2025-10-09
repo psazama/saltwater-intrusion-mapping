@@ -49,6 +49,20 @@ def get_settings() -> Settings:
 settings = Settings()
 
 
+def set_data_root(path: str | PathLike[str] | Path) -> None:
+    """Override the global data root used for pipeline artifacts.
+
+    Args:
+        path (str | os.PathLike | Path): Directory to use as the base for
+            :func:`data_path` resolutions.
+
+    Returns:
+        None
+    """
+
+    settings.data_root = Path(path)
+
+
 def data_path(*parts: str | PathLike[str]) -> Path:
     """Convenience for building paths inside the :data:`data_root`.
 

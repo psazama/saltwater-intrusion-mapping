@@ -5,6 +5,7 @@ from pathlib import Path
 
 import geopandas as gpd
 
+from swmaps.config import data_path, set_data_root
 from swmaps.pipeline.coastal import create_coastal
 from swmaps.pipeline.download import download_data
 from swmaps.pipeline.landsat import estimate_salinity_from_mosaic
@@ -39,6 +40,11 @@ def main():
     if profile not in cfg.get("steps", {}):
         raise ValueError(f"Profile {profile!r} not found in config file")
 
+    # Determine output root and ensure downstream helpers write there
+    output_root = Path(cfg.get("output_root", data_path())).expanduser().resolve()
+    output_root.mkdir(parents=True, exist_ok=True)
+    set_data_root(output_root)
+
     # Set logging level based on verbosity
     if args.verbose >= 1:
         log_level = logging.DEBUG
@@ -52,7 +58,7 @@ def main():
     # Coastal AOI
     if steps.get("coastal"):
         logging.info("Creating coastal AOI polygon")
-        create_coastal(use_bbox=True)
+        create_coastal(use_bbox=True, output_root=output_root)
 
     # Download imagery
     if steps.get("download"):
@@ -95,10 +101,7 @@ def main():
         for mission, dranges in cfg.get("missions", {}).items():
             for date_range in dranges:
                 tag = date_range.replace("/", "_")
-                mosaic_file = (
-                    Path(cfg["output_root"])
-                    / f"{mission.replace('-', '')}_salinity_{tag}.tif"
-                )
+                mosaic_file = output_root / f"{mission.replace('-', '')}_salinity_{tag}.tif"
                 if mosaic_file.exists():
                     estimate_salinity_from_mosaic(mosaic_file)
 

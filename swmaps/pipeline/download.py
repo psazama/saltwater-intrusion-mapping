@@ -12,7 +12,9 @@ from swmaps.core.missions import get_mission
 from swmaps.core.mosaic import process_date
 
 
-def download_data(dates=None, inline_mask=False, max_items=1, multithreaded=False):
+def download_data(
+    dates=None, inline_mask=False, max_items=1, multithreaded=False, output_dir=None
+):
     """Download imagery for one or more date ranges.
 
     Args:
@@ -57,6 +59,7 @@ def download_data(dates=None, inline_mask=False, max_items=1, multithreaded=Fals
                     data_path("landsat7_eastern_shore.tif"),
                     inline_mask,
                     max_items=max_items,
+                    output_dir=output_dir,
                 ): date
                 for date in dates
             }
@@ -76,6 +79,7 @@ def download_data(dates=None, inline_mask=False, max_items=1, multithreaded=Fals
                 data_path("landsat7_eastern_shore.tif"),
                 inline_mask,
                 max_items=max_items,
+                output_dir=output_dir,
             )
             results.append(result)
     return results

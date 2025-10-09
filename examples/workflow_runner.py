@@ -10,7 +10,6 @@ from swmaps.pipeline.download import download_data
 from swmaps.pipeline.landsat import estimate_salinity_from_mosaic
 from swmaps.pipeline.masks import generate_masks
 from swmaps.pipeline.overlays import fetch_cdl_overlay, fetch_nlcd_overlay
-from swmaps.pipeline.salinity import salinity_pipeline
 from swmaps.pipeline.trend import trend_heatmap
 
 
@@ -48,6 +47,7 @@ def main():
 
     steps = cfg["steps"][profile]
     params = cfg.get("parameters", {})
+    output_root = cfg["output_root"]
 
     # Coastal AOI
     if steps.get("coastal"):
@@ -66,17 +66,18 @@ def main():
             inline_mask=params.get("inline_mask", False),
             max_items=params.get("max_items", 1),
             multithreaded=params.get("multithreaded", False),
+            output_dir=output_root,
         )
 
     # NDWI masks
     if steps.get("ndwi"):
         logging.info("Generating NDWI water masks")
-        generate_masks(center_size=params.get("center_size"))
+        generate_masks(center_size=params.get("center_size"), input_dir=output_root)
 
     # Trend
     if steps.get("trend"):
         logging.info("Computing trend heatmap")
-        trend_heatmap()
+        trend_heatmap(output_dir=output_root)
 
     # Overlay
     if steps.get("overlays"):
@@ -87,8 +88,8 @@ def main():
         for mission, dranges in cfg.get("missions", {}).items():
             for date_range in dranges:
                 year = int(date_range.split("-")[0])
-                fetch_nlcd_overlay(geometry, year)
-                fetch_cdl_overlay(geometry, year)
+                fetch_nlcd_overlay(geometry, year, output_dir=output_root)
+                fetch_cdl_overlay(geometry, year, output_dir=output_root)
 
     # Salinity Overlay
     if steps.get("salinity-overlay"):
@@ -102,37 +103,37 @@ def main():
                 if mosaic_file.exists():
                     estimate_salinity_from_mosaic(mosaic_file)
 
-    # Get Salinity Labels
-    if steps.get("salinity-labels"):
-        logging.info("Estimating salinity")
-        salinity_pipeline(
-            truth_dir=params.get("truth_dir"),
-            truth_file=params.get("truth_file"),
-        )
+    # # Get Salinity Labels
+    # if steps.get("salinity-labels"):
+    #     logging.info("Estimating salinity")
+    #     salinity_pipeline(
+    #         truth_dir=params.get("truth_dir"),
+    #         truth_file=params.get("truth_file"),
+    #     )
 
-    # Create Salinity Groundtruth
-    if steps.get("salinity-truth"):
-        logging.info("Building/loading salinity truth data")
-        build_salinity_truth(dataset_files=params.get("truth_nc_files"))
-        df = load_salinity_truth(params.get("truth_file"))
-        logging.info("Loaded %d truth samples", len(df))
+    # # Create Salinity Groundtruth
+    # if steps.get("salinity-truth"):
+    #     logging.info("Building/loading salinity truth data")
+    #     build_salinity_truth(dataset_files=params.get("truth_nc_files"))
+    #     df = load_salinity_truth(params.get("truth_file"))
+    #     logging.info("Loaded %d truth samples", len(df))
 
-    # Extract Salinity Features
-    if steps.get("salinty-features"):
-        logging.info("Extracting salinity features from mosaic")
-        extract_salinity_features_from_mosaic(
-            mosaic_path=params["mosaic_file"],
-            mission_band_index=params["band_index"],
-            output_feature_path=params["feature_tif"],
-            output_mask_path=params["mask_tif"],
-        )
+    # # Extract Salinity Features
+    # if steps.get("salinty-features"):
+    #     logging.info("Extracting salinity features from mosaic")
+    #     extract_salinity_features_from_mosaic(
+    #         mosaic_path=params["mosaic_file"],
+    #         mission_band_index=params["band_index"],
+    #         output_feature_path=params["feature_tif"],
+    #         output_mask_path=params["mask_tif"],
+    #     )
 
-    # Train Deng et al. XGBoost
-    if steps.get("xgboost-train"):
-        logging.info("Training Deng et al. XGBoost model")
-        X = ...  # load feature arrays
-        y = ...  # load labels
-        train_salinity_deng(X, y, save_model_path=params.get("model_out"))
+    # # Train Deng et al. XGBoost
+    # if steps.get("xgboost-train"):
+    #     logging.info("Training Deng et al. XGBoost model")
+    #     X = ...  # load feature arrays
+    #     y = ...  # load labels
+    #     train_salinity_deng(X, y, save_model_path=params.get("model_out"))
 
     logging.info("✅ Workflow finished successfully")
 

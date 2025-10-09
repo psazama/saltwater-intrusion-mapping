@@ -420,6 +420,7 @@ def process_date(
     inline_mask: bool = False,
     multithreaded: bool = False,
     max_items: int = 1,
+    output_dir: str = None,
 ):
     """Process imagery for a single date across multiple missions.
 
@@ -449,7 +450,11 @@ def process_date(
         dict: Dictionary containing the processed date and any captured
         errors.
     """
-    init_logger("download_worker_log.txt")  # optional: make this configurable
+    if output_dir:
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
+        init_logger(str(Path(output_dir) / "download_worker_log.txt"))
+    else:
+        init_logger("download_worker_log.txt")
 
     logging.info(f"Started processing for date: {date}")
     missions = ["sentinel-2", "landsat-5", "landsat-7"]
@@ -461,8 +466,17 @@ def process_date(
         try:
             mission_config = get_mission(mission_name)
             base, _ = os.path.splitext(mission_paths[mission_number])
-            mname = f"{base}_{date.replace('/', '_')}.tif"
+
+            filename = f"{Path(base).name}_{date.replace('/', '_')}.tif"
+
+            if output_dir:
+                Path(output_dir).mkdir(parents=True, exist_ok=True)
+                mname = str(Path(output_dir) / filename)
+            else:
+                mname = str(Path(base).parent / filename)
+
             if should_skip_mosaic(mname, mission_config, date):
+                logging.info(f"[MOSAIC] Skipping download for {mname}")
                 continue
             data_type = "float32"
             create_mosaic_placeholder(

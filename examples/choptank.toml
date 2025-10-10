@@ -7,7 +7,7 @@
 # Global paths
 # ---------------------------------------------------------------------
 region = "config/choptank_river_region.geojson"
-output_root = "examples/choptank_landsat"
+output_root = "swmaps/data/examples/choptank_workflow_results"
 
 # ---------------------------------------------------------------------
 # Missions and date ranges
@@ -27,7 +27,7 @@ ndwi      = true
 trend     = true
 salinity-overlay  = true
 overlays  = true
-salinity-labels = false
+salinity-labels = true
 salinity-truth = false
 salinty-features = false
 xgboost-train = false
@@ -43,8 +43,9 @@ multithreaded   = false
 inline_mask     = false
 
 # Optional truth data for salinity pipeline
-truth_dir  = ""   # e.g. "data/truth_nc"
-truth_file = ""   # e.g. "data/truth_obs.csv"
+truth_download_list = "swmaps/resources/salinity_truth_july.txt"
+truth_dir  = "swmaps/data/salinity_labels/codc"
+truth_file = "swmaps/data/salinity/truth_obs.csv"
 
 # Overlay year
 overlay_year = 2005

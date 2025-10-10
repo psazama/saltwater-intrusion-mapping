@@ -10,6 +10,7 @@ from swmaps.pipeline.download import download_data
 from swmaps.pipeline.landsat import estimate_salinity_from_mosaic
 from swmaps.pipeline.masks import generate_masks
 from swmaps.pipeline.overlays import fetch_cdl_overlay, fetch_nlcd_overlay
+from swmaps.pipeline.salinity import salinity_pipeline
 from swmaps.pipeline.trend import trend_heatmap
 
 
@@ -103,13 +104,14 @@ def main():
                 if mosaic_file.exists():
                     estimate_salinity_from_mosaic(mosaic_file)
 
-    # # Get Salinity Labels
-    # if steps.get("salinity-labels"):
-    #     logging.info("Estimating salinity")
-    #     salinity_pipeline(
-    #         truth_dir=params.get("truth_dir"),
-    #         truth_file=params.get("truth_file"),
-    #     )
+    # Get Salinity Labels
+    if steps.get("salinity-labels"):
+        logging.info("Building salinity truth data")
+        salinity_pipeline(
+            truth_download_list=params.get("truth_download_list"),
+            truth_dir=params.get("truth_dir"),
+            truth_file=params.get("truth_file"),
+        )
 
     # # Create Salinity Groundtruth
     # if steps.get("salinity-truth"):

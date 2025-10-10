@@ -6,6 +6,7 @@ from swmaps.config import data_path
 from swmaps.core.missions import get_mission
 from swmaps.core.salinity.utils import (
     build_salinity_truth,
+    download_salinity_datasets,
     extract_salinity_features_from_mosaic,
     load_salinity_truth,
 )
@@ -15,7 +16,7 @@ from swmaps.core.satellite_query import (
 )
 
 
-def salinity_pipeline(truth_dir=None, truth_file=None):
+def salinity_pipeline(truth_download_list=None, truth_dir=None, truth_file=None):
     """Run salinity ground-truth processing and feature extraction.
 
     Args:
@@ -26,6 +27,12 @@ def salinity_pipeline(truth_dir=None, truth_file=None):
     Returns:
         None: Artifacts and CSV outputs are written to ``data/``.
     """
+    if truth_download_list:
+        if truth_dir:
+            download_salinity_datasets(truth_download_list, truth_dir)
+        else:
+            download_salinity_datasets(truth_download_list)
+
     if truth_file is None:
         truth_file = str(data_path("salinity_labels", "codc_salinity_profiles.csv"))
 

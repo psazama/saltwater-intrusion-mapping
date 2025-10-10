@@ -463,58 +463,59 @@ def process_date(
     result = {"date": date, "errors": []}
     for mission_number, mission_name in enumerate(missions):
         logging.info(f"[MOSAIC] Starting download for {mission_name}")
-        try:
-            mission_config = get_mission(mission_name)
-            base, _ = os.path.splitext(mission_paths[mission_number])
+        # try:
+        mission_config = get_mission(mission_name)
+        base, _ = os.path.splitext(mission_paths[mission_number])
 
-            filename = f"{Path(base).name}_{date.replace('/', '_')}.tif"
+        filename = f"{Path(base).name}_{date.replace('/', '_')}.tif"
 
-            if output_dir:
-                Path(output_dir).mkdir(parents=True, exist_ok=True)
-                mname = str(Path(output_dir) / filename)
-            else:
-                mname = str(Path(base).parent / filename)
+        if output_dir:
+            Path(output_dir).mkdir(parents=True, exist_ok=True)
+            mname = str(Path(output_dir) / filename)
+        else:
+            mname = str(Path(base).parent / filename)
 
-            if should_skip_mosaic(mname, mission_config, date):
-                logging.info(f"[MOSAIC] Skipping download for {mname}")
-                continue
-            data_type = "float32"
-            create_mosaic_placeholder(
-                mosaic_path=mname,
-                bbox=reproject_bbox(bbox),
-                resolution=mission_config["resolution"],
-                mission=mission_name,
-                crs="EPSG:32618",
-                dtype=data_type,
-            )
-            patchwise_query_download_mosaic(
+        if should_skip_mosaic(mname, mission_config, date):
+            logging.info(f"[MOSAIC] Skipping download for {mname}")
+            continue
+        data_type = "float32"
+        create_mosaic_placeholder(
+            mosaic_path=mname,
+            bbox=reproject_bbox(bbox),
+            resolution=mission_config["resolution"],
+            mission=mission_name,
+            crs="EPSG:32618",
+            dtype=data_type,
+        )
+        patchwise_query_download_mosaic(
+            mname,
+            bbox,
+            mission_name,
+            mission_config["resolution"],
+            mission_config["bands"],
+            date,
+            None,
+            to_disk=False,
+            multithreaded=multithreaded,
+            max_items=max_items,
+        )
+        logging.info(f"[MOSAIC] Saved {mname}")
+
+        # ---- optional mask-and-cleanup ----
+        if inline_mask:
+            mask_path = f"{os.path.splitext(mname)[0]}_mask.tif"
+            compute_ndwi(
                 mname,
-                bbox,
                 mission_name,
-                mission_config["resolution"],
-                mission_config["bands"],
-                date,
-                None,
-                to_disk=False,
-                multithreaded=multithreaded,
-                max_items=max_items,
+                out_path=mask_path,
+                display=False,
+                threshold=0.2,
             )
-            logging.info(f"[MOSAIC] Saved {mname}")
+            os.remove(mname)
+            logging.info(f"[MASK] Saved {mask_path} and removed {mname}")
 
-            # ---- optional mask-and-cleanup ----
-            if inline_mask:
-                mask_path = f"{os.path.splitext(mname)[0]}_mask.tif"
-                compute_ndwi(
-                    mname,
-                    mission_name,
-                    out_path=mask_path,
-                    display=False,
-                    threshold=0.2,
-                )
-                os.remove(mname)
-                logging.info(f"[MASK] Saved {mask_path} and removed {mname}")
-
-        except Exception as e:
-            result["errors"].append(f"{mission_name} error: {e}")
+        # except Exception as e:
+        #    logging.error(f"[MOSAIC] Error {e} when building {mname}")
+        #    result["errors"].append(f"{mission_name} error: {e}")
 
     return result

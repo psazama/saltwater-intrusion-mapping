@@ -1,5 +1,6 @@
 """Analytical helpers for deriving water salinity products from imagery."""
 
+import logging
 import os
 import shutil
 from pathlib import Path
@@ -48,13 +49,13 @@ def _default_wod_example() -> Path:
         Path: Absolute path to the bundled sample profile.
     """
 
-    return data_path("salinity_labels", "WOD", "WOD_CAS_T_S_2020_1.nc")
+    return data_path("salinity_labels", "WOD", "WOD_CAS_T_S_2020_7.nc")
 
 
 def download_salinity_datasets(
     listing_file,
     destination="salinity_labels/codc",
-    base_url="http://www.ocean.iap.ac.cn/ftp/cheng/CODCv2.1_Insitu_T_S_database/",
+    base_url="http://www.ocean.iap.ac.cn/ftp/cheng/CODCv2.1_Insitu_T_S_database/nc/",
 ):
     """Download CODC salinity NetCDF files listed in a text file.
 
@@ -76,7 +77,9 @@ def download_salinity_datasets(
     target_dir.mkdir(parents=True, exist_ok=True)
 
     with listing_path.open("r", encoding="utf-8") as f:
-        filenames = [line.strip() for line in f if line.strip() and not line.startswith("#")]
+        filenames = [
+            line.strip() for line in f if line.strip() and not line.startswith("#")
+        ]
 
     downloaded_paths = []
     for fname in tqdm(filenames, desc="Downloading salinity datasets"):
@@ -141,9 +144,13 @@ def build_salinity_truth(
 
     header_written = False
 
-    for dataset_file in tqdm(dataset_files[::3]):
+    for dataset_file in tqdm(dataset_files):
         print(".")
-        ds = xr.open_dataset(dataset_file)
+        try:
+            ds = xr.open_dataset(dataset_file)
+        except Exception:
+            logging.warning(f"Error opening dataset: {dataset_file}")
+            continue
 
         # Use full range if no limit provided
         if prof_limit is None:

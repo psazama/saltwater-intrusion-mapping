@@ -68,6 +68,7 @@ def main():
             max_items=params.get("max_items", 1),
             multithreaded=params.get("multithreaded", False),
             output_dir=output_root,
+            region=cfg["region"],
         )
 
     # NDWI masks

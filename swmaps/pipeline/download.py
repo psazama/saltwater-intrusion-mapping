@@ -5,6 +5,7 @@ import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
+import geopandas as gpd
 from tqdm import tqdm
 
 from swmaps.config import data_path
@@ -13,7 +14,12 @@ from swmaps.core.mosaic import process_date
 
 
 def download_data(
-    dates=None, inline_mask=False, max_items=1, multithreaded=False, output_dir=None
+    dates=None,
+    inline_mask=False,
+    max_items=1,
+    multithreaded=False,
+    output_dir=None,
+    region=None,
 ):
     """Download imagery for one or more date ranges.
 
@@ -37,6 +43,11 @@ def download_data(
             dates = json.load(fh)["date_ranges"]
         dates = dates[6::12] + dates[7::12] + dates[8::12]
 
+    print(type(region))
+    region = gpd.read_file(region)
+    print(type(region))
+    print(region)
+
     missions = {
         "sentinel-2": get_mission("sentinel-2"),
         "landsat-5": get_mission("landsat-5"),
@@ -50,7 +61,7 @@ def download_data(
                 executor.submit(
                     process_date,
                     date,
-                    None,
+                    region,
                     missions["sentinel-2"],
                     missions["landsat-5"],
                     missions["landsat-7"],
@@ -70,7 +81,7 @@ def download_data(
         for date in tqdm(dates):
             result = process_date(
                 date,
-                None,
+                region,
                 missions["sentinel-2"],
                 missions["landsat-5"],
                 missions["landsat-7"],

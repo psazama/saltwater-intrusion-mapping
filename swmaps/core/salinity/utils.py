@@ -134,6 +134,9 @@ def build_salinity_truth(
         if output_csv
         else data_path("salinity_labels", "codc_salinity_profiles.csv")
     )
+    if output_csv.exists() and output_csv.stat().st_size > 0:
+        logging.info("Salinity truth CSV already exists at %s; skipping rebuild", output_csv)
+        return
     output_csv.parent.mkdir(parents=True, exist_ok=True)
 
     lat_idx = 4
@@ -364,6 +367,18 @@ def extract_salinity_features_from_mosaic(
     Returns:
         None: Outputs are written to disk.
     """
+
+    output_feature_path = Path(output_feature_path)
+    output_mask_path = Path(output_mask_path)
+    output_label_path = Path(output_label_path) if output_label_path else None
+
+    outputs_exist = output_feature_path.exists() and output_mask_path.exists()
+    if outputs_exist and (output_label_path is None or output_label_path.exists()):
+        logging.info(
+            "Salinity features already exist for %s; skipping extraction",
+            mosaic_path,
+        )
+        return
 
     with rasterio.open(mosaic_path) as src:
         profile = src.profile.copy()

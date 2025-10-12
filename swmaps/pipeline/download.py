@@ -44,7 +44,7 @@ def download_data(
         dates = dates[6::12] + dates[7::12] + dates[8::12]
 
     print(type(region))
-    region = gpd.read_file(region)
+    region = gpd.read_file(region).geometry.unary_union
     print(type(region))
     print(region)
 
@@ -79,18 +79,24 @@ def download_data(
                 results.append(result)
     else:
         for date in tqdm(dates):
-            result = process_date(
-                date,
-                region,
-                missions["sentinel-2"],
-                missions["landsat-5"],
-                missions["landsat-7"],
-                data_path("sentinel_eastern_shore.tif"),
-                data_path("landsat5_eastern_shore.tif"),
-                data_path("landsat7_eastern_shore.tif"),
-                inline_mask,
-                max_items=max_items,
-                output_dir=output_dir,
-            )
-            results.append(result)
+            try:
+                result = process_date(
+                    date,
+                    region,
+                    missions["sentinel-2"],
+                    missions["landsat-5"],
+                    missions["landsat-7"],
+                    data_path("sentinel_eastern_shore.tif"),
+                    data_path("landsat5_eastern_shore.tif"),
+                    data_path("landsat7_eastern_shore.tif"),
+                    inline_mask,
+                    max_items=max_items,
+                    output_dir=output_dir,
+                )
+                results.append(result)
+            except ValueError as e:
+                if str(e) == "No items found for your search.":
+                    print("Caught the custom ValueError:", e)
+                else:
+                    raise e
     return results

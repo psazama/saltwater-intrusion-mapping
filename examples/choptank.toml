@@ -28,7 +28,7 @@ trend     = true
 salinity-overlay  = true
 overlays  = true
 salinity-labels = true
-salinity-truth = false
+salinity-truth = true
 salinty-features = false
 xgboost-train = false
 
@@ -43,9 +43,9 @@ multithreaded   = false
 inline_mask     = false
 
 # Optional truth data for salinity pipeline
-truth_download_list = "swmaps/resources/salinity_truth_july.txt"
-truth_dir  = "swmaps/data/salinity_labels/codc"
-truth_file = "swmaps/data/salinity/truth_obs.csv"
+truth_download_list = "swmaps/resources/salinity_truth_july_subset.txt"
+truth_dir  = "swmaps/data/salinity_labels_subset/codc"
+truth_file = "swmaps/data/salinity/truth_obs_subset.csv"
 
 # Overlay year
 overlay_year = 2005

@@ -399,7 +399,7 @@ def should_skip_mosaic(
         with rasterio.open(path) as src:
             data = src.read()
             nan_ratio = np.isnan(data).sum() / data.size
-            if nan_ratio > threshold:
+            if nan_ratio < threshold:
                 logging.info(f"[SKIP] {path} already exists with {nan_ratio:.2%} NaNs.")
                 return True
     except Exception as e:

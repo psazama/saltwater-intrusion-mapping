@@ -1,11 +1,11 @@
 """Helpers for querying STAC catalogs and downloading satellite imagery."""
 
 import logging
-import os
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import geopandas as gpd
 import numpy as np
 import pandas as pd
 import pystac
@@ -14,6 +14,7 @@ from pystac_client import Client
 from rasterio.crs import CRS
 from rasterio.session import AWSSession
 from rasterio.transform import Affine
+from shapely.geometry import Point, box
 from tqdm import tqdm
 
 from swmaps.config import data_path
@@ -190,39 +191,75 @@ def _stack_bands(
 def find_satellite_coverage(
     df: pd.DataFrame,
     missions: list[str] = ["sentinel-2", "landsat-5", "landsat-7"],
-    buffer_km: float = 5,
+    buffer_km: float = 10,  # increased default buffer
+    days_before: int = 7,  # new param: extend temporal window
+    days_after: int = 7,
 ) -> pd.DataFrame:
     """Annotate salinity observations with missions that have nearby imagery.
+       Rows within the same buffer cluster share the same `covered_by` result.
 
     Args:
         df (pandas.DataFrame): Observation table containing ``latitude``,
             ``longitude``, and ``date`` columns.
         missions (list[str]): Mission slugs to consider.
         buffer_km (float): Spatial buffer radius around each observation.
+        days_before (int): Days before observation date to include in query.
+        days_after (int): Days after observation date to include in query.
 
     Returns:
         pandas.DataFrame: Input frame with an added ``covered_by`` column
         listing missions that provide imagery.
     """
-    results = []
+    buffer_deg = buffer_km / 111.0
 
-    for _, row in tqdm(df.iterrows(), total=len(df)):
-        lat, lon, date = row["latitude"], row["longitude"], row["date"]
+    # Step 1: make GeoDataFrame
+    gdf = gpd.GeoDataFrame(
+        df.copy(),
+        geometry=gpd.points_from_xy(df["longitude"], df["latitude"]),
+        crs="EPSG:4326",
+    )
+
+    # Step 2: buffer each point (in projected CRS, then back to WGS84)
+    gdf_proj = gdf.to_crs("EPSG:3857")  # Web Mercator (meters)
+    gdf_proj["buffer"] = gdf_proj.geometry.buffer(buffer_km * 1000)
+    gdf["buffer"] = gdf_proj.to_crs("EPSG:4326")["buffer"]
+
+    # Step 3: dissolve overlapping buffers into clusters
+    dissolved = (
+        gdf.set_geometry("buffer")
+        .dissolve()
+        .explode(index_parts=True)
+        .reset_index(drop=True)
+    )
+
+    # Step 4: assign cluster ids to each row
+    cluster_ids = []
+    for pt in tqdm(gdf.geometry, desc="Assigning clusters"):
+        cid = next(i for i, poly in enumerate(dissolved.geometry) if pt.within(poly))
+        cluster_ids.append(cid)
+    gdf["cluster_id"] = cluster_ids
+
+    # Step 5: query per cluster
+    cluster_results: dict[int, list[str]] = {}
+    for cid, cluster_df in tqdm(
+        gdf.groupby("cluster_id"), total=len(dissolved), desc="Querying STAC"
+    ):
+        rep = cluster_df.iloc[0]  # representative row
+        lat, lon, date = rep["latitude"], rep["longitude"], rep["date"]
+
         try:
-            # Buffer in degrees (approx)
-            buffer_deg = buffer_km / 111.0
+            # extended date range
+            dt = datetime.strptime(date, "%Y-%m-%d")
+            date_range = (
+                f"{(dt - timedelta(days=days_before)).date()}/"
+                f"{(dt + timedelta(days=days_after)).date()}"
+            )
             bbox = [
                 lon - buffer_deg,
                 lat - buffer_deg,
                 lon + buffer_deg,
                 lat + buffer_deg,
             ]
-
-            # ±1 day range
-            dt = datetime.strptime(date, "%Y-%m-%d")
-            date_range = (
-                f"{(dt - timedelta(days=1)).date()}/{(dt + timedelta(days=1)).date()}"
-            )
 
             covered_by = []
             for mission in missions:
@@ -235,20 +272,26 @@ def find_satellite_coverage(
                         continue
 
                     items, _ = query_satellite_items(
-                        mission=mission, bbox=bbox, date_range=date_range, max_items=1
+                        mission=mission,
+                        bbox=bbox,
+                        date_range=date_range,
+                        max_items=3,  # fetch more than 1 for safety
                     )
                     if items:
                         covered_by.append(mission)
                 except Exception:
                     pass
 
-            results.append(covered_by)
-        except Exception as e:
-            print(f"Failed on row {row}: {e}")
-            results.append([])
+            cluster_results[cid] = covered_by
 
-    df["covered_by"] = results
-    return df
+        except Exception as e:
+            print(f"[ERROR] Cluster {cid} failed: {e}")
+            cluster_results[cid] = []
+
+    # Step 6: map cluster results back to each row
+    gdf["covered_by"] = gdf["cluster_id"].map(cluster_results)
+
+    return pd.DataFrame(gdf.drop(columns=["geometry", "buffer"]))
 
 
 def download_matching_images(
@@ -258,6 +301,8 @@ def download_matching_images(
     output_dir: str | Path | None = None,
 ) -> pd.DataFrame:
     """Download imagery for each observation's matched missions.
+       Deduplicates downloads by checking if a lat/lon is already covered by a previously
+       downloaded STAC item (based on bbox containment).
 
     Args:
         df (pandas.DataFrame): Observation table with ``covered_by`` details.
@@ -271,7 +316,11 @@ def download_matching_images(
     """
     output_dir = Path(output_dir) if output_dir else data_path("matched_downloads")
     output_dir.mkdir(parents=True, exist_ok=True)
+
     downloaded_paths = []
+    seen_items: dict[str, dict] = (
+        {}
+    )  # item.id -> {"path": path, "bbox": bbox, "mission": mission}
 
     for _, row in tqdm(df.iterrows(), total=len(df)):
         lat, lon, date = row["latitude"], row["longitude"], row["date"]
@@ -281,11 +330,23 @@ def download_matching_images(
         )
         buffer_deg = buffer_km / 111.0
         bbox = [lon - buffer_deg, lat - buffer_deg, lon + buffer_deg, lat + buffer_deg]
+        point = Point(lon, lat)
 
         row_downloads = []
 
         for mission in row.get("covered_by", []):
             try:
+                # --- Deduplication check ---
+                reused_path = None
+                for meta in seen_items.values():
+                    if meta["mission"] == mission and point.within(box(*meta["bbox"])):
+                        reused_path = meta["path"]
+                        break
+                if reused_path:
+                    row_downloads.append(reused_path)
+                    continue
+
+                # Query new item
                 items, bands = query_satellite_items(
                     mission=mission, bbox=bbox, date_range=date_range, max_items=1
                 )
@@ -293,22 +354,19 @@ def download_matching_images(
                     continue
 
                 item = items[0]
-                date_tag = dt.strftime("%Y%m%d")
-                download_dir = os.path.join(
-                    output_dir, f"{mission}_{date_tag}_{lat:.4f}_{lon:.4f}"
-                )
-                os.makedirs(download_dir, exist_ok=True)
+                item_bbox = item.bbox
+                download_dir = output_dir / mission / item.id
+                download_dir.mkdir(parents=True, exist_ok=True)
 
-                band_files = []
-                for band_key in bands.values():
-                    path = os.path.join(download_dir, f"{item.id}_{band_key}.tif")
-                    band_files.append(path)
-
-                multi_band_path = os.path.join(download_dir, f"{item.id}_multiband.tif")
-
-                if os.path.exists(multi_band_path):
-                    print(f"[SKIP] Multiband file already exists: {multi_band_path}")
-                    row_downloads.append(multi_band_path)
+                multi_band_path = download_dir / f"{item.id}_multiband.tif"
+                if multi_band_path.exists():
+                    print(f"[SKIP] Already exists: {multi_band_path}")
+                    row_downloads.append(str(multi_band_path))
+                    seen_items[item.id] = {
+                        "path": str(multi_band_path),
+                        "bbox": item_bbox,
+                        "mission": mission,
+                    }
                     continue
 
                 # Download each band
@@ -321,30 +379,54 @@ def download_matching_images(
                     downsample_to_landsat_res=(mission == "sentinel-2"),
                 )
 
-                # Read all bands and stack
+                # Stack into multiband GeoTIFF
                 band_arrays = []
                 first_profile = None
-                for path in band_files:
-                    if not os.path.exists(path):
-                        raise FileNotFoundError(f"Expected band missing: {path}")
-                    with rasterio.open(path) as src:
+                for band_key in bands.values():
+                    band_path = download_dir / f"{item.id}_{band_key}.tif"
+                    if not band_path.exists():
+                        raise FileNotFoundError(f"Expected band missing: {band_path}")
+                    with rasterio.open(band_path) as src:
                         data = src.read(1)
                         band_arrays.append(data)
                         if first_profile is None:
                             first_profile = src.profile.copy()
 
-                # Update profile for multiband
-                first_profile.update(count=len(band_arrays))
+                # --- Defensive checks ---
+                if not band_arrays:
+                    raise ValueError(
+                        f"No bands were read for {mission} {item.id}. "
+                        f"Band list: {list(bands.values())}"
+                    )
+                if first_profile is None:
+                    raise ValueError(
+                        f"Could not initialize raster profile for {mission} {item.id}"
+                    )
+
+                band_count = int(len(band_arrays))
+                if band_count < 1:
+                    raise ValueError(
+                        f"Invalid band count ({band_count}) for {mission} {item.id}"
+                    )
+
+                first_profile.update(count=band_count)
+
                 with rasterio.open(multi_band_path, "w", **first_profile) as dst:
                     for i, band_array in enumerate(band_arrays, start=1):
                         dst.write(band_array, i)
 
-                row_downloads.append(multi_band_path)
+                row_downloads.append(str(multi_band_path))
+                seen_items[item.id] = {
+                    "path": str(multi_band_path),
+                    "bbox": item_bbox,
+                    "mission": mission,
+                }
 
             except Exception as e:
                 print(
-                    f"[ERROR] Could not download or combine {mission} for {lat},{lon} on {date}: {e}"
+                    f"[ERROR] Could not download/combine {mission} for {lat},{lon} on {date}: {e}"
                 )
+                raise e
 
         downloaded_paths.append(row_downloads)
 

@@ -49,6 +49,13 @@ def salinity_pipeline(truth_download_list=None, truth_dir=None, truth_file=None)
     matches.to_csv(csv_path, index=False)
     print(f"Downloaded matches listed in {csv_path}")
 
+    if matches.empty:
+        print(
+            "[ERROR] No matched imagery was found."
+            "Try increasing buffer_km or days_before/days_after in find_satellite_coverage."
+        )
+        return
+
     sample = matches.iloc[0]
     mission = get_mission(sample["covered_by"][0])
     mosaic = sample["downloaded_files"][0]

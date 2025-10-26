@@ -121,12 +121,12 @@ def evaluate_model(
 
     preds, labels = [], []
     with torch.no_grad():
-        for inputs, y in test_loader:
-            inputs, y = inputs.to(device), y.to(device)
+        for inputs, labels_batch in test_loader:
+            inputs, labels_batch = inputs.to(device), labels_batch.to(device)
             outputs = model(inputs)
             y_pred = torch.argmax(outputs, dim=1)
             preds.extend(y_pred.cpu().numpy())
-            labels.extend(y.cpu().numpy())
+            labels.extend(labels_batch.cpu().numpy())
 
     acc = accuracy_score(labels, preds)
     return {"accuracy": acc}

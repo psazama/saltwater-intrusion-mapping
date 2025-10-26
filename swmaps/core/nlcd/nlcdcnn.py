@@ -94,7 +94,8 @@ def train_model(
                 val_labels.extend(labels.cpu().numpy())
 
         val_acc = accuracy_score(val_labels, val_preds)
-        print(
+        import logging
+        logging.info(
             f"Epoch {epoch + 1}/{num_epochs}, "
             f"Train Loss: {total_loss / len(train_loader):.4f}, "
             f"Val Acc: {val_acc:.3f}"

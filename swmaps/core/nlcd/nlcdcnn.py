@@ -136,11 +136,11 @@ class NLCDPatchDataset(Dataset):
     """Dataset wrapper for NLCD land-cover training patches."""
 
     def __init__(self, X: np.ndarray, y: np.ndarray):
-        self.X = torch.from_numpy(X).float()
-        self.y = torch.from_numpy(y).long()
+        self.X = X
+        self.y = y
 
     def __len__(self) -> int:
         return len(self.X)
 
     def __getitem__(self, idx: int):
-        return self.X[idx], self.y[idx]
+        return torch.from_numpy(self.X[idx]).float(), torch.tensor(self.y[idx], dtype=torch.long)

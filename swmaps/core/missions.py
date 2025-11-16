@@ -2,52 +2,55 @@
 
 
 def get_mission(mission: str) -> dict[str, object]:
-    """Return metadata describing the requested satellite mission.
+    """Return metadata describing the requested satellite mission."""
 
-    Args:
-        mission (str): Mission slug such as ``"sentinel-2"`` or
-            ``"landsat-5"``.
-
-    Returns:
-        dict[str, object]: Dictionary containing band mappings, band indices,
-        collection identifiers, query filters, resolution, and valid date
-        range.
-
-    Raises:
-        ValueError: If the mission slug is not recognised.
-    """
+    # ---------------------------------------------------------
+    # Sentinel-2 (harmonized SR)
+    # ---------------------------------------------------------
     if mission == "sentinel-2":
+        gee_collection = "COPERNICUS/S2_SR_HARMONIZED"
+        gee_scale = 10
+
+        bands = {
+            "blue": "B2",
+            "green": "B3",
+            "red": "B4",
+            "nir08": "B8",
+            "swir16": "B11",
+            "swir22": "B12",
+        }
+
+        band_index = {
+            "blue": 1,
+            "green": 2,
+            "red": 3,
+            "nir08": 4,
+            "swir16": 5,
+            "swir22": 6,
+        }
+
+        # Legacy STAC fields (ignored by GEE pipeline)
         collection = "sentinel-2-l2a"
         query_filter = {"eo:cloud_cover": {"lt": 10}}
-        bands = {
-            "blue": "blue",
-            "green": "green",
-            "red": "red",
-            "nir08": "nir",
-            "swir16": "swir1",
-            "swir22": "swir2",
-        }
-        band_index = {
-            "blue": 1,
-            "green": 2,
-            "red": 3,
-            "nir08": 4,
-            "swir16": 5,
-            "swir22": 6,
-        }
         resolution = 10
         valid_date_range = ["2015-06-23", None]
+
+    # ---------------------------------------------------------
+    # Landsat-5 Collection 2 Level 2
+    # ---------------------------------------------------------
     elif mission == "landsat-5":
-        collection = "landsat-c2-l2"
-        query_filter = {"eo:cloud_cover": {"lt": 10}, "platform": {"eq": "landsat-5"}}
+        gee_collection = "LANDSAT/LT05/C02/T1_L2"
+        gee_scale = 30
+
         bands = {
-            "blue": "blue",
-            "green": "green",
-            "red": "red",
-            "nir08": "nir",
-            "swir16": "swir1",
-            "swir22": "swir2",
+            "blue": "SR_B1",
+            "green": "SR_B2",
+            "red": "SR_B3",
+            "nir08": "SR_B4",
+            "swir16": "SR_B5",
+            "swir22": "SR_B7",
         }
+
         band_index = {
             "blue": 1,
             "green": 2,
@@ -56,19 +59,28 @@ def get_mission(mission: str) -> dict[str, object]:
             "swir16": 5,
             "swir22": 6,
         }
+
+        collection = "landsat-c2-l2"
+        query_filter = {"eo:cloud_cover": {"lt": 10}}
         resolution = 30
         valid_date_range = ["1984-03-01", "2013-01-01"]
+
+    # ---------------------------------------------------------
+    # Landsat-7 Collection 2 Level 2
+    # ---------------------------------------------------------
     elif mission == "landsat-7":
-        collection = "landsat-c2-l2"
-        query_filter = {"eo:cloud_cover": {"lt": 10}, "platform": {"eq": "landsat-7"}}
+        gee_collection = "LANDSAT/LE07/C02/T1_L2"
+        gee_scale = 30
+
         bands = {
-            "blue": "blue",
-            "green": "green",
-            "red": "red",
-            "nir08": "nir",
-            "swir16": "swir1",
-            "swir22": "swir2",
+            "blue": "SR_B1",
+            "green": "SR_B2",
+            "red": "SR_B3",
+            "nir08": "SR_B4",
+            "swir16": "SR_B5",
+            "swir22": "SR_B7",
         }
+
         band_index = {
             "blue": 1,
             "green": 2,
@@ -77,10 +89,15 @@ def get_mission(mission: str) -> dict[str, object]:
             "swir16": 5,
             "swir22": 6,
         }
+
+        collection = "landsat-c2-l2"
+        query_filter = {"eo:cloud_cover": {"lt": 10}}
         resolution = 30
         valid_date_range = ["1999-04-15", "2022-03-31"]
+
     else:
         raise ValueError("Unsupported mission")
+
     return {
         "bands": bands,
         "band_index": band_index,
@@ -88,4 +105,6 @@ def get_mission(mission: str) -> dict[str, object]:
         "query_filter": query_filter,
         "resolution": resolution,
         "valid_date_range": valid_date_range,
+        "gee_collection": gee_collection,
+        "gee_scale": gee_scale,
     }

@@ -1,145 +1,125 @@
+#!/usr/bin/env python3
+
+"""
+Workflow runner for the saltwater intrusion mapping pipeline (GEE version).
+
+This script:
+  1. Loads a TOML config
+  2. Generates coastal AOI shapefile (if enabled)
+  3. Downloads imagery using the GEE-based pipeline
+  4. Executes salinity truth-matching + feature extraction pipeline
+"""
+
 import argparse
 import logging
-import tomllib
+import tomllib  # Python 3.11+ TOML parser
 from pathlib import Path
 
-import geopandas as gpd
-
-from swmaps.pipeline.coastal import create_coastal
+from swmaps.config import data_path
 from swmaps.pipeline.download import download_data
-from swmaps.pipeline.landsat import estimate_salinity_from_mosaic
-from swmaps.pipeline.masks import generate_masks
-from swmaps.pipeline.overlays import fetch_cdl_overlay, fetch_nlcd_overlay
 from swmaps.pipeline.salinity import salinity_pipeline
-from swmaps.pipeline.trend import trend_heatmap
+
+# ---------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------
+
+
+def load_config(path: str) -> dict:
+    with open(path, "rb") as f:
+        return tomllib.load(f)
+
+
+def ensure_output_dirs(cfg: dict):
+    """Create directories listed in the config."""
+    out = cfg.get("out_dir")
+    if out:
+        Path(out).mkdir(parents=True, exist_ok=True)
+
+
+# ---------------------------------------------------------------------
+# Main workflow
+# ---------------------------------------------------------------------
 
 
 def main():
-    parser = argparse.ArgumentParser(description="General saltwater intrusion workflow")
-    parser.add_argument("--config", required=True, help="Path to config file (TOML)")
-    parser.add_argument(
-        "--profile",
-        default="demo",
-        help="Profile name under [steps.<profile>] in the config file (default: demo)",
+    parser = argparse.ArgumentParser(
+        description="GEE Saltwater Intrusion Pipeline Runner"
     )
     parser.add_argument(
-        "-v",
-        "--verbose",
-        action="count",
-        default=0,
-        help="Increase logging verbosity (e.g. -v for DEBUG, -vv for very detailed)",
+        "--config", required=True, help="Path to TOML configuration file"
     )
     args = parser.parse_args()
 
-    # Load config
-    with open(args.config, "rb") as f:
-        cfg = tomllib.load(f)
+    # -----------------------------------------------------------
+    # Load configuration
+    # -----------------------------------------------------------
+    cfg = load_config(args.config)
 
-    profile = args.profile
-    if profile not in cfg.get("steps", {}):
-        raise ValueError(f"Profile {profile!r} not found in config file")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
+    )
 
-    # Set logging level based on verbosity
-    if args.verbose >= 1:
-        log_level = logging.DEBUG
-    else:
-        log_level = logging.INFO
-    logging.basicConfig(level=log_level, format="%(asctime)s %(levelname)s %(message)s")
+    # -----------------------------------------------------------
+    # Prepare output directories
+    # -----------------------------------------------------------
+    ensure_output_dirs(cfg)
 
-    steps = cfg["steps"][profile]
-    params = cfg.get("parameters", {})
-    output_root = cfg["output_root"]
-
-    # Coastal AOI
-    if steps.get("coastal"):
+    # -----------------------------------------------------------
+    # Step 1 — Create AOI (if configured)
+    # -----------------------------------------------------------
+    if cfg.get("make_coastal_aoi", False):
         logging.info("Creating coastal AOI polygon")
-        create_coastal(use_bbox=True)
+        print("Creating Coastal Polygon")
 
-    # Download imagery
-    if steps.get("download"):
-        logging.info("Downloading imagery")
-        download_data(
-            dates=[
-                f"{d}"
-                for mission, dranges in cfg.get("missions", {}).items()
-                for d in dranges
-            ],
-            inline_mask=params.get("inline_mask", False),
-            max_items=params.get("max_items", 1),
-            multithreaded=params.get("multithreaded", False),
-            output_dir=output_root,
+        from swmaps.pipeline.build_coast import build_coastal_polygon
+
+        out_dir = cfg.get("aoi_out", data_path("aoi"))
+
+        Path(out_dir).mkdir(parents=True, exist_ok=True)
+        build_coastal_polygon(
             region=cfg["region"],
+            output_path=Path(out_dir) / "coastal_aoi.geojson",
+            buffer_km=cfg.get("coastal_buffer_km", 10),
         )
 
-    # NDWI masks
-    if steps.get("ndwi"):
-        logging.info("Generating NDWI water masks")
-        generate_masks(center_size=params.get("center_size"), input_dir=output_root)
+        logging.info("AOI creation complete")
 
-    # Trend
-    if steps.get("trend"):
-        logging.info("Computing trend heatmap")
-        trend_heatmap(output_dir=output_root)
+    # -----------------------------------------------------------
+    # Step 2 — Download imagery using the GEE pipeline
+    # -----------------------------------------------------------
+    logging.info("Downloading imagery")
+    print("Downloading imagery")
 
-    # Overlay
-    if steps.get("overlays"):
-        logging.info("Fetching NLCD/CDL overlays")
-        region = cfg["region"]
-        gdf = gpd.read_file(region).to_crs("EPSG:4326")
-        geometry = gdf.unary_union
-        for mission, dranges in cfg.get("missions", {}).items():
-            for date_range in dranges:
-                year = int(date_range.split("-")[0])
-                fetch_nlcd_overlay(geometry, year, output_dir=output_root)
-                fetch_cdl_overlay(geometry, year, output_dir=output_root)
+    try:
+        download_results = download_data(cfg)
+    except Exception as e:
+        logging.error(f"Download step failed: {e}")
+        raise
 
-    # Salinity Overlay
-    if steps.get("salinity-overlay"):
-        for mission, dranges in cfg.get("missions", {}).items():
-            for date_range in dranges:
-                tag = date_range.replace("/", "_")
-                mosaic_file = (
-                    Path(cfg["output_root"])
-                    / f"{mission.replace('-', '')}_salinity_{tag}.tif"
-                )
-                if mosaic_file.exists():
-                    estimate_salinity_from_mosaic(mosaic_file)
+    logging.info(f"Download step complete: {len(download_results)} files")
 
-    # Get Salinity Labels
-    if steps.get("salinity-labels"):
-        logging.info("Building salinity truth data")
-        salinity_pipeline(
-            truth_download_list=params.get("truth_download_list"),
-            truth_dir=params.get("truth_dir"),
-            truth_file=params.get("truth_file"),
-        )
+    # -----------------------------------------------------------
+    # Step 3 — Optional salinity truth processing
+    # -----------------------------------------------------------
 
-    # # Create Salinity Groundtruth
-    # if steps.get("salinity-truth"):
-    #     logging.info("Building/loading salinity truth data")
-    #     build_salinity_truth(dataset_files=params.get("truth_nc_files"))
-    #     df = load_salinity_truth(params.get("truth_file"))
-    #     logging.info("Loaded %d truth samples", len(df))
+    if cfg.get("run_salinity_pipeline", False):
+        logging.info("Running salinity pipeline")
+        try:
+            salinity_pipeline(
+                truth_download_list=cfg.get("truth_download_list"),
+                truth_dir=cfg.get("truth_dir"),
+                truth_file=cfg.get("truth_file"),
+            )
+        except Exception as e:
+            logging.error(f"Salinity pipeline failed: {e}")
+            raise
 
-    # # Extract Salinity Features
-    # if steps.get("salinty-features"):
-    #     logging.info("Extracting salinity features from mosaic")
-    #     extract_salinity_features_from_mosaic(
-    #         mosaic_path=params["mosaic_file"],
-    #         mission_band_index=params["band_index"],
-    #         output_feature_path=params["feature_tif"],
-    #         output_mask_path=params["mask_tif"],
-    #     )
+        logging.info("Salinity pipeline complete")
 
-    # # Train Deng et al. XGBoost
-    # if steps.get("xgboost-train"):
-    #     logging.info("Training Deng et al. XGBoost model")
-    #     X = ...  # load feature arrays
-    #     y = ...  # load labels
-    #     train_salinity_deng(X, y, save_model_path=params.get("model_out"))
+    logging.info("Workflow complete!")
 
-    logging.info("✅ Workflow finished successfully")
 
+# ---------------------------------------------------------------------
 
 if __name__ == "__main__":
     main()

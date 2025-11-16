@@ -3,6 +3,7 @@ name = "swmaps"
 version = "0.1.0"
 dependencies = [
     "dask",
+    "earthengine-api",
     "numpy",
     "pandas",
     "rasterio",

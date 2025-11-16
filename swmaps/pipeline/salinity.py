@@ -10,23 +10,16 @@ from swmaps.core.salinity.utils import (
     extract_salinity_features_from_mosaic,
     load_salinity_truth,
 )
+
+# Import GEE-based helpers and alias them to the original names
 from swmaps.core.satellite_query import (
-    download_matching_images,
-    find_satellite_coverage,
+    download_matching_gee_images as download_matching_images,
 )
+from swmaps.core.satellite_query import find_gee_coverage as find_satellite_coverage
 
 
 def salinity_pipeline(truth_download_list=None, truth_dir=None, truth_file=None):
-    """Run salinity ground-truth processing and feature extraction.
-
-    Args:
-        truth_dir (str | Path | None): Directory containing raw CODC NetCDF
-            profiles. When provided, profiles are ingested prior to matching.
-        truth_file (str | Path | None): Existing truth CSV to use or create.
-
-    Returns:
-        None: Artifacts and CSV outputs are written to ``data/``.
-    """
+    """Run salinity ground-truth processing and feature extraction."""
     if truth_download_list:
         if truth_dir:
             download_salinity_datasets(truth_download_list, truth_dir)
@@ -56,6 +49,7 @@ def salinity_pipeline(truth_download_list=None, truth_dir=None, truth_file=None)
         )
         return
 
+    # Sample the first match to extract features
     sample = matches.iloc[0]
     mission = get_mission(sample["covered_by"][0])
     mosaic = sample["downloaded_files"][0]

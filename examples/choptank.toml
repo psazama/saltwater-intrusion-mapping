@@ -1,51 +1,54 @@
-# =====================================================================
-# Example config for Choptank River region workflow
-# Works with run_workflow.py (general driver)
-# =====================================================================
+# ---------------------------------------------------------------------
+# Choptank Watershed GEE Workflow Configuration
+# ---------------------------------------------------------------------
 
-# ---------------------------------------------------------------------
-# Global paths
-# ---------------------------------------------------------------------
-region = "config/choptank_river_region.geojson"
-output_root = "swmaps/data/examples/choptank_workflow_results"
+# -------------------------
+# Imagery date range
+# -------------------------
+start_date = "2024-04-01"
+end_date   = "2024-04-10"
 
-# ---------------------------------------------------------------------
-# Missions and date ranges
-# For demo, you can add Landsat or Sentinel ranges as needed
-# ---------------------------------------------------------------------
-[missions]
-landsat-5 = ["2005-07-01/2005-07-31"]
+# -------------------------
+# Location of interest
+# -------------------------
+# Center coordinate where imagery will be clipped.
+# Choptank River watershed example:
+latitude  = 38.75
+longitude = -75.95
 
-# ---------------------------------------------------------------------
-# Step toggles
-# Enable/disable steps for this demo
-# ---------------------------------------------------------------------
-[steps.demo]
-coastal   = true
-download  = true
-ndwi      = true
-trend     = true
-salinity-overlay  = true
-overlays  = true
-salinity-labels = true
-salinity-truth = true
-salinty-features = false
-xgboost-train = false
+# -------------------------
+# Mission / sensor
+# -------------------------
+mission = "sentinel-2"
 
-# ---------------------------------------------------------------------
-# Parameters shared across steps
-# ---------------------------------------------------------------------
-[parameters]
-water_threshold = 0.2
-max_items       = 3
-center_size     = 64
-multithreaded   = false
-inline_mask     = false
+# -------------------------
+# Download and mosaic settings
+# -------------------------
+buffer_km     = 1.0        # size of region around lat/lon
+cloud_filter  = 30         # maximum % cloud cover allowed
+days_before   = 7          # temporal window around each date
+days_after    = 7
+out_dir       = "data/choptank_downloads"
 
-# Optional truth data for salinity pipeline
-truth_download_list = "swmaps/resources/salinity_truth_july_subset.txt"
-truth_dir  = "swmaps/data/salinity_labels_subset/codc"
-truth_file = "swmaps/data/salinity/truth_obs_subset.csv"
+# -------------------------
+# Optional AOI creation
+# -------------------------
+# If you want to create a coastal AOI polygon first:
+make_coastal_aoi = false   # set true if needed
 
-# Overlay year
-overlay_year = 2005
+# region name required if make_coastal_aoi = true
+# region = "Chesapeake Bay"
+
+# coastal_buffer_km = 10
+# aoi_out = "data/aoi"
+
+# -------------------------
+# Salinity pipeline
+# -------------------------
+# If you want to extract features linked to ground-truth salinity data
+run_salinity_pipeline = false
+
+# Optional entries for salinity (used when run_salinity_pipeline = true)
+# truth_download_list = ["codc"]
+# truth_dir = "data/salinity_raw"
+# truth_file = "data/salinity_labels/codc_salinity_profiles.csv"

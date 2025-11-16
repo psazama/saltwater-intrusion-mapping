@@ -1,102 +1,99 @@
 """Download helpers for acquiring imagery used by the processing pipeline."""
 
-import json
-import os
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from datetime import datetime, timedelta
 from pathlib import Path
 
-import geopandas as gpd
 from tqdm import tqdm
 
 from swmaps.config import data_path
-from swmaps.core.missions import get_mission
 from swmaps.core.mosaic import process_date
 
+# ---------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------
 
-def download_data(
-    dates=None,
-    inline_mask=False,
-    max_items=1,
-    multithreaded=False,
-    output_dir=None,
-    region=None,
-):
-    """Download imagery for one or more date ranges.
+
+def _daterange(start: datetime, end: datetime):
+    """Yield a date for every day in [start, end]."""
+    for n in range(int((end - start).days) + 1):
+        yield start + timedelta(n)
+
+
+# ---------------------------------------------------------------------
+# Main API
+# ---------------------------------------------------------------------
+
+
+def download_data(cfg: dict):
+    """
+    Main entry point used by `examples/workflow_runner.py`.
 
     Args:
-        dates (Iterable[str] | None): Dates or date ranges to download. When
-            ``None``, load the default schedule from ``config/date_range.json``.
-        inline_mask (bool): If ``True``, generate NDWI masks immediately after
-            building each mosaic.
-        max_items (int): Maximum STAC items per patch request.
-        multithreaded (bool): If ``True``, process dates in parallel using a
-            process pool.
-
-    Returns:
-        list[dict]: Result records produced by :func:`process_date` for each
-        processed date.
+        cfg (dict): Loaded TOML config
+            Must include keys:
+                - start_date
+                - end_date
+                - latitude
+                - longitude
+                - mission
+                - out_dir (optional)
+                - buffer_km (optional)
+                - cloud_filter (optional)
     """
-    if dates is None:
-        with open(
-            Path(__file__).resolve().parents[2] / "config" / "date_range.json"
-        ) as fh:
-            dates = json.load(fh)["date_ranges"]
-        dates = dates[6::12] + dates[7::12] + dates[8::12]
+    # -------------------------------------------------------
+    # Extract config values
+    # -------------------------------------------------------
+    start_date = datetime.fromisoformat(cfg["start_date"])
+    end_date = datetime.fromisoformat(cfg["end_date"])
+    lat = cfg["latitude"]
+    lon = cfg["longitude"]
+    mission = cfg.get("mission", "sentinel-2")
 
-    print(type(region))
-    region = gpd.read_file(region).geometry.unary_union
-    print(type(region))
-    print(region)
+    out_dir = cfg.get("out_dir")
+    if out_dir is None:
+        out_dir = data_path("downloads")
 
-    missions = {
-        "sentinel-2": get_mission("sentinel-2"),
-        "landsat-5": get_mission("landsat-5"),
-        "landsat-7": get_mission("landsat-7"),
-    }
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    buffer_km = cfg.get("buffer_km", 1.0)
+    cloud_filter = cfg.get("cloud_filter", 30)
+    days_before = cfg.get("days_before", 7)
+    days_after = cfg.get("days_after", 7)
+
+    print("------------------------------------------------")
+    print(f"[GEE] Downloading imagery for mission: {mission}")
+    print(f"[GEE] AOI: lat={lat}, lon={lon}")
+    print(f"[GEE] Date range: {start_date.date()} to {end_date.date()}")
+    print(f"[GEE] Output directory: {out_dir}")
+    print("------------------------------------------------")
+
+    # -------------------------------------------------------
+    # Iterate over dates and build mosaics
+    # -------------------------------------------------------
 
     results = []
-    if multithreaded:
-        with ProcessPoolExecutor(max_workers=os.cpu_count() // 2) as executor:
-            futures = {
-                executor.submit(
-                    process_date,
-                    date,
-                    region,
-                    missions["sentinel-2"],
-                    missions["landsat-5"],
-                    missions["landsat-7"],
-                    data_path("sentinel_eastern_shore.tif"),
-                    data_path("landsat5_eastern_shore.tif"),
-                    data_path("landsat7_eastern_shore.tif"),
-                    inline_mask,
-                    max_items=max_items,
-                    output_dir=output_dir,
-                ): date
-                for date in dates
-            }
-            for future in tqdm(as_completed(futures), total=len(futures)):
-                result = future.result()
-                results.append(result)
-    else:
-        for date in tqdm(dates):
-            try:
-                result = process_date(
-                    date,
-                    region,
-                    missions["sentinel-2"],
-                    missions["landsat-5"],
-                    missions["landsat-7"],
-                    data_path("sentinel_eastern_shore.tif"),
-                    data_path("landsat5_eastern_shore.tif"),
-                    data_path("landsat7_eastern_shore.tif"),
-                    inline_mask,
-                    max_items=max_items,
-                    output_dir=output_dir,
-                )
-                results.append(result)
-            except ValueError as e:
-                if str(e) == "No items found for your search.":
-                    print("Caught the custom ValueError:", e)
-                else:
-                    raise e
+
+    for date in tqdm(_daterange(start_date, end_date), desc="[GEE] Processing dates"):
+        try:
+            output_path = process_date(
+                lat=lat,
+                lon=lon,
+                date=date,
+                buffer_km=buffer_km,
+                mission=mission,
+                out_dir=out_dir,
+                days_before=days_before,
+                days_after=days_after,
+                cloud_filter=cloud_filter,
+            )
+            results.append(output_path)
+
+        except Exception as e:
+            print(f"[WARN] Failed to process {date.date()}: {e}")
+
+    print("------------------------------------------------")
+    print(f"[GEE] Completed. Built {len(results)} mosaics.")
+    print("------------------------------------------------")
+
     return results

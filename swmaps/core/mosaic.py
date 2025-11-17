@@ -97,7 +97,7 @@ def process_date(
         raise RuntimeError(f"No GEE images found for {mission} around {date_range}")
 
     # Select best image
-    img = get_best_image(col)
+    img = get_best_image(col, mission)
     if img is None:
         raise RuntimeError("No usable image found after filtering.")
 

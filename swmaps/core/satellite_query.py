@@ -82,16 +82,35 @@ def query_gee_images(
     return col, bands
 
 
-def get_best_image(collection: ee.ImageCollection):
-    """Pick the 'best' image: lowest cloud cover, most recent."""
+# swmaps/core/satellite_query.py
+
+
+def get_best_image(collection: ee.ImageCollection, mission: str):
+    """Pick the 'best' image: lowest cloud cover, most recent.
+
+    Args:
+        collection (ee.ImageCollection): The collection to search.
+        mission (str): Mission slug (e.g. "sentinel-2", "landsat-5").
+
+    Returns:
+        ee.Image | None: The selected image or None if no images exist.
+    """
     # If the collection is empty, return None
     size = collection.size().getInfo()
     if size == 0:
         return None
 
-    # Prefer lowest clouds, then newest
+    # Pick the correct cloud‐cover property based on the mission
+    if mission.startswith("sentinel"):
+        cloud_property = "CLOUDY_PIXEL_PERCENTAGE"
+    else:
+        cloud_property = "CLOUD_COVER"
+
+    # Sort ascending by cloud cover, then descending by acquisition time
     image = (
-        collection.sort("CLOUD_COVER", True).sort("system:time_start", False).first()
+        collection.sort(cloud_property)  # ascending: least cloudy first
+        .sort("system:time_start", False)  # descending: newest first
+        .first()
     )
     return image
 
@@ -295,7 +314,7 @@ def download_matching_gee_images(
                 continue
 
             col, bands = query_gee_images(mission, bbox, date_range, cloud_filter=20)
-            best = get_best_image(col)
+            best = get_best_image(col, mission)
 
             if best is None:
                 continue

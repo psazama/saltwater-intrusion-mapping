@@ -82,9 +82,6 @@ def query_gee_images(
     return col, bands
 
 
-# swmaps/core/satellite_query.py
-
-
 def get_best_image(collection: ee.ImageCollection, mission: str):
     """Pick the 'best' image: lowest cloud cover, most recent.
 
@@ -95,6 +92,7 @@ def get_best_image(collection: ee.ImageCollection, mission: str):
     Returns:
         ee.Image | None: The selected image or None if no images exist.
     """
+
     # If the collection is empty, return None
     size = collection.size().getInfo()
     if size == 0:

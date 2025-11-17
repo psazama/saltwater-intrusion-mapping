@@ -5,8 +5,9 @@
 # -------------------------
 # Imagery date range
 # -------------------------
-start_date = "2024-04-01"
+start_date = "1984-04-01"
 end_date   = "2024-04-10"
+date_step = 120
 
 # -------------------------
 # Location of interest
@@ -19,15 +20,15 @@ longitude = -75.95
 # -------------------------
 # Mission / sensor
 # -------------------------
-mission = "sentinel-2"
+mission = ["sentinel-2", "landsat-5", "landsat-7"]
 
 # -------------------------
 # Download and mosaic settings
 # -------------------------
 buffer_km     = 1.0        # size of region around lat/lon
 cloud_filter  = 30         # maximum % cloud cover allowed
-days_before   = 7          # temporal window around each date
-days_after    = 7
+days_before   = 3          # temporal window around each date
+days_after    = 3
 out_dir       = "data/choptank_downloads"
 
 # -------------------------

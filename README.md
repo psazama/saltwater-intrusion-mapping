@@ -1,29 +1,29 @@
 # 🌊 Saltwater Intrusion Detection from Satellite Imagery
 
-This project detects and visualizes saltwater intrusion in coastal agricultural areas using Sentinel-2, Landsat-5, Landsat-7, and other publicly available remote sensing datasets. It leverages patchwise querying, in-memory mosaicking, and multi-band analysis for scalable processing of large geospatial regions. The NDWI (Normalized Difference Water Index) and other spectral indices are applied to identify water-inundated zones over time.
+This project provides a modular pipeline for detecting and visualizing saltwater intrusion in coastal agricultural regions. It combines remote sensing data, geospatial processing, and machine‑learning feature engineering to track changes in surface water and salinity over time.
+
+The core library retrieves imagery from multiple satellite missions, including Sentinel‑2 and the Landsat series, assembles mosaics for areas of interest, computes spectral indices, and applies heuristic rules to derive salinity indicators. Additional modules provide tools for trend analysis, salinity truth matching, and optional integration with orchestration frameworks.
 
 -----
 
 ## 🚀 Features
 
-  - Patch-based tiling of bounding boxes for scalable downloads and processing
-  - STAC-based querying of Sentinel-2 and Landsat-5/7 imagery from AWS Open Data
-  - Cloud-aware download skipping based on NaN proportion checks
-  - In-memory mosaicking of image patches (compressed GeoTIFF output)
-  - NDWI and custom index calculation to identify surface water and salinity indicators
-  - Heuristic salinity classification combining NDWI/MNDWI, turbidity, chlorophyll, and SWIR proxies
-  - Support for multiband TIFF reading and georeferenced patch extraction
-  - Modular functions for salinity feature engineering and truth data extraction
-  - Tools to track downloaded scenes and support fault-tolerant re-runs
-  - Visualization support with Folium and Matplotlib
+ - Remote‑sensing imagery retrieval - loads optical data from multiple missions and supports bounding‑box queries for scalable processing.
+ - Patch‑based mosaic construction - downloads small tiles around each observation point and stitches them into multi‑band GeoTIFF mosaics
+ - Index computation - calculates NDWI/MNDWI and other water proxies, turbidity and chlorophyll ratios, and salinity‑sensitive SWIR indices
+ - Heuristic salinity classification - combines multiple indices into per‑pixel scores and qualitative salinity classes (fresh, brackish, saline)
+ - Water mask and trend analysis - generates binary masks and models pixel‑level inundation frequency over time to highlight long‑term changes
+ - Modular Python API - separates reusable core functions (swmaps.core) from higher‑level orchestration (swmaps.pipeline) so you can integrate specific pieces into your own workflows
+ - Config‑driven workflows - run full workflows by supplying a simple TOML file that defines dates, location, mission, and other parameters.
+ - Optional advanced orchestration - includes Dagster definitions and a Kubernetes configuration for scaling out jobs in the cloud.
 
 -----
 
 ## 🗺️ Use Cases
 
-  - Monitoring farmland degradation due to saltwater intrusion
-  - Surface water change detection over time
-  - Scalable pre-processing for Earth observation ML workflows
+- Monitoring farmland degradation caused by saltwater intrusion and sea‑level rise.
+- Detecting changes in surface water and flooding over seasonal or multi‑year periods.
+- Pre‑processing satellite imagery for downstream machine‑learning tasks, such as classification or regression models in Earth observation.
 
 -----
 
@@ -31,93 +31,41 @@ This project detects and visualizes saltwater intrusion in coastal agricultural 
 
 ```
 saltwater-intrusion-mapping/
-├── config/ # study area & date ranges
-├── swmaps/ # Python package
-│ ├── core/ # download_tools, salinity_tools, …
-│ └── data/ # generated rasters (git-ignored)
-├── notebooks/ # experiments / visual demos
-└── pyproject.toml
+├── config/            - definitions of study areas, date ranges and example config templates
+├── swmaps/            - Python package with core utilities (gee_query, mission metadata, mosaic, salinity tools, water trends) and pipeline helpers
+├── examples/          - command‑line scripts and TOML files to run the pipeline (`workflow_runner.py`, example configs)
+├── notebooks/         - Jupyter notebooks for experiments and visual demos
+├── docs/              - HTML documentation generated via Sphinx
+├── tests/             - unit tests
+├── pyproject.toml     - project metadata and dependencies
+└── README.md          - project overview
 ```
 
 -----
 
-## ⚙️ `pipeline_runner.py` CLI Tool 
+## ⚙️ Running the Pipeline
 
-The `pipeline_runner.py` script is a command-line interface (CLI) that orchestrates the project's workflow. It allows you to run specific steps of the saltwater intrusion detection pipeline, from data download to trend analysis.
-
-### How to Use
-
-You must specify the desired processing step using the `--step` argument. The steps are numbered from 0 to 4.
-
-**Syntax:**
+1. Install - clone the repository, create a clean environment, and install the package. You’ll also need to install the Earth Engine API if it’s not already included.
 
 ```bash
-python pipeline_runner.py --step <number> [options]
+git clone https://github.com/psazama/saltwater-intrusion-mapping.git
+cd saltwater-intrusion-mapping
+pip install -e .
 ```
 
-### Command-line Arguments
-
-Here is a breakdown of the available arguments:
-
-  * `--step` (required):
-
-      * `0`: **Creates a coastal polygon** for the analysis area.
-      * `1`: **Downloads satellite imagery** mosaics based on a date range.
-      * `2`: **Generates water masks** from the downloaded mosaics.
-      * `3`: **Performs water trend analysis** and generates a heatmap.
-      * `4`: **Runs the salinity data pipeline** to prepare data for modeling.
-
-  * `--salinity_truth_directory`: Path to a directory containing `.nc` files to build a ground truth salinity dataset.
-
-  * `--salinity_truth_file`: Path to the CSV file where the salinity ground truth data is stored or loaded from. Defaults to `data/salinity_labels/codc_salinity_profiles.csv`.
-
-  * `--inline_mask`: If this flag is set, a water mask is created immediately after a mosaic is downloaded, and the original mosaic is deleted to save disk space.
-
-  * `--n_workers`: The number of parallel workers to use for imagery processing. Defaults to half of the available CPU cores.
-
-  * `--bbox`: Use the full bounding box from the GeoJSON file instead of the coastal band.
-
-  * `--max_items`: The maximum number of images to download for each region. Defaults to 1.
-
-  * `--multithreaded`: Use a multi-threaded version of the download function for faster processing.
-
-  * `--center_size`: Specifies the size of the center of the image to check for NDWI calculation.
-
-### Examples
-
-**1. Create a coastal polygon:**
-
+2. Authenticate - follow the Earth Engine authentication flow to link your Google account and project, then initialise the API. Alternatively, set the EARTHENGINE_PROJECT environment variable and call ee.Initialize()
+3. Create a configuration file - copy one of the TOML templates under examples/ and customise start/end dates, latitude/longitude, mission, buffer size, cloud filter and other parameters
 ```bash
-python pipeline_runner.py --step 0
+python examples/workflow_runner.py --config examples/choptank.toml
 ```
-
-**2. Download satellite imagery for test geojson bounding box:**
-
-```bash
-python pipeline_runner.py --step 1 --bbox
-```
-
-**3. Generate water masks and delete original mosaics:**
-
-```bash
-python pipeline_runner.py --step 2 --inline_mask
-```
-
-**4. Analyze water trends and plot a heatmap:**
-
-```bash
-python pipeline_runner.py --step 3
-```
-
-**5. Run the full salinity pipeline:**
-
-```bash
-python pipeline_runner.py --step 4 --salinity_truth_directory /path/to/salinity/data
-```
+4. Run the workflow - use the provided workflow_runner.py script with your configuration file. The runner will optionally build a coastal AOI, download mosaics, and run the salinity pipeline, saving results to your chosen output directory
+5. Salinity analysis - if you have ground‑truth salinity data, call the salinity_pipeline.py script to extract features and match them to your truth data. You can also import and use functions like estimate_salinity_level from swmaps.core.salinity_tools directly in your own code.
 
 -----
 
 ## 🧂 Water Salinity Estimation
+
+Provides routines to compute multiple indices and combine them into a salinity score and classification. See the docstring of estimate_salinity_level in swmaps/core/salinity_tools.py for details
 
 | **Feature** | **Sentinel-2 Bands** | **Purpose** |
 |---|---|---|
@@ -132,7 +80,7 @@ python pipeline_runner.py --step 4 --salinity_truth_directory /path/to/salinity/
 
 The helper `estimate_salinity_level` in `swmaps.core.salinity_tools` combines the proxies above to
 return a per-pixel salinity score and qualitative class (fresh, brackish, saline). Provide the
-individual band arrays (either in raw Sentinel-2 scale 0–10,000 or already scaled reflectances) and
+individual band arrays (either in raw Sentinel-2 scale 0-10,000 or already scaled reflectances) and
 the function handles the rest:
 
 ```python
@@ -140,7 +88,7 @@ from swmaps.core.salinity_tools import estimate_salinity_level
 
 result = estimate_salinity_level(blue, green, red, nir, swir1, swir2)
 class_map = result["class_map"]  # string labels per pixel
-salinity_score = result["score"]  # 0–1 heuristic intensity (NaN outside water)
+salinity_score = result["score"]  # 0-1 heuristic intensity (NaN outside water)
 ```
 
 Tune the optional thresholds (e.g., `water_threshold`, `salinity_proxy_threshold`) if you have
@@ -149,6 +97,8 @@ region-specific calibration data.
 -----
 
 ## 🌡️ Water Trend Analysis
+
+Includes utilities to assemble yearly wet masks, run pixel‑wise trend regressions, and plot heatmaps of inundation frequency
 
 Use `swmaps.core.water_trend` to model how long each pixel stays water-covered and how that changes over time.
 
@@ -167,45 +117,6 @@ plot_trend_heatmap(slope, signif, title="Trend in % wet months per year")
 # Save arrays to GeoTIFF and NumPy for later inspection
 save_trend_results(slope, pval, "water_trend")
 ```
-
------
-
-## ⚡ Quick Start Orchestrator (local)
-
-```bash
-# 1 · Install (dev mode)
-git clone https://github.com/<you>/saltwater-intrusion-mapping.git
-cd saltwater-intrusion-mapping
-conda env create -f swmaps/core/environment.yml    # or: pip install -r requirements.txt
-pip install -e .
-
-# 2 · Launch Dagster UI (with queued run-coordinator)
-export DAGSTER_HOME="$(pwd)/.dagster_home"
-dagster dev -w workspace.yaml    # → http://localhost:3000
-# (the dagster.yaml file is optional; Dagster will fall back to defaults)
-
-# 3 · Materialise water masks
-#     (UI → Assets → masks_by_range → Launch backfill)
-```
-
-> Smoketest: run without Dagster
-> `python pipeline_runner.py --step 0 --inline_mask`
-
------
-
-## 🚀 Running on GKE
-
-The repository includes a `dagster_gke.yaml` configuration that launches each
-Dagster run as a Kubernetes job. After building a container image for the
-`swmaps` package, point your deployment at this config file:
-
-```bash
-kubectl create namespace dagster
-export DAGSTER_HOME=/opt/dagster
-dagster api grpc -m swmaps.gke_defs &
-dagster-webserver -y dagster_gke.yaml -w workspace_gke.yaml
-```
-
 -----
 
 ## 📖 License

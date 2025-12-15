@@ -158,7 +158,8 @@ def download_gee_multiband(
         }
     )
 
-    out_path = out_dir / f"{image.get('system:index').getInfo()}_multiband.tif"
+    image_id = image.get("system:index").getInfo()
+    out_path = out_dir / f"{mission}_{image_id}_multiband.tif"
 
     # Download binary stream
     r = requests.get(url, stream=True)

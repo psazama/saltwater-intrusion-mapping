@@ -3,6 +3,9 @@
 import logging
 from pathlib import Path
 
+import numpy as np
+import rasterio
+from PIL import Image
 from tqdm import tqdm
 
 from swmaps.core.indices import compute_ndwi
@@ -25,7 +28,7 @@ def generate_masks(center_size=None, input_dir=None):
     else:
         search_dir = Path(input_dir)
 
-    for tif in tqdm(sorted(search_dir.glob("*.tif"))):
+    for tif in tqdm(sorted(search_dir.rglob("*_multiband.tif"))):
         if tif.name.endswith(("_mask.tif", "_features.tif")):
             continue
         if check_image_for_nans(str(tif)) or not check_image_for_valid_signal(str(tif)):
@@ -33,9 +36,9 @@ def generate_masks(center_size=None, input_dir=None):
 
         if "sentinel" in tif.name:
             mission = "sentinel-2"
-        elif "landsat5" in tif.name:
+        elif "landsat-5" in tif.name:
             mission = "landsat-5"
-        elif "landsat7" in tif.name:
+        elif "landsat-7" in tif.name:
             mission = "landsat-7"
         else:
             continue
@@ -44,4 +47,15 @@ def generate_masks(center_size=None, input_dir=None):
         compute_ndwi(
             str(tif), mission, str(out_mask), display=False, center_size=center_size
         )
+
+        # --- write PNG visualization ---
+        png_path = out_mask.with_suffix(".png")
+
+        with rasterio.open(out_mask) as src:
+            mask = src.read(1)
+
+        # Convert to binary uint8 image for PNG
+        mask_png = np.where(mask > 0, 255, 0).astype(np.uint8)
+
+        Image.fromarray(mask_png, mode="L").save(png_path)
     print("Water masks generated")

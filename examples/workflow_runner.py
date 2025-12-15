@@ -17,7 +17,12 @@ from pathlib import Path
 
 from swmaps.config import data_path
 from swmaps.pipeline.download import download_data
-from swmaps.pipeline.salinity import salinity_pipeline
+from swmaps.pipeline.landsat_salinity import estimate_salinity_from_mosaic
+from swmaps.pipeline.masks import generate_masks
+from swmaps.pipeline.salinity import (
+    salinity_pipeline,
+)
+from swmaps.pipeline.trend import trend_heatmap
 
 # ---------------------------------------------------------------------
 # Helpers
@@ -71,7 +76,7 @@ def main():
         logging.info("Creating coastal AOI polygon")
         print("Creating Coastal Polygon")
 
-        from swmaps.pipeline.build_coast import build_coastal_polygon
+        from swmaps.pipeline.coastal import build_coastal_polygon
 
         out_dir = cfg.get("aoi_out", data_path("aoi"))
 
@@ -118,8 +123,55 @@ def main():
 
     logging.info("Workflow complete!")
 
+    # -----------------------------------------------------------
+    # Step 4 — Salinity Classification
+    # -----------------------------------------------------------
 
-# ---------------------------------------------------------------------
+    download_dir = Path(cfg.get("out_dir", data_path("mosaics")))
+
+    if cfg.get("run_salinity_classification", False):
+        logging.info("Running salinity classification")
+
+        for mosaic_path in sorted(download_dir.rglob("*.tif")):
+            # Skip derived products
+            if mosaic_path.name.endswith(
+                (
+                    "_salinity_score.tif",
+                    "_salinity_class.tif",
+                    "_salinity_water_mask.tif",
+                )
+            ):
+                continue
+
+            name = mosaic_path.name.lower()
+
+            if "landsat" in name:
+                estimate_salinity_from_mosaic(
+                    mosaic_path=mosaic_path,
+                    water_threshold=cfg.get("water_threshold", 0.2),
+                )
+            elif "sentinel" in name:
+                logging.info(
+                    "Sentinel mosaic detected for %s; salinity not yet implemented",
+                    mosaic_path.name,
+                )
+            else:
+                logging.warning(
+                    "Unable to infer sensor for %s; skipping salinity classification",
+                    mosaic_path.name,
+                )
+
+    # -----------------------------------------------------------
+    # Step 5 — Water Trend Analysis
+    # -----------------------------------------------------------
+
+    if cfg.get("run_water_trend", False):
+        logging.info("Generating water trend products")
+        generate_masks(input_dir=download_dir)
+        trend_heatmap(output_dir=cfg.get("trend_output_dir", download_dir))
+
+    # ---------------------------------------------------------------------
+
 
 if __name__ == "__main__":
     main()

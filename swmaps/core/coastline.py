@@ -9,6 +9,7 @@ from shapely.geometry import box
 
 from swmaps.config import data_path
 
+
 def download_coastal_poly() -> None:
     """Download the Natural Earth coastline shapefile to the local data directory.
 
@@ -37,7 +38,7 @@ def download_coastal_poly() -> None:
 def create_coastal_poly(
     bounding_box_file: str | Path,
     out_file: str | Path | None = None,
-    buf_km: float = 2,
+    buffer_km: float = 2,
     offshore_km: float = 1,
 ) -> gpd.GeoDataFrame:
     """Build and persist a buffered coastal band clipped to the project AOI.
@@ -48,7 +49,7 @@ def create_coastal_poly(
         Vector file containing the larger bounding box (GeoJSON, Shapefile, etc.).
     out_file : str | Path | None
         Destination for the generated band. Defaults to ``config/coastal_band.gpkg``.
-    buf_km, offshore_km : float
+    buffer_km, offshore_km : float
         Width of inland and offshore buffers in kilometres—mirroring the inline
         comments that explain why we widen the coastline before clipping.
 
@@ -87,7 +88,7 @@ def create_coastal_poly(
     utm_crs = f"EPSG:{32600 + utm_zone}"
     coast_m = coast.to_crs(utm_crs)
 
-    inland = coast_m.buffer(buf_km * 1_000, cap_style=2)
+    inland = coast_m.buffer(buffer_km * 1_000, cap_style=2)
     offshore = coast_m.buffer(-offshore_km * 1_000, cap_style=2)
     band_m = inland.union(offshore).unary_union
 

@@ -35,13 +35,13 @@ out_dir       = "data/choptank_downloads"
 # Optional AOI creation
 # -------------------------
 # If you want to create a coastal AOI polygon first:
-make_coastal_aoi = false   # set true if needed
+make_coastal_aoi = true   # set true if needed
 
 # region name required if make_coastal_aoi = true
-# region = "Chesapeake Bay"
+region = "config/choptank_river_region.geojson"
 
-# coastal_buffer_km = 10
-# aoi_out = "data/aoi"
+coastal_buffer_km = 10
+aoi_out = "data/aoi"
 
 # -------------------------
 # Salinity pipeline
@@ -50,6 +50,15 @@ make_coastal_aoi = false   # set true if needed
 run_salinity_pipeline = false
 
 # Optional entries for salinity (used when run_salinity_pipeline = true)
-# truth_download_list = ["codc"]
-# truth_dir = "data/salinity_raw"
-# truth_file = "data/salinity_labels/codc_salinity_profiles.csv"
+truth_download_list = ["codc"]
+truth_dir = "data/salinity_raw"
+truth_file = "data/salinity_labels/codc_salinity_profiles.csv"
+
+# -------------------------
+# Classification and Trend pipeline
+# -------------------------
+mask_dir      = "data/choptank_downloads"
+trend_output_dir = "data/choptank_downloads"
+salinity_output_dir = "data/choptank_downloads"
+run_water_trend = true
+run_salinity_classification = true

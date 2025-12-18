@@ -20,7 +20,8 @@ longitude = -75.95
 # -------------------------
 # Mission / sensor
 # -------------------------
-mission = ["sentinel-2", "landsat-5", "landsat-7"]
+# mission = ["sentinel-2", "landsat-5", "landsat-7"]
+mission = ["landsat-5", "landsat-7"]
 
 # -------------------------
 # Download and mosaic settings

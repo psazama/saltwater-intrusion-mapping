@@ -13,26 +13,53 @@ from swmaps.core.salinity.heuristic import estimate_salinity_level
 SALINITY_CLASS_CODES = {"land": 0, "fresh": 1, "brackish": 2, "saline": 3}
 
 
-def landsat_reflectance_stack(src: rasterio.io.DatasetReader) -> list[np.ndarray]:
-    """Convert Landsat Collection 2 Level-2 DN values to reflectance arrays.
+def landsat_reflectance_stack(
+    src: rasterio.io.DatasetReader,
+) -> dict[str, np.ndarray]:
+    """Convert Landsat Collection 2 Level-2 DN values to surface reflectance bands.
 
     Parameters
     ----------
     src : rasterio.io.DatasetReader
-        Open raster dataset from which to read Landsat spectral bands.
+        Open raster dataset from which to read Landsat Collection 2 Level-2
+        spectral bands.
 
     Returns
     -------
-    list[numpy.ndarray]
-        List of float32 arrays scaled using the documented ``0.0000275`` scale
-        and ``-0.2`` offset noted in the inline comment.
+    dict[str, numpy.ndarray]
+        Dictionary mapping spectral band names to float32 reflectance arrays.
+        The returned keys are:
+
+        - ``"blue"``
+        - ``"green"``
+        - ``"red"``
+        - ``"nir"``
+        - ``"swir1"``
+        - ``"swir2"``
+
+        Reflectance values are scaled using the documented Collection 2
+        scale factor (``0.0000275``) and offset (``-0.2``).
     """
     scale = 0.0000275
     offset = -0.2
-    return [
-        (src.read(i).astype(np.float32) * scale + offset)
-        for i in range(1, src.count + 1)
-    ]
+
+    # Landsat Collection 2 Level-2 band ordering:
+    # 1 = coastal/aerosol
+    # 2 = blue
+    # 3 = green
+    # 4 = red
+    # 5 = nir
+    # 6 = swir1
+    # 7 = swir2
+
+    return {
+        "blue": (src.read(1).astype(np.float32) * scale + offset),
+        "green": (src.read(2).astype(np.float32) * scale + offset),
+        "red": (src.read(3).astype(np.float32) * scale + offset),
+        "nir": (src.read(4).astype(np.float32) * scale + offset),
+        "swir1": (src.read(5).astype(np.float32) * scale + offset),
+        "swir2": (src.read(6).astype(np.float32) * scale + offset),
+    }
 
 
 def write_single_band(
@@ -97,13 +124,29 @@ def estimate_salinity_from_mosaic(
     try:
         with rasterio.open(mosaic_path) as src:
             profile = src.profile
-            reflectance_bands = landsat_reflectance_stack(src)
+            bands = landsat_reflectance_stack(src)
     except RasterioError as exc:
         logging.warning("Unable to open mosaic %s: %s", mosaic_path, exc)
         return None
 
+    # Defensive check in case a mosaic is missing expected bands
+    required = {"blue", "green", "red", "nir", "swir1", "swir2"}
+    missing = required - bands.keys()
+    if missing:
+        logging.warning(
+            "Missing required bands %s in %s; skipping salinity estimation",
+            missing,
+            mosaic_path.name,
+        )
+        return None
+
     salinity = estimate_salinity_level(
-        *reflectance_bands,
+        blue=bands["blue"],
+        green=bands["green"],
+        red=bands["red"],
+        nir=bands["nir"],
+        swir1=bands["swir1"],
+        swir2=bands["swir2"],
         reflectance_scale=None,
         water_threshold=water_threshold,
     )
@@ -122,7 +165,7 @@ def estimate_salinity_from_mosaic(
     # Write score raster
     write_single_band(score_path, profile, salinity["score"], dtype="float32")
 
-    # Convert string labels → codes
+    # Convert string labels → integer codes
     class_codes = np.vectorize(
         lambda v: SALINITY_CLASS_CODES.get(v, 0), otypes=[np.uint8]
     )(salinity["class_map"])

@@ -1,4 +1,5 @@
 """Configuration helpers for locating project data directories."""
+
 from os import PathLike
 from pathlib import Path
 
@@ -18,7 +19,7 @@ class Settings(BaseSettings):
 
     # Can be overridden with SW_DATA_ROOT=/mnt/bucket or helm env var
     data_root: Path = Field(
-        default_factory=lambda: Path(__file__).resolve().parent / "data"
+        default_factory=lambda: Path(__file__).resolve().parent.parent
     )
 
     class Config:
@@ -32,6 +33,7 @@ class Settings(BaseSettings):
         """
 
         env_prefix = "SW_"
+
 
 def get_settings() -> Settings:
     """Return a fresh :class:`Settings` instance using current environment values.

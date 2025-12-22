@@ -123,6 +123,13 @@ def estimate_salinity_from_mosaic(
     """
     try:
         with rasterio.open(mosaic_path) as src:
+            if src.count < 6:
+                logging.warning(
+                    "Expected ≥6 bands for salinity estimation, found %d in %s",
+                    src.count,
+                    mosaic_path.name,
+                )
+                return None
             profile = src.profile
             bands = landsat_reflectance_stack(src)
     except RasterioError as exc:

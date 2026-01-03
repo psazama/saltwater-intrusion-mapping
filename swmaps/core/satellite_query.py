@@ -82,12 +82,13 @@ def query_gee_images(
     return col, bands
 
 
-def get_best_image(collection: ee.ImageCollection, mission: str):
+def get_best_image(collection: ee.ImageCollection, mission: str, samples: int):
     """Pick the 'best' image: lowest cloud cover, most recent.
 
     Args:
         collection (ee.ImageCollection): The collection to search.
         mission (str): Mission slug (e.g. "sentinel-2", "landsat-5").
+        samples (int): Number of samples to return
 
     Returns:
         ee.Image | None: The selected image or None if no images exist.
@@ -108,7 +109,7 @@ def get_best_image(collection: ee.ImageCollection, mission: str):
     image = (
         collection.sort(cloud_property)  # ascending: least cloudy first
         .sort("system:time_start", False)  # descending: newest first
-        .first()
+        .toList(samples)
     )
     return image
 

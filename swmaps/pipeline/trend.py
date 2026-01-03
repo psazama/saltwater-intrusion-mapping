@@ -27,12 +27,12 @@ def trend_heatmap(output_dir: str | Path = None) -> None:
         search_dir = Path(output_dir)
         Path(search_dir).mkdir(parents=True, exist_ok=True)
 
-    mask_files = [str(p) for p in search_dir.glob("*_mask.tif")]
+    mask_files = [str(p) for p in search_dir.rglob("*_mask.tif")]
     if not mask_files:
         print(f"No mask files found in {search_dir}")
         return
 
-    wet_year = load_wet_year(mask_files[::20], chunks={"x": 512, "y": 512})
+    wet_year = load_wet_year(mask_files)
     slope, pval = pixel_trend(wet_year)
     signif = pval < 0.05
     ax = plot_trend_heatmap(slope, signif, title="Trend in % wet months per year")

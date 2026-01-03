@@ -30,6 +30,7 @@ buffer_km     = 1.0        # size of region around lat/lon
 cloud_filter  = 30         # maximum % cloud cover allowed
 days_before   = 3          # temporal window around each date
 days_after    = 3
+samples_per_date = 3       # Will try to get the 3 cleanest images for every date step
 out_dir       = "data/choptank_downloads"
 
 # -------------------------

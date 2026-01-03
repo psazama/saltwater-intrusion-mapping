@@ -1,0 +1,67 @@
+# ---------------------------------------------------------------------
+# Choptank Watershed GEE Workflow Configuration
+# ---------------------------------------------------------------------
+
+# -------------------------
+# Imagery date range
+# -------------------------
+start_date = "1984-04-01"
+end_date   = "2024-04-10"
+date_step = 120
+
+# -------------------------
+# Location of interest
+# -------------------------
+# Center coordinate where imagery will be clipped.
+# Choptank River watershed example:
+latitude  = 38.75
+longitude = -75.95
+
+# -------------------------
+# Mission / sensor
+# -------------------------
+# mission = ["sentinel-2", "landsat-5", "landsat-7"]
+mission = ["landsat-5", "landsat-7"]
+
+# -------------------------
+# Download and mosaic settings
+# -------------------------
+skip_download = true
+buffer_km     = 1.0        # size of region around lat/lon
+cloud_filter  = 30         # maximum % cloud cover allowed
+days_before   = 3          # temporal window around each date
+days_after    = 3
+samples_per_date = 3       # Will try to get the 3 cleanest images for every date step
+out_dir       = "data/choptank_downloads"
+
+# -------------------------
+# Optional AOI creation
+# -------------------------
+# If you want to create a coastal AOI polygon first:
+make_coastal_aoi = true   # set true if needed
+
+# region name required if make_coastal_aoi = true
+region = "config/choptank_river_region.geojson"
+
+coastal_buffer_km = 10
+aoi_out = "data/aoi"
+
+# -------------------------
+# Salinity pipeline
+# -------------------------
+# If you want to extract features linked to ground-truth salinity data
+run_salinity_pipeline = false
+
+# Optional entries for salinity (used when run_salinity_pipeline = true)
+truth_download_list = ["codc"]
+truth_dir = "data/salinity_raw"
+truth_file = "data/salinity_labels/codc_salinity_profiles.csv"
+
+# -------------------------
+# Classification and Trend pipeline
+# -------------------------
+mask_dir      = "data/choptank_downloads"
+trend_output_dir = "data/choptank_downloads"
+salinity_output_dir = "data/choptank_downloads"
+run_water_trend = true
+run_salinity_classification = true

@@ -92,16 +92,19 @@ def main():
     # -----------------------------------------------------------
     # Step 2 — Download imagery using the GEE pipeline
     # -----------------------------------------------------------
-    logging.info("Downloading imagery")
-    print("Downloading imagery")
-
-    try:
-        download_results = download_data(cfg)
-    except Exception as e:
-        logging.error(f"Download step failed: {e}")
-        raise
-
-    logging.info(f"Download step complete: {len(download_results)} files")
+    if cfg.get("skip_download", False):
+        logging.info(
+            "skip_download is True: Skipping GEE download and using local files."
+        )
+    else:
+        logging.info("Downloading imagery")
+        print("Downloading imagery")
+        try:
+            download_results = download_data(cfg)
+            logging.info(f"Download step complete: {len(download_results)} files")
+        except Exception as e:
+            logging.error(f"Download step failed: {e}")
+            raise
 
     # -----------------------------------------------------------
     # Step 3 — Optional salinity truth processing

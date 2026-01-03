@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 from typing import Sequence
 
@@ -177,23 +178,32 @@ def load_wet_year(
             da = da.chunk(chunks)
         datasets.append(da)
 
-    # Extract start date from filename: sentinel_eastern_shore_YYYY-MM-DD_YYYY-MM-DD_mask.tif
     def extract_start_date(path: str | Path) -> np.datetime64:
-        """Pull the acquisition start date embedded in the mask filename.
-
-        This mirrors the existing filename comment so that callers understand the
-        sentinel/landsat naming convention that stores the start date as the
-        third-to-last underscore-delimited token.
-
-        Args:
-            path (str | Path): Path to the monthly water-mask GeoTIFF.
-
-        Returns:
-            numpy.datetime64: Parsed start date extracted from the filename.
         """
+        Extracts and validates a YYYYMMDD date from a filename.
+        Ensures Year: 1900-2100, Month: 1-12, Day: 1-31.
+        """
+        filename = Path(path).stem
 
-        parts = Path(path).stem.split("_")
-        return np.datetime64(parts[-3])  # third-to-last is the start date
+        # Search for any sequence of 8 digits
+        match = re.search(r"(\d{8})", filename)
+
+        if match:
+            date_str = match.group(1)
+            year = int(date_str[:4])
+            month = int(date_str[4:6])
+            day = int(date_str[6:8])
+
+            # Validation logic
+            is_valid = 1900 <= year <= 2100 and 1 <= month <= 12 and 1 <= day <= 31
+
+            if is_valid:
+                # Format: YYYY-MM-DD
+                formatted_date = f"{year:04d}-{month:02d}-{day:02d}"
+                return np.datetime64(formatted_date)
+
+        logging.warning(f"Invalid or missing date in filename: {filename}")
+        return np.datetime64("NaT")  # Return 'Not a Time' for invalid dates
 
     times = [extract_start_date(p) for p in paths]
     ds = xr.concat(datasets, dim="time")

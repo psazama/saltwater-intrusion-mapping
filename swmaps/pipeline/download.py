@@ -49,6 +49,7 @@ def download_data(cfg: dict):
     start_date = datetime.fromisoformat(cfg["start_date"])
     end_date = datetime.fromisoformat(cfg["end_date"])
     date_step = cfg.get("date_step", 1)
+    samples_per_date = cfg.get("samples_per_date", 1)
     lat = cfg["latitude"]
     lon = cfg["longitude"]
     missions_cfg = cfg.get("mission", "sentinel-2")
@@ -107,8 +108,12 @@ def download_data(cfg: dict):
                     days_before=days_before,
                     days_after=days_after,
                     cloud_filter=cloud_filter,
+                    samples=samples_per_date,
                 )
-                results.append(output_path)
+                if isinstance(output_path, list):
+                    results.extend(output_path)
+                else:
+                    results.append(output_path)
             except Exception as e:
                 print(f"[WARN] {mission}: Failed to process {date.date()}: {e}")
 

@@ -47,6 +47,7 @@ def process_date(
     days_before: int = 7,
     days_after: int = 7,
     cloud_filter: float = 30,
+    samples: int = 1,
 ):
     """
     Build a local multiband GeoTIFF for the given location & date.
@@ -62,6 +63,7 @@ def process_date(
         out_dir: where to write output raster
         days_before/days_after: temporal window
         cloud_filter: max cloud percentage allowed
+        samples: number of samples to return
 
     Returns:
         path to the downloaded multiband TIFF
@@ -97,7 +99,7 @@ def process_date(
         raise RuntimeError(f"No GEE images found for {mission} around {date_range}")
 
     # Select best image
-    img = get_best_image(col, mission)
+    img = get_best_image(col, mission, samples)
     if img is None:
         raise RuntimeError("No usable image found after filtering.")
 

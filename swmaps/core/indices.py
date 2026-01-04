@@ -18,25 +18,7 @@ def compute_ndwi(
     threshold: float = 0.01,
     center_size: int | None = None,
 ) -> np.ndarray:
-    """Compute the Normalized Difference Water Index (NDWI) mask.
-
-    Args:
-        path (str | Path): Path to the source GeoTIFF file containing
-            multispectral imagery.
-        mission (str): Mission identifier, e.g. ``"landsat-5"``,
-            ``"landsat-7"``, or ``"sentinel-2"``.
-        out_path (str | Path | None): Optional path where the NDWI raster
-            should be written.
-        display (bool): If ``True``, render the NDWI mask using Matplotlib.
-        threshold (float): Threshold applied to the NDWI ratio to classify
-            water pixels.
-        center_size (int | None): If provided, limit the computation to a
-            centered square window with the specified edge length (pixels).
-
-    Returns:
-        np.ndarray: Binary NDWI mask where water pixels equal ``1`` and
-        other pixels equal ``0``.
-    """
+    """Compute the Normalized Difference Water Index (NDWI) mask."""
     mission_info = get_mission(mission)
     band_index = mission_info["band_index"]
     green_band = band_index["green"]
@@ -46,39 +28,53 @@ def compute_ndwi(
 
     with rasterio.open(path) as src:
         if center_size:
-            # Get image size in pixels
             img_width = src.width
             img_height = src.height
 
-            # Compute top-left corner of the centered window
             col_off = (img_width - center_size) // 2
             row_off = (img_height - center_size) // 2
 
             window = Window(
-                col_off=col_off, row_off=row_off, width=center_size, height=center_size
+                col_off=col_off,
+                row_off=row_off,
+                width=center_size,
+                height=center_size,
             )
 
-            green = src.read(green_band, window=window).astype(np.float32)
-            nir = src.read(nir_band, window=window).astype(np.float32)
+            green_raw = src.read(green_band, window=window)
+            nir_raw = src.read(nir_band, window=window)
         else:
-            green = src.read(green_band).astype(np.float32)
-            nir = src.read(nir_band).astype(np.float32)
+            green_raw = src.read(green_band)
+            nir_raw = src.read(nir_band)
+
+        # Identify valid pixels BEFORE scaling
+        valid = (green_raw != 0) & (nir_raw != 0)
+
+        green = green_raw.astype(np.float32)
+        nir = nir_raw.astype(np.float32)
+
+        # Mask NoData pixels explicitly
+        green[~valid] = np.nan
+        nir[~valid] = np.nan
 
         if scale_reflectance:
             green = green * 0.0000275 - 0.2
             nir = nir * 0.0000275 - 0.2
 
-        ndwi = (green - nir) / (green + nir + 1e-10)
-        ndwi_mask = (ndwi > threshold).astype(float)
+        ndwi = (green - nir) / (green + nir)
+
+        # Apply threshold only on valid pixels
+        ndwi_mask = ((ndwi > threshold) & valid).astype(np.float32)
 
         profile = src.profile.copy()
         profile.update(
             {
                 "count": 1,
                 "dtype": "float32",
-                "nodata": np.nan,
+                "nodata": 0.0,
             }
         )
+
         if center_size:
             transform = src.window_transform(window)
             profile.update(

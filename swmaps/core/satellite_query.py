@@ -105,13 +105,23 @@ def get_best_image(collection: ee.ImageCollection, mission: str, samples: int):
     else:
         cloud_property = "CLOUD_COVER"
 
-    # Sort ascending by cloud cover, then descending by acquisition time
-    image = (
-        collection.sort(cloud_property)  # ascending: least cloudy first
-        .sort("system:time_start", False)  # descending: newest first
-        .toList(samples)
+    collection = collection.map(
+        lambda img: img.set(
+            "sort_key",
+            ee.Number(img.get(cloud_property))
+            .multiply(1e15)
+            .subtract(ee.Number(img.get("system:time_start"))),
+        )
     )
-    return image
+
+    # Clamp samples to collection size
+    n = ee.Number(samples).min(size)
+
+    image_list = collection.sort("sort_key").toList(samples)
+
+    n_client = n.getInfo()
+    images = [ee.Image(image_list.get(i)) for i in range(n_client)]
+    return images
 
 
 # ---------------------------------------------------------
@@ -276,6 +286,7 @@ def download_matching_gee_images(
     output_dir: str | Path | None = None,
     days_before: int = 7,
     days_after: int = 7,
+    samples: int = 1,
 ):
     """
     Replacement for the old STAC-based downloader.
@@ -314,7 +325,7 @@ def download_matching_gee_images(
                 continue
 
             col, bands = query_gee_images(mission, bbox, date_range, cloud_filter=20)
-            best = get_best_image(col, mission)
+            best = get_best_image(col, mission, samples)
 
             if best is None:
                 continue

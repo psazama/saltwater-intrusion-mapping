@@ -97,25 +97,25 @@ def download_data(cfg: dict):
             _daterange(start_date, end_date, date_step),
             desc=f"[GEE] Processing dates for {mission}",
         ):
-            try:
-                output_path = process_date(
-                    lat=lat,
-                    lon=lon,
-                    date=date,
-                    buffer_km=buffer_km,
-                    mission=mission,
-                    out_dir=mission_out_dir,
-                    days_before=days_before,
-                    days_after=days_after,
-                    cloud_filter=cloud_filter,
-                    samples=samples_per_date,
-                )
-                if isinstance(output_path, list):
-                    results.extend(output_path)
-                else:
-                    results.append(output_path)
-            except Exception as e:
-                print(f"[WARN] {mission}: Failed to process {date.date()}: {e}")
+            # try:
+            output_path = process_date(
+                lat=lat,
+                lon=lon,
+                date=date,
+                buffer_km=buffer_km,
+                mission=mission,
+                out_dir=mission_out_dir,
+                days_before=days_before,
+                days_after=days_after,
+                cloud_filter=cloud_filter,
+                samples=samples_per_date,
+            )
+            if isinstance(output_path, list):
+                results.extend(output_path)
+            else:
+                results.append(output_path)
+            # except Exception as e:
+            #     print(f"[WARN] {mission}: Failed to process {date.date()}: {e}")
 
     print("------------------------------------------------")
     print(

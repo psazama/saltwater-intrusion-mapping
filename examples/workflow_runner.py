@@ -99,12 +99,12 @@ def main():
     else:
         logging.info("Downloading imagery")
         print("Downloading imagery")
-        try:
-            download_results = download_data(cfg)
-            logging.info(f"Download step complete: {len(download_results)} files")
-        except Exception as e:
-            logging.error(f"Download step failed: {e}")
-            raise
+        # try:
+        download_results = download_data(cfg)
+        logging.info(f"Download step complete: {len(download_results)} files")
+        # except Exception as e:
+        #     logging.error(f"Download step failed: {e}")
+        #     raise
 
     # -----------------------------------------------------------
     # Step 3 — Optional salinity truth processing

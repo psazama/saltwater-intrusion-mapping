@@ -27,10 +27,10 @@ mission = ["landsat-5", "landsat-7"]
 # Download and mosaic settings
 # -------------------------
 skip_download = true
-buffer_km     = 1.0        # size of region around lat/lon
+buffer_km     = 10.0        # size of region around lat/lon
 cloud_filter  = 30         # maximum % cloud cover allowed
-days_before   = 3          # temporal window around each date
-days_after    = 3
+days_before   = 30          # temporal window around each date
+days_after    = 30
 samples_per_date = 3       # Will try to get the 3 cleanest images for every date step
 out_dir       = "data/choptank_downloads"
 

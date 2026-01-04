@@ -84,7 +84,7 @@ def process_date(
     bbox = _compute_bbox(lat, lon, buffer_km)
     mission_info = get_mission(mission)
 
-    print(f"[GEE] Querying {mission} for {lat:.4f}, {lon:.4f} @ {date_range}")
+    # print(f"[GEE] Querying {mission} for {lat:.4f}, {lon:.4f} @ {date_range}")
 
     # Query ImageCollection
     col, band_map = query_gee_images(
@@ -96,25 +96,32 @@ def process_date(
 
     size = col.size().getInfo()
     if size == 0:
-        raise RuntimeError(f"No GEE images found for {mission} around {date_range}")
+        return None
 
     # Select best image
-    img = get_best_image(col, mission, samples)
-    if img is None:
-        raise RuntimeError("No usable image found after filtering.")
+    imgs = get_best_image(col, mission, samples)
+    if imgs is None:
+        print(
+            f"No usable image found after filtering for {mission} around {date_range}"
+        )
+        return None
 
-    # Export clipped multiband raster
-    output_path = download_gee_multiband(
-        image=img,
-        mission=mission,
-        bands=band_map,
-        bbox=bbox,
-        out_dir=out_dir,
-        scale=mission_info["gee_scale"],
-    )
+    output_paths = []
+    print(f"Begin processing mosaic count: {len(imgs)}")
+    for img in imgs:
+        # Export clipped multiband raster
+        output_path = download_gee_multiband(
+            image=img,
+            mission=mission,
+            bands=band_map,
+            bbox=bbox,
+            out_dir=out_dir,
+            scale=mission_info["gee_scale"],
+        )
 
-    print(f"[GEE] Wrote mosaic to: {output_path}")
-    return output_path
+        output_paths.append(output_path)
+        print(f"[GEE] Wrote mosaic to: {output_path}")
+    return output_paths
 
 
 # ---------------------------------------------------------------------
@@ -133,6 +140,7 @@ def process_multiple(
     days_before=7,
     days_after=7,
     cloud_filter=30,
+    samples=1,
 ):
     """
     Apply GEE mosaic building to every row of a DataFrame.
@@ -154,6 +162,7 @@ def process_multiple(
             days_before=days_before,
             days_after=days_after,
             cloud_filter=cloud_filter,
+            samples=samples,
         )
         results.append(path)
     return results

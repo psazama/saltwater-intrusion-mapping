@@ -139,20 +139,9 @@ def download_gee_multiband(
 ):
     """
     Export a clipped, multiband GeoTIFF for the given GEE image.
-
-    Args:
-        image (ee.Image)
-        mission (str)
-        bands (dict):
-        bbox (list): extent
-        out_dir (Path): download location
-        scale (int): pixel resolution
-
-    Returns:
-        str: path to saved GeoTIFF
+    Automatically switches Sentinel-2 to async export if request is large.
     """
     initialize_ee()
-
     out_dir.mkdir(parents=True, exist_ok=True)
 
     band_list = list(bands.values())
@@ -160,6 +149,66 @@ def download_gee_multiband(
 
     clipped = image.select(band_list).clip(region)
 
+    # Force consistent projection for Sentinel
+    if mission.startswith("sentinel"):
+        ref_proj = image.select(band_list[0]).projection()
+        clipped = clipped.reproject(crs=ref_proj, scale=scale)
+
+    # -------------------------------------------------
+    # Size estimation
+    # -------------------------------------------------
+    minx, miny, maxx, maxy = bbox
+
+    # Rough meters per degree
+    meters_per_deg = 111_000
+
+    width_m = (maxx - minx) * meters_per_deg
+    height_m = (maxy - miny) * meters_per_deg
+
+    width_px = int(width_m / scale)
+    height_px = int(height_m / scale)
+
+    n_pixels = width_px * height_px
+    n_bands = len(band_list)
+
+    bytes_per_pixel = 2  # UInt16
+    est_bytes = n_pixels * n_bands * bytes_per_pixel
+    est_mb = est_bytes / (1024 * 1024)
+
+    print(
+        f"[GEE] Estimated download size for {mission}: "
+        f"{width_px} x {height_px} px, "
+        f"{n_bands} bands, ~{est_mb:.1f} MB"
+    )
+
+    image_id = image.get("system:index").getInfo()
+    out_path = out_dir / f"{mission}_{image_id}_multiband.tif"
+
+    # -------------------------------------------------
+    # Sentinel auto-export rule
+    # -------------------------------------------------
+    if mission.startswith("sentinel") and est_mb > 30:
+        print(
+            f"[GEE] Size exceeds 30 MB for Sentinel-2, "
+            f"exporting asynchronously: {out_path.name}"
+        )
+
+        task = ee.batch.Export.image.toDrive(
+            image=clipped,
+            description=f"{mission}_{image_id}",
+            folder=str(out_dir.name),
+            fileNamePrefix=out_path.stem,
+            region=region,
+            scale=scale,
+            maxPixels=1e13,
+        )
+        task.start()
+
+        return str(out_path)
+
+    # -------------------------------------------------
+    # Synchronous download path
+    # -------------------------------------------------
     url = clipped.getDownloadURL(
         {
             "scale": scale,
@@ -169,10 +218,6 @@ def download_gee_multiband(
         }
     )
 
-    image_id = image.get("system:index").getInfo()
-    out_path = out_dir / f"{mission}_{image_id}_multiband.tif"
-
-    # Download binary stream
     r = requests.get(url, stream=True)
     with open(out_path, "wb") as f:
         for chunk in r.iter_content(chunk_size=8192):

@@ -93,6 +93,13 @@ def download_data(cfg: dict):
         mission_out_dir = out_dir / mission
         mission_out_dir.mkdir(parents=True, exist_ok=True)
 
+        if "sentinel" in mission:
+            curr_days_before = 7
+            curr_days_after = 7
+        else:
+            curr_days_before = days_before
+            curr_days_after = days_after
+
         for date in tqdm(
             _daterange(start_date, end_date, date_step),
             desc=f"[GEE] Processing dates for {mission}",
@@ -105,8 +112,8 @@ def download_data(cfg: dict):
                 buffer_km=buffer_km,
                 mission=mission,
                 out_dir=mission_out_dir,
-                days_before=days_before,
-                days_after=days_after,
+                days_before=curr_days_before,
+                days_after=curr_days_after,
                 cloud_filter=cloud_filter,
                 samples=samples_per_date,
             )

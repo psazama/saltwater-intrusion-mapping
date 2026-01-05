@@ -15,7 +15,7 @@ def compute_ndwi(
     mission: str,
     out_path: str | Path | None = None,
     display: bool = False,
-    threshold: float = 0.01,
+    threshold: float = 0.0,
     center_size: int | None = None,
 ) -> np.ndarray:
     """Compute the Normalized Difference Water Index (NDWI) mask."""

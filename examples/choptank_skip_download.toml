@@ -20,8 +20,8 @@ longitude = -75.95
 # -------------------------
 # Mission / sensor
 # -------------------------
-# mission = ["sentinel-2", "landsat-5", "landsat-7"]
-mission = ["landsat-5", "landsat-7"]
+mission = ["sentinel-2", "landsat-5", "landsat-7"]
+# mission = ["landsat-5", "landsat-7"]
 
 # -------------------------
 # Download and mosaic settings
@@ -45,6 +45,14 @@ region = "config/choptank_river_region.geojson"
 
 coastal_buffer_km = 10
 aoi_out = "data/aoi"
+
+# -------------------------
+# Segmentation Classification
+# -------------------------
+run_segmentation = true
+segmentation_model = "farseg"
+segmentation_weights = "pretrained"
+segmentation_out_dir = "data/choptank_downloads/segmentation"
 
 # -------------------------
 # Salinity pipeline

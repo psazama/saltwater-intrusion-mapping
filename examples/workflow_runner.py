@@ -16,6 +16,7 @@ import tomllib  # Python 3.11+ TOML parser
 from pathlib import Path
 
 from swmaps.config import data_path
+from swmaps.models.inference import run_segmentation
 from swmaps.pipeline.download import download_data
 from swmaps.pipeline.landsat_salinity import estimate_salinity_from_mosaic
 from swmaps.pipeline.masks import generate_masks
@@ -99,12 +100,31 @@ def main():
     else:
         logging.info("Downloading imagery")
         print("Downloading imagery")
-        # try:
         download_results = download_data(cfg)
         logging.info(f"Download step complete: {len(download_results)} files")
-        # except Exception as e:
-        #     logging.error(f"Download step failed: {e}")
-        #     raise
+
+    # -----------------------------------------------------------
+    # Step 2.5 — Segmentation
+    # -----------------------------------------------------------
+
+    if cfg.get("run_segmentation", False):
+        logging.info("Running segmentation")
+
+        download_dir = Path(cfg.get("out_dir", data_path("mosaics")))
+        mosaics = sorted(download_dir.rglob("*_multiband.tif"))
+
+        if not mosaics:
+            logging.warning("No mosaics found for segmentation")
+        else:
+            seg_out = cfg.get("segmentation_out_dir", download_dir / "segmentation")
+
+            run_segmentation(
+                mosaics=mosaics,
+                out_dir=seg_out,
+                num_classes=cfg.get("segmentation_num_classes", 2),
+            )
+
+            logging.info("Segmentation complete")
 
     # -----------------------------------------------------------
     # Step 3 — Optional salinity truth processing

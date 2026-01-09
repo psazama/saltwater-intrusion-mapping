@@ -9,7 +9,7 @@ from PIL import Image
 from tqdm import tqdm
 
 from swmaps.core.indices import compute_ndwi
-from swmaps.core.water_trend import check_image_for_nans, check_image_for_valid_signal
+from swmaps.core.trend import check_image_for_nans, check_image_for_valid_signal
 
 
 def generate_masks(center_size=None, input_dir=None):

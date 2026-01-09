@@ -116,7 +116,7 @@ def process_date(
             bands=band_map,
             bbox=bbox,
             out_dir=out_dir,
-            scale=mission_info["gee_scale"],
+            scale=mission_info.gee_scale,
         )
 
         output_paths.append(output_path)

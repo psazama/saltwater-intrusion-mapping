@@ -31,7 +31,7 @@ class SaltwaterSegDataset(Dataset):
 
     def _read_rgb(self, image_path):
         mission = mission_from_path(image_path)
-        band_index = get_mission(mission)["band_index"]
+        band_index = get_mission(mission).band_indices()
 
         rgb_bands = [
             band_index["red"],

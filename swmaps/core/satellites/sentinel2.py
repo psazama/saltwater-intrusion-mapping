@@ -1,4 +1,4 @@
-from ..missions import Mission
+from .base import Mission
 
 
 # --------------------------
@@ -20,6 +20,16 @@ class Sentinel2(Mission):
 
     def band_indices(self):
         return {"blue": 1, "green": 2, "red": 3, "nir08": 4, "swir16": 5, "swir22": 6}
+
+    def bands(self):
+        return {
+            "blue": "B2",
+            "green": "B3",
+            "red": "B4",
+            "nir08": "B8",
+            "swir16": "B11",
+            "swir22": "B12",
+        }
 
     @property
     def gee_collection(self):

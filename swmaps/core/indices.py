@@ -20,7 +20,7 @@ def compute_ndwi(
 ) -> np.ndarray:
     """Compute the Normalized Difference Water Index (NDWI) mask."""
     mission_info = get_mission(mission)
-    band_index = mission_info["band_index"]
+    band_index = mission_info.band_indices()
     green_band = band_index["green"]
     nir_band = band_index["nir08"]
 

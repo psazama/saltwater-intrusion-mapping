@@ -1,4 +1,4 @@
-from ..missions import Mission
+from .base import Mission
 
 
 # --------------------------
@@ -20,6 +20,16 @@ class Landsat5(Mission):
 
     def band_indices(self):
         return {"blue": 1, "green": 2, "red": 3, "nir08": 4, "swir16": 5, "swir22": 6}
+
+    def bands(self):
+        return {
+            "blue": "SR_B1",
+            "green": "SR_B2",
+            "red": "SR_B3",
+            "nir08": "SR_B4",
+            "swir16": "SR_B5",
+            "swir22": "SR_B7",
+        }
 
     @property
     def gee_collection(self):

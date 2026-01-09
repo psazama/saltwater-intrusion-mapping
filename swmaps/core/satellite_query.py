@@ -65,8 +65,8 @@ def query_gee_images(
     initialize_ee()
 
     mission_info = get_mission(mission)
-    collection_id = mission_info["gee_collection"]
-    bands = mission_info["bands"]
+    collection_id = mission_info.gee_collection
+    bands = mission_info.bands()
 
     start, end = date_range.split("/")
     region = ee.Geometry.BBox(*bbox)
@@ -382,7 +382,7 @@ def download_matching_gee_images(
                 bands,
                 bbox,
                 mission_dir,
-                scale=get_mission(mission)["gee_scale"],
+                scale=get_mission(mission).gee_scale(),
             )
 
             seen[key] = path

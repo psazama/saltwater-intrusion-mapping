@@ -2,10 +2,12 @@
 
 import pytest
 
-from swmaps.core import water_trend
+from swmaps.core import trend
 
 np = pytest.importorskip("numpy")
 xr = pytest.importorskip("xarray")
+
+
 def test_theil_sen_slope_linear() -> None:
     """Confirm the Theil–Sen slope detects a perfect linear increase.
 
@@ -16,7 +18,7 @@ def test_theil_sen_slope_linear() -> None:
         None: Assertions validate the computed slope value.
     """
     data = np.array([0, 1, 2, 3, 4], dtype=np.float32)
-    slope = water_trend.theil_sen_slope(data)
+    slope = trend.theil_sen_slope(data)
     assert slope == pytest.approx(1.0)
 
 
@@ -31,7 +33,7 @@ def test_mk_p_trend() -> None:
     """
     ts = np.array([0, 1, 2, 3, 4], dtype=np.float32)
     years = np.arange(5, dtype=np.float32)
-    p = water_trend.mk_p(ts, years)
+    p = trend.mk_p(ts, years)
     assert 0 <= p <= 1
 
 
@@ -50,6 +52,6 @@ def test_pixel_trend_small() -> None:
         ),
         dims=("time", "y", "x"),
     )
-    slope, pval = water_trend.pixel_trend(arr, progress=False)
+    slope, pval = trend.pixel_trend(arr, progress=False)
     assert slope.shape == (2, 2)
     assert pval.shape == (2, 2)

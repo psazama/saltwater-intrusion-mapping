@@ -114,11 +114,28 @@ def load_class_year(
         return np.datetime64("NaT")
 
     times = [extract_start_date(p) for p in paths]
-    ds = xr.concat(datasets, dim="time")
-    ds = ds.assign_coords(time=("time", times))
-    ds = ds.sortby("time")
-    da = ds.squeeze("band", drop=True) if "band" in ds.dims else ds
-    return da.resample(time="1Y", label="left").mean(dim="time")
+
+    pairs = [(t, d) for t, d in zip(times, datasets) if not np.isnat(t)]
+    if not pairs:
+        raise ValueError("No valid dated masks found")
+
+    pairs.sort(key=lambda x: x[0])
+
+    times_sorted = [t for t, _ in pairs]
+    datasets_sorted = [d for _, d in pairs]
+
+    # concat first
+    ds = xr.concat(datasets_sorted, dim="time")
+
+    # now assign time coordinate
+    ds = ds.assign_coords(time=("time", times_sorted))
+
+    # drop band dim if present
+    if "band" in ds.dims:
+        ds = ds.squeeze("band", drop=True)
+
+    # resample to yearly
+    return ds.resample(time="1Y", label="left").mean(dim="time")
 
 
 @njit(parallel=True, fastmath=True)

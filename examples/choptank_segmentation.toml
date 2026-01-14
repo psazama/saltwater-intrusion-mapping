@@ -5,8 +5,8 @@
 # -------------------------
 # Imagery date range
 # -------------------------
-start_date = "1984-04-01"
-end_date   = "2024-04-10"
+start_date = "1999-04-01"
+end_date   = "2001-04-10"
 date_step = 120
 
 # -------------------------
@@ -26,18 +26,20 @@ mission = ["sentinel-2", "landsat-5", "landsat-7"]
 # -------------------------
 # Download and mosaic settings
 # -------------------------
+skip_download = false
+save_png      = true
 buffer_km     = 10.0        # size of region around lat/lon
 cloud_filter  = 30         # maximum % cloud cover allowed
 days_before   = 30          # temporal window around each date
 days_after    = 30
 samples_per_date = 3       # Will try to get the 3 cleanest images for every date step
-out_dir       = "data/choptank_downloads"
+out_dir       = "data/choptank_minimal"
 
 # -------------------------
 # Optional AOI creation
 # -------------------------
 # If you want to create a coastal AOI polygon first:
-make_coastal_aoi = true   # set true if needed
+make_coastal_aoi = false   # set true if needed
 
 # region name required if make_coastal_aoi = true
 region = "config/choptank_river_region.geojson"
@@ -51,8 +53,9 @@ aoi_out = "data/aoi"
 run_segmentation = true
 segmentation_model = "farseg"
 segmentation_weights = "pretrained"
-segmentation_out_dir = "data/choptank_downloads/segmentation"
+segmentation_out_dir = "data/choptank_minimal/segmentation"
 segmentation_png = true
+segmentation_num_classes = 5
 
 # -------------------------
 # Salinity pipeline
@@ -68,8 +71,8 @@ truth_file = "data/salinity_labels/codc_salinity_profiles.csv"
 # -------------------------
 # Classification and Trend pipeline
 # -------------------------
-mask_dir      = "data/choptank_downloads"
-trend_output_dir = "data/choptank_downloads"
-salinity_output_dir = "data/choptank_downloads"
-run_water_trend = true
-run_salinity_classification = true
+mask_dir      = "data/choptank_minimal"
+trend_output_dir = "data/choptank_minimal"
+salinity_output_dir = "data/choptank_minimal"
+run_water_trend = false
+run_salinity_classification = false

@@ -53,6 +53,7 @@ def download_data(cfg: dict):
     lat = cfg["latitude"]
     lon = cfg["longitude"]
     missions_cfg = cfg.get("mission", "sentinel-2")
+    save_png = bool(cfg.get("save_png", False))
     if isinstance(missions_cfg, (list, tuple)):
         mission_list = list(missions_cfg)
     else:
@@ -116,6 +117,7 @@ def download_data(cfg: dict):
                 days_after=curr_days_after,
                 cloud_filter=cloud_filter,
                 samples=samples_per_date,
+                save_png=save_png,
             )
             if isinstance(output_path, list):
                 results.extend(output_path)

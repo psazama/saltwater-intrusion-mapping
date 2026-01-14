@@ -122,6 +122,7 @@ def main():
                 mosaics=mosaics,
                 out_dir=seg_out,
                 num_classes=cfg.get("segmentation_num_classes", 2),
+                save_png=bool(cfg.get("segmentation_png", False)),
             )
 
             logging.info("Segmentation complete")

@@ -53,6 +53,7 @@ run_segmentation = true
 segmentation_model = "farseg"
 segmentation_weights = "pretrained"
 segmentation_out_dir = "data/choptank_downloads/segmentation"
+segmentation_png = true
 
 # -------------------------
 # Salinity pipeline

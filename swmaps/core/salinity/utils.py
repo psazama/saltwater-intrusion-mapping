@@ -135,7 +135,9 @@ def build_salinity_truth(
         else data_path("salinity_labels", "codc_salinity_profiles.csv")
     )
     if output_csv.exists() and output_csv.stat().st_size > 0:
-        logging.info("Salinity truth CSV already exists at %s; skipping rebuild", output_csv)
+        logging.info(
+            "Salinity truth CSV already exists at %s; skipping rebuild", output_csv
+        )
         return
     output_csv.parent.mkdir(parents=True, exist_ok=True)
 

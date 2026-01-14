@@ -32,6 +32,49 @@ def _compute_bbox(lat, lon, buffer_km=1.0):
     return [lon - deg, lat - deg, lon + deg, lat + deg]
 
 
+def _write_rgb_png_from_tif(
+    tif_path: Path,
+    png_path: Path,
+    rgb_bands: tuple[int, int, int],
+    stretch: bool = True,
+):
+    """
+    Save an RGB PNG from a multiband GeoTIFF.
+
+    Args:
+        tif_path: path to multiband GeoTIFF
+        png_path: output PNG path
+        rgb_bands: 1-based band indices, e.g. (4, 3, 2) for Sentinel-2
+        stretch: apply min-max stretch for visualization
+    """
+    import numpy as np
+    import rasterio
+    from PIL import Image
+
+    with rasterio.open(tif_path) as src:
+        r = src.read(rgb_bands[0]).astype("float32")
+        g = src.read(rgb_bands[1]).astype("float32")
+        b = src.read(rgb_bands[2]).astype("float32")
+
+    def _norm(x):
+        if not stretch:
+            return x
+        lo, hi = np.percentile(x, (2, 98))
+        if hi <= lo:
+            return np.zeros_like(x)
+        x = (x - lo) / (hi - lo)
+        return np.clip(x, 0, 1)
+
+    r = _norm(r)
+    g = _norm(g)
+    b = _norm(b)
+
+    rgb = np.stack([r, g, b], axis=-1)
+    rgb = (rgb * 255).astype("uint8")
+
+    Image.fromarray(rgb, mode="RGB").save(png_path)
+
+
 # ---------------------------------------------------------------------
 # Main GEE Mosaic Build
 # ---------------------------------------------------------------------
@@ -48,6 +91,7 @@ def process_date(
     days_after: int = 7,
     cloud_filter: float = 30,
     samples: int = 1,
+    save_png: bool = False,
 ):
     """
     Build a local multiband GeoTIFF for the given location & date.
@@ -84,7 +128,13 @@ def process_date(
     bbox = _compute_bbox(lat, lon, buffer_km)
     mission_info = get_mission(mission)
 
-    # print(f"[GEE] Querying {mission} for {lat:.4f}, {lon:.4f} @ {date_range}")
+    # Default RGB band choices per mission, 1-based indices
+    if mission == "sentinel-2":
+        rgb_bands = (4, 3, 2)  # B4 red, B3 green, B2 blue
+    elif mission in ("landsat-5", "landsat-7"):
+        rgb_bands = (3, 2, 1)  # red, green, blue
+    else:
+        rgb_bands = None
 
     # Query ImageCollection
     col, band_map = query_gee_images(
@@ -121,6 +171,15 @@ def process_date(
 
         output_paths.append(output_path)
         print(f"[GEE] Wrote mosaic to: {output_path}")
+
+        if save_png and rgb_bands is not None:
+            png_path = Path(output_path).with_suffix(".png")
+            _write_rgb_png_from_tif(
+                tif_path=Path(output_path),
+                png_path=png_path,
+                rgb_bands=rgb_bands,
+            )
+            print(f"[GEE] Wrote RGB preview to: {png_path}")
     return output_paths
 
 
@@ -141,6 +200,7 @@ def process_multiple(
     days_after=7,
     cloud_filter=30,
     samples=1,
+    save_png=False,
 ):
     """
     Apply GEE mosaic building to every row of a DataFrame.
@@ -163,6 +223,7 @@ def process_multiple(
             days_after=days_after,
             cloud_filter=cloud_filter,
             samples=samples,
+            save_png=save_png,
         )
         results.append(path)
     return results

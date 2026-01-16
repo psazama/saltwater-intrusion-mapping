@@ -4,12 +4,13 @@ import torch
 from torch.utils.data import DataLoader
 
 from swmaps.models.dataset import SaltwaterSegDataset
-from swmaps.models.model import FarSegModel
+from swmaps.models.model_factory import get_model
 
 
 def run_segmentation(
     mosaics,
     out_dir,
+    model_name="farseg",
     num_classes=2,
     batch_size=4,
     save_png=False,
@@ -24,7 +25,7 @@ def run_segmentation(
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    model = FarSegModel(num_classes=num_classes)
+    model = get_model(model_name, num_classes=num_classes)
     model.to(device)
     model.eval()
 

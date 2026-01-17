@@ -8,7 +8,8 @@ from typing import Union
 from shapely.geometry import MultiPolygon, Polygon
 
 from swmaps.config import data_path
-from swmaps.core.nlcd_cdl import download_nass_cdl, download_nlcd
+from swmaps.datasets.cdl import download_nass_cdl
+from swmaps.datasets.nlcd import download_nlcd
 
 
 def fetch_nlcd_overlay(

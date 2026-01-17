@@ -4,8 +4,6 @@ import pytest
 
 from swmaps.models.salinity_heuristic import SalinityHeuristicModel
 
-np = pytest.importorskip("numpy")
-
 
 def _scaled(values):
     """Scale lists to the integer reflectance space used by Landsat sensors.
@@ -16,6 +14,8 @@ def _scaled(values):
     Returns:
         numpy.ndarray: Values scaled to the integer reflectance domain.
     """
+    np = pytest.importorskip("numpy")
+
     return (np.array(values, dtype=np.float32) * 10000.0).reshape(1, -1)
 
 
@@ -28,6 +28,8 @@ def test_estimate_salinity_level_classification() -> None:
     Returns:
         None: Assertions validate the classification outputs.
     """
+    np = pytest.importorskip("numpy")
+
     blue = _scaled([0.05, 0.05, 0.05, 0.05])
     green = _scaled([0.6, 0.4, 0.28, 0.1])
     red = _scaled([0.05, 0.3, 0.25, 0.2])
@@ -59,6 +61,8 @@ def test_estimate_salinity_level_reflectance_inputs() -> None:
     Returns:
         None: Assertions confirm intermediate indices are present and shaped correctly.
     """
+    np = pytest.importorskip("numpy")
+
     blue = np.array([[0.05, 0.05]], dtype=np.float32)
     green = np.array([[0.5, 0.25]], dtype=np.float32)
     red = np.array([[0.05, 0.2]], dtype=np.float32)

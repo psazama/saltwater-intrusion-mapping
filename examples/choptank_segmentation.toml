@@ -53,7 +53,7 @@ aoi_out = "data/aoi"
 run_segmentation = true
 segmentation_model = "farseg"
 segmentation_weights = "pretrained"
-segmentation_out_dir = "data/choptank_minimal/segmentation_farseg0"
+segmentation_out_dir = "data/choptank_minimal/segmentation_farseg"
 segmentation_png = true
 segmentation_num_classes = 5
 

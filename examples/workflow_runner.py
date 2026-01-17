@@ -17,8 +17,8 @@ from pathlib import Path
 
 from swmaps.config import data_path
 from swmaps.models.inference import run_segmentation
+from swmaps.models.salinity_heuristic import SalinityHeuristicModel
 from swmaps.pipeline.download import download_data
-from swmaps.pipeline.landsat_salinity import estimate_salinity_from_mosaic
 from swmaps.pipeline.masks import generate_masks
 from swmaps.pipeline.salinity import (
     salinity_pipeline,
@@ -170,7 +170,8 @@ def main():
             name = mosaic_path.name.lower()
 
             if "landsat" in name:
-                estimate_salinity_from_mosaic(
+                salinity_model = SalinityHeuristicModel()
+                salinity_model.estimate_salinity_from_mosaic(
                     mosaic_path=mosaic_path,
                     water_threshold=cfg.get("water_threshold", 0.2),
                 )

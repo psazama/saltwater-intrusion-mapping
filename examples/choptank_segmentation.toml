@@ -6,7 +6,7 @@
 # Imagery date range
 # -------------------------
 start_date = "1999-04-01"
-end_date   = "2001-04-10"
+end_date   = "2000-04-10"
 date_step = 120
 
 # -------------------------
@@ -53,7 +53,7 @@ aoi_out = "data/aoi"
 run_segmentation = true
 segmentation_model = "farseg"
 segmentation_weights = "pretrained"
-segmentation_out_dir = "data/choptank_minimal/segmentation_farseg"
+segmentation_out_dir = "data/choptank_minimal/segmentation_farseg0"
 segmentation_png = true
 segmentation_num_classes = 5
 

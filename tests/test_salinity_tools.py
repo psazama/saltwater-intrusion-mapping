@@ -2,9 +2,9 @@
 
 import pytest
 
-np = pytest.importorskip("numpy")
+from swmaps.models.salinity_heuristic import SalinityHeuristicModel
 
-from swmaps.core.salinity.heuristic import estimate_salinity_level
+np = pytest.importorskip("numpy")
 
 
 def _scaled(values):
@@ -35,7 +35,8 @@ def test_estimate_salinity_level_classification() -> None:
     swir1 = _scaled([0.05, 0.3, 0.45, 0.4])
     swir2 = _scaled([0.05, 0.4, 0.55, 0.4])
 
-    result = estimate_salinity_level(blue, green, red, nir, swir1, swir2)
+    model = SalinityHeuristicModel()
+    result = model.predict_from_bands(blue, green, red, nir, swir1, swir2)
 
     class_map = result["class_map"]
     score = result["score"]
@@ -65,7 +66,8 @@ def test_estimate_salinity_level_reflectance_inputs() -> None:
     swir1 = np.array([[0.05, 0.35]], dtype=np.float32)
     swir2 = np.array([[0.05, 0.3]], dtype=np.float32)
 
-    result = estimate_salinity_level(
+    model = SalinityHeuristicModel()
+    result = model.predict_from_bands(
         blue, green, red, nir, swir1, swir2, reflectance_scale=None
     )
 

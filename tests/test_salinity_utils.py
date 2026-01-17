@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 pytest.importorskip("pydantic")
+pytest.importorskip("torch")
 
 from swmaps.datasets import salinity
 from swmaps.models.salinity_heuristic import SalinityHeuristicModel

@@ -12,7 +12,7 @@ class FarSegModel(BaseSegModel):
     def __init__(
         self,
         backbone="resnet50",
-        num_classes=2,
+        num_classes=16,
         backbone_pretrained=True,
     ):
         super().__init__(num_classes)

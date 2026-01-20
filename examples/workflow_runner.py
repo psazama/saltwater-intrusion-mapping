@@ -18,7 +18,7 @@ from pathlib import Path
 from swmaps.config import data_path
 from swmaps.models.inference import run_segmentation
 from swmaps.models.salinity_heuristic import SalinityHeuristicModel
-from swmaps.pipeline.download import download_data
+from swmaps.pipeline.download import download_cdl, download_data
 from swmaps.pipeline.masks import generate_masks
 from swmaps.pipeline.salinity import (
     salinity_pipeline,
@@ -91,7 +91,7 @@ def main():
         logging.info("AOI creation complete")
 
     # -----------------------------------------------------------
-    # Step 2 — Download imagery using the GEE pipeline
+    # Step 2 — Download imagery and dataets using pipeline
     # -----------------------------------------------------------
     if cfg.get("skip_download", False):
         logging.info(
@@ -102,6 +102,11 @@ def main():
         print("Downloading imagery")
         download_results = download_data(cfg)
         logging.info(f"Download step complete: {len(download_results)} files")
+
+    if cfg.get("download_cdl", False):
+        logging.info("Downloading CDL as requested by config")
+        download_cdl(cfg)
+        logging.info("CDL download step complete")
 
     # -----------------------------------------------------------
     # Step 2.5 — Segmentation

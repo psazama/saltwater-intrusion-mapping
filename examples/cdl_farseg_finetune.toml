@@ -18,6 +18,18 @@ latitude  = 38.75
 longitude = -75.95
 
 # -------------------------
+# CDL download options
+# -------------------------
+# If true, the runner will download the NASS CDL product before imagery.
+download_cdl = true
+cdl_year = 2019
+# Can be a path to a GeoJSON polygon, or bounds [xmin, ymin, xmax, ymax].
+# If not provided, the script falls back to latitude/longitude + cdl_buffer_km.
+cdl_region = "config/choptank_river_region.geojson"
+cdl_out = "data/cdl/cdl_2019.tif"
+cdl_buffer_km = 10.0
+
+# -------------------------
 # Mission / sensor
 # -------------------------
 mission = ["sentinel-2", "landsat-5", "landsat-7"]
@@ -33,46 +45,5 @@ cloud_filter  = 30         # maximum % cloud cover allowed
 days_before   = 30          # temporal window around each date
 days_after    = 30
 samples_per_date = 3       # Will try to get the 3 cleanest images for every date step
-out_dir       = "data/choptank_minimal"
+out_dir       = "data/choptank_cdl_finetune"
 
-# -------------------------
-# Optional AOI creation
-# -------------------------
-# If you want to create a coastal AOI polygon first:
-make_coastal_aoi = false   # set true if needed
-
-# region name required if make_coastal_aoi = true
-region = "config/choptank_river_region.geojson"
-
-coastal_buffer_km = 10
-aoi_out = "data/aoi"
-
-# -------------------------
-# Segmentation Classification
-# -------------------------
-run_segmentation = true
-segmentation_model = "farseg"
-segmentation_weights = "pretrained"
-segmentation_out_dir = "data/choptank_minimal/segmentation_farseg"
-segmentation_png = true
-segmentation_num_classes = 16 # farseg should default to 16
-
-# -------------------------
-# Salinity pipeline
-# -------------------------
-# If you want to extract features linked to ground-truth salinity data
-run_salinity_pipeline = false
-
-# Optional entries for salinity (used when run_salinity_pipeline = true)
-truth_download_list = ["codc"]
-truth_dir = "data/salinity_raw"
-truth_file = "data/salinity_labels/codc_salinity_profiles.csv"
-
-# -------------------------
-# Classification and Trend pipeline
-# -------------------------
-mask_dir      = "data/choptank_minimal"
-trend_output_dir = "data/choptank_minimal"
-salinity_output_dir = "data/choptank_minimal"
-run_water_trend = false
-run_salinity_classification = false

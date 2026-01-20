@@ -6,6 +6,7 @@ from typing import Sequence, Union
 
 import pyproj
 import requests
+from PIL import Image
 from shapely.geometry import MultiPolygon, Polygon, box
 from shapely.ops import transform
 
@@ -15,6 +16,7 @@ def download_nass_cdl(
     year: int,
     output_path: Union[str, Path] | None = None,
     overwrite: bool = False,
+    save_png: bool = True,
 ) -> Path | None:
     """Download the USDA NASS Cropland Data Layer for the provided region.
 
@@ -67,6 +69,12 @@ def download_nass_cdl(
     with open(output_path, "wb") as f:
         for chunk in tif_resp.iter_content(chunk_size=8192):
             f.write(chunk)
+
+    if save_png:
+        png_output_path = output_path.with_suffix(".png")
+
+        with Image.open(output_path) as img:
+            img.save(png_output_path, format="PNG")
 
     print(f"Saved {output_path}")
     return output_path

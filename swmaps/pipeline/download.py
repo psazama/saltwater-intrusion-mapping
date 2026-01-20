@@ -1,5 +1,6 @@
 """Download helpers for acquiring imagery used by the processing pipeline."""
 
+import logging
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -133,3 +134,66 @@ def download_data(cfg: dict):
     print("------------------------------------------------")
 
     return results
+
+
+# ---------------------------------------------------------------------
+# CDL helper: add CDL download support via config
+# ---------------------------------------------------------------------
+def download_cdl(cfg: dict):
+    """
+    If config contains download_cdl = true, download the USDA NASS CDL for
+    the requested region/year and save to cdl_out (or cwd).
+    """
+    if not cfg.get("download_cdl", False):
+        return None
+
+    cdl_out = cfg.get("cdl_out")
+    if cdl_out is None:
+        cdl_out = data_path("downloads")
+
+    cdl_out = Path(cdl_out)
+    cdl_out.parent.mkdir(parents=True, exist_ok=True)
+
+    # Lazy import to avoid adding a hard dependency before it's needed
+    import geopandas as gpd
+
+    from swmaps.datasets.cdl import download_nass_cdl
+
+    cdl_year = int(cfg.get("cdl_year", datetime.utcnow().year))
+    # Region can be:
+    #  - path to GeoJSON (string)
+    #  - bounds sequence: [xmin, ymin, xmax, ymax]
+    #  - else fallback to center latitude/longitude + buffer (km)
+    region_cfg = cfg.get("cdl_region", cfg.get("region", None))
+
+    region = None
+    if isinstance(region_cfg, str) and Path(region_cfg).exists():
+        gdf = gpd.read_file(region_cfg)
+        region = gdf.unary_union  # shapely geometry
+    elif isinstance(region_cfg, (list, tuple)) and len(region_cfg) == 4:
+        region = region_cfg  # pass bounds through
+    else:
+        lat = cfg.get("latitude")
+        lon = cfg.get("longitude")
+        if lat is None or lon is None:
+            raise ValueError(
+                "download_cdl requested but no cdl_region/path and no latitude/longitude in config"
+            )
+        buffer_km = float(cfg.get("cdl_buffer_km", cfg.get("buffer_km", 1.0)))
+        # approximate degree buffer (valid near equator; fine for small buffers)
+        deg_buffer = buffer_km / 111.0
+        region = (
+            lon - deg_buffer,
+            lat - deg_buffer,
+            lon + deg_buffer,
+            lat + deg_buffer,
+        )
+
+    print(f"[CDL] Downloading CDL for year {cdl_year}; saving to {cdl_out or 'cwd'}")
+    try:
+        cdl_path = download_nass_cdl(region=region, year=cdl_year, output_path=cdl_out)
+        print(f"[CDL] Saved: {cdl_path}")
+        return cdl_path
+    except Exception:
+        logging.exception("CDL download failed")
+        return None

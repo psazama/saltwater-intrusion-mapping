@@ -26,7 +26,7 @@ from swmaps.core.satellite_query import (
 # ---------------------------------------------------------------------
 
 
-def _compute_bbox(lat, lon, buffer_km=1.0):
+def compute_bbox(lat, lon, buffer_km=1.0):
     """Return a bounding box around (lat, lon) with buffer_km distance."""
     deg = buffer_km / 111.0
     return [lon - deg, lat - deg, lon + deg, lat + deg]
@@ -125,7 +125,7 @@ def process_date(
         f"{(dt + timedelta(days=days_after)).date()}"
     )
 
-    bbox = _compute_bbox(lat, lon, buffer_km)
+    bbox = compute_bbox(lat, lon, buffer_km)
     mission_info = get_mission(mission)
 
     # Default RGB band choices per mission, 1-based indices

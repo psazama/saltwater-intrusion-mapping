@@ -7,7 +7,7 @@ from pathlib import Path
 from tqdm import tqdm
 
 from swmaps.config import data_path
-from swmaps.core.mosaic import process_date
+from swmaps.core.mosaic import compute_bbox, process_date
 
 # ---------------------------------------------------------------------
 # Helpers
@@ -180,14 +180,7 @@ def download_cdl(cfg: dict):
                 "download_cdl requested but no cdl_region/path and no latitude/longitude in config"
             )
         buffer_km = float(cfg.get("cdl_buffer_km", cfg.get("buffer_km", 1.0)))
-        # approximate degree buffer (valid near equator; fine for small buffers)
-        deg_buffer = buffer_km / 111.0
-        region = (
-            lon - deg_buffer,
-            lat - deg_buffer,
-            lon + deg_buffer,
-            lat + deg_buffer,
-        )
+        region = tuple(compute_bbox(lat, lon, buffer_km))
 
     print(f"[CDL] Downloading CDL for year {cdl_year}; saving to {cdl_out or 'cwd'}")
     try:

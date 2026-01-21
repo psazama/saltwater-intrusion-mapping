@@ -25,8 +25,8 @@ download_cdl = true
 cdl_year = 2019
 # Can be a path to a GeoJSON polygon, or bounds [xmin, ymin, xmax, ymax].
 # If not provided, the script falls back to latitude/longitude + cdl_buffer_km.
-cdl_region = "config/choptank_river_region.geojson"
-cdl_out = "data/cdl/cdl_2019.tif"
+# cdl_region = "config/choptank_river_region.geojson"
+cdl_out = "data/choptank_cdl_finetune/cdl/cdl_2019.tif"
 cdl_buffer_km = 10.0
 
 # -------------------------

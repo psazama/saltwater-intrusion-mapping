@@ -46,7 +46,7 @@ def download_nass_cdl(
     else:
         region = box(*region)
         region = transform(transformer, region)
-        bounds = region
+        bounds = region.bounds
     bbox_str = ",".join(map(str, bounds))
 
     params = {"year": str(year), "bbox": bbox_str, "epsg": "4326"}

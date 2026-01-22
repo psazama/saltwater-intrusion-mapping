@@ -6,9 +6,22 @@ from typing import Sequence, Union
 
 import pyproj
 import requests
+import rioxarray
 from PIL import Image
+from rasterio.enums import Resampling
 from shapely.geometry import MultiPolygon, Polygon, box
 from shapely.ops import transform
+
+
+def align_cdl_to_imagery(cdl_path, imagery_path, output_path):
+    imagery = rioxarray.open_rasterio(imagery_path)
+    cdl = rioxarray.open_rasterio(cdl_path)
+
+    # Reproject and match the CDL to the imagery exactly
+    # Use 'nearest' resampling for CDL because it's categorical data (classes)
+    cdl_aligned = cdl.rio.reproject_match(imagery, resampling=Resampling.nearest)
+    cdl_aligned.rio.to_raster(output_path)
+    return output_path
 
 
 def download_nass_cdl(
@@ -49,7 +62,7 @@ def download_nass_cdl(
         bounds = region.bounds
     bbox_str = ",".join(map(str, bounds))
 
-    params = {"year": str(year), "bbox": bbox_str, "epsg": "4326"}
+    params = {"year": str(year), "bbox": bbox_str, "epsg": "5070"}
 
     if output_path is None:
         output_path = Path(f"cdl_{year}.tif")
@@ -89,31 +102,9 @@ def download_cdl_and_imagery(
     samples: int = 1,
     cloud_filter: float | None = 20,
 ):
-    """Download the CDL for `region`/`year` then fetch matching satellite imagery.
+    import rasterio
+    from rasterio.warp import transform_bounds
 
-    Workflow:
-    - Calls download_nass_cdl(...) to fetch the CDL raster.
-    - Builds a WGS84 bbox from the provided `region`.
-    - Queries Earth Engine for images for `mission` over the calendar year.
-    - Downloads selected multiband GeoTIFF(s) into imagery_output_dir/mission/<year>/.
-
-    Args:
-        mission (str): mission slug accepted by swmaps (e.g. "sentinel-2").
-        region (Sequence[float] | Polygon | MultiPolygon): AOI in WGS84 coords.
-        year (int): Target year for CDL and imagery (imagery searched across the year).
-        cdl_output_path: Optional path for the CDL GeoTIFF.
-        imagery_output_dir: Optional base output dir for imagery.
-        samples: Number of images to request (passed to get_best_image).
-        cloud_filter: Optional cloud threshold passed to query_gee_images.
-
-    Returns:
-        dict: {
-            "cdl": Path to downloaded CDL (str),
-            "imagery": list of downloaded imagery paths (list[str])
-        }
-        If imagery download fails or none found, "imagery" will be an empty list.
-    """
-    from swmaps.config import data_path
     from swmaps.core.missions import get_mission
     from swmaps.core.satellite_query import (
         download_gee_multiband,
@@ -121,66 +112,42 @@ def download_cdl_and_imagery(
         query_gee_images,
     )
 
-    # Keep a copy of the original WGS84 region to compute bbox
+    # 1) Setup original WGS84 region for the initial GEE query
     if isinstance(region, (Polygon, MultiPolygon)):
         wgs_region = region
     else:
-        # assume region is sequence [minx, miny, maxx, maxy]
         wgs_region = box(*region)
+    bbox = list(wgs_region.bounds)
 
-    # 1) Download the CDL raster
-    cdl_path = download_nass_cdl(region, year, output_path=cdl_output_path)
-    if cdl_path is None:
-        print("[CDL] CDL download failed; aborting imagery fetch.")
-        return {"cdl": None, "imagery": []}
-
-    # 2) Build bbox in WGS84 (satellite helpers expect [minx, miny, maxx, maxy])
-    bbox = list(wgs_region.bounds)  # xmin, ymin, xmax, ymax
-
-    # 3) Query GEE for images over the calendar year
+    # 2) Query GEE for images
     date_range = f"{year}-01-01/{year}-12-31"
-
     col, bands = query_gee_images(
         mission=mission, bbox=bbox, date_range=date_range, cloud_filter=cloud_filter
     )
     best = get_best_image(col, mission, samples)
 
     if best is None:
-        print(
-            f"[GEE] No imagery found for mission={mission} bbox={bbox} date_range={date_range}"
-        )
-        return {"cdl": str(cdl_path), "imagery": []}
+        return {"cdl": None, "imagery": []}
 
-    # Prepare imagery output directory
-    if imagery_output_dir:
-        base_out = Path(imagery_output_dir)
-    else:
-        base_out = Path(data_path("cdl_imagery"))
-
+    # Prepare output dirs
+    base_out = (
+        Path(imagery_output_dir)
+        if imagery_output_dir
+        else Path("cdl_imagery")  # TODO: Path(data_path("cdl_imagery"))
+    )
     mission_dir = base_out / mission / str(year)
     mission_dir.mkdir(parents=True, exist_ok=True)
 
-    # Determine gee scale (fallback to 10)
     mission_info = get_mission(mission)
-    gee_scale = getattr(mission_info, "gee_scale", None)
-    if callable(gee_scale):
-        try:
-            gee_scale = gee_scale()
-        except TypeError:
-            # some mission classes expose gee_scale as an attribute
-            pass
-    if gee_scale is None:
-        gee_scale = 10
+    gee_scale = getattr(mission_info, "gee_scale", 10)
 
-    # Download selected images
     imagery_paths = []
-    # best may be a single ee.Image or a list/iterable of images; handle both
-    try:
-        iterable = list(best)
-    except TypeError:
-        iterable = [best]
+    aligned_cdl_paths = []
+
+    iterable = list(best) if isinstance(best, (list, tuple)) else [best]
 
     for img in iterable:
+        # 3) DOWNLOAD IMAGERY FIRST
         out_path = download_gee_multiband(
             image=img,
             mission=mission,
@@ -190,6 +157,30 @@ def download_cdl_and_imagery(
             scale=gee_scale,
         )
         imagery_paths.append(out_path)
-        print(f"[CDL->GEE] Wrote imagery to: {out_path}")
 
-    return {"cdl": str(cdl_path), "imagery": imagery_paths}
+        # 4) EXTRACT EXACT BOUNDS FROM THE SAVED TIF
+        # This ensures we request the CDL for the exact area Earth Engine delivered
+        with rasterio.open(out_path) as src:
+            # Transform imagery bounds back to WGS84 for the CDL API
+            exact_wgs_bounds = transform_bounds(src.crs, "EPSG:4326", *src.bounds)
+
+        # 5) DOWNLOAD CDL FOR THE EXACT BOUNDS
+        temp_cdl_path = mission_dir / f"temp_cdl_{Path(out_path).name}"
+        cdl_path = download_nass_cdl(
+            region=exact_wgs_bounds, year=year, output_path=temp_cdl_path
+        )
+
+        # 6) ALIGN
+        aligned_cdl_path = Path(out_path).with_name(
+            f"aligned_cdl_{Path(out_path).name}"
+        )
+        try:
+            align_cdl_to_imagery(cdl_path, out_path, aligned_cdl_path)
+            aligned_cdl_paths.append(str(aligned_cdl_path))
+            # Clean up temp file
+            if cdl_path.exists():
+                cdl_path.unlink()
+        except Exception as e:
+            print(f"[WARN] Alignment failed: {e}")
+
+    return {"cdl_aligned": aligned_cdl_paths, "imagery": imagery_paths}

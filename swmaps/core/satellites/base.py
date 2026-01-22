@@ -31,6 +31,10 @@ class Mission:
 
     # GEE-specific attributes
     @property
+    def gee_crs(self) -> str:
+        return "EPSG:32618"
+
+    @property
     def gee_collection(self) -> str:
         raise NotImplementedError
 

@@ -99,6 +99,7 @@ def get_best_image(collection: ee.ImageCollection, mission: str, samples: int):
     if size == 0:
         return None
 
+    # TODO: move to missions subclasses
     # Pick the correct cloud‐cover property based on the mission
     if mission.startswith("sentinel"):
         cloud_property = "CLOUDY_PIXEL_PERCENTAGE"
@@ -147,12 +148,16 @@ def download_gee_multiband(
     band_list = list(bands.values())
     region = ee.Geometry.BBox(*bbox)
 
-    clipped = image.select(band_list).clip(region)
+    clipped = image.select(band_list)
 
-    # Force consistent projection for Sentinel
-    if mission.startswith("sentinel"):
-        ref_proj = image.select(band_list[0]).projection()
-        clipped = clipped.reproject(crs=ref_proj, scale=scale)
+    mission_info = get_mission(mission)
+    ANALYSIS_CRS = mission_info.gee_crs
+
+    clipped = clipped.reproject(
+        crs=ANALYSIS_CRS,
+        scale=scale,
+    )
+    clipped = clipped.clip(region)
 
     # -------------------------------------------------
     # Size estimation
@@ -200,6 +205,7 @@ def download_gee_multiband(
             fileNamePrefix=out_path.stem,
             region=region,
             scale=scale,
+            crs=ANALYSIS_CRS,
             maxPixels=1e13,
         )
         task.start()
@@ -212,6 +218,7 @@ def download_gee_multiband(
     url = clipped.getDownloadURL(
         {
             "scale": scale,
+            "crs": ANALYSIS_CRS,
             "region": region,
             "format": "GEOTIFF",
             "filePerBand": False,
@@ -382,7 +389,7 @@ def download_matching_gee_images(
                 bands,
                 bbox,
                 mission_dir,
-                scale=get_mission(mission).gee_scale(),
+                scale=get_mission(mission).gee_scale,
             )
 
             seen[key] = path

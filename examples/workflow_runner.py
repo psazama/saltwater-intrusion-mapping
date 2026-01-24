@@ -18,6 +18,7 @@ from pathlib import Path
 from swmaps.config import data_path
 from swmaps.models.inference import run_segmentation
 from swmaps.models.salinity_heuristic import SalinityHeuristicModel
+from swmaps.models.train import train
 from swmaps.pipeline.download import download_cdl, download_data
 from swmaps.pipeline.masks import generate_masks
 from swmaps.pipeline.salinity import (
@@ -111,6 +112,52 @@ def main():
     # -----------------------------------------------------------
     # Step 2.5 — Segmentation
     # -----------------------------------------------------------
+    if cfg.get("train_segmentation", False):
+        logging.info("Preparing CDL labels and training FarSeg")
+
+        from swmaps.datasets.cdl import align_cdl_to_imagery
+        from swmaps.models.farseg import FarSegModel
+
+        # This identifies the "Master" CDL file downloaded in Step 2
+        master_cdl_path = Path(cfg.get("cdl_out"))
+
+        if not master_cdl_path.exists():
+            logging.error(
+                f"Master CDL not found at {master_cdl_path}. Cannot align labels."
+            )
+            return  # or raise error
+
+        download_dir = Path(cfg.get("out_dir", data_path("mosaics")))
+        mosaics = sorted(download_dir.rglob("*_multiband.tif"))
+
+        training_pairs = []
+
+        for mosaic in mosaics:
+            label_path = mosaic.with_name(f"aligned_cdl_{mosaic.name}")
+
+            if not label_path.exists():
+                logging.info(f"Generating aligned label for {mosaic.name}")
+                # We pass the master CDL as the source and the mosaic as the reference
+                align_cdl_to_imagery(master_cdl_path, mosaic, label_path)
+
+            training_pairs.append((mosaic, label_path))
+
+        if training_pairs:
+            seg_out = cfg.get("segmentation_out_dir", download_dir / "models")
+
+            farseg_model = FarSegModel(
+                num_classes=cfg.get("segmentation_num_classes", 16)
+            )
+
+            # Pass config kwargs like batch_size if they exist in your TOML
+            train(
+                model=farseg_model,
+                data_pairs=training_pairs,
+                out_dir=seg_out,
+                epochs=cfg.get("epochs", 50),
+                learning_rate=cfg.get("lr", 1e-4),
+                batch_size=cfg.get("batch_size", 4),
+            )
 
     if cfg.get("run_segmentation", False):
         logging.info("Running segmentation")

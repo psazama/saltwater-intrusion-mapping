@@ -26,7 +26,7 @@ cdl_year = 2019
 # Can be a path to a GeoJSON polygon, or bounds [xmin, ymin, xmax, ymax].
 # If not provided, the script falls back to latitude/longitude + cdl_buffer_km.
 # cdl_region = "config/choptank_river_region.geojson"
-cdl_out = "data/choptank_cdl_finetune/cdl/cdl_2019.tif"
+cdl_out = "/gcs/eo-ml-data/choptank_cdl_finetune/cdl/cdl_2019.tif"
 cdl_buffer_km = 10.0
 
 # -------------------------
@@ -45,14 +45,14 @@ cloud_filter  = 30         # maximum % cloud cover allowed
 days_before   = 30          # temporal window around each date
 days_after    = 30
 samples_per_date = 3       # Will try to get the 3 cleanest images for every date step
-out_dir       = "data/choptank_cdl_finetune"
+out_dir       = "/gcs/eo-ml-data/choptank_cdl_finetune"
 
 # -------------------------
 # Segmentation settings
 # -------------------------
 train_segmentation = true
 segmentation_num_classes = 256
-epochs = 100
+epochs = 1
 lr = 0.0001
-segmentation_out_dir = "data/choptank_cdl_finetune/models/farseg_v1"
+segmentation_out_dir = "/gcs/eo-ml-data/choptank_cdl_finetune/models/farseg_v1"
 

@@ -1,48 +1,47 @@
-import torch
-from torch.optim import Adam
-from torch.utils.data import DataLoader
+import logging
+from pathlib import Path
+from typing import Any, List, Tuple, Union
 
-from swmaps.models.dataset import SaltwaterSegDataset
-from swmaps.models.model_factory import get_model
+from swmaps.models.base import BaseSalinityModel, BaseSegModel
 
 
 def train(
-    train_samples,
-    val_samples,
-    num_classes,
-    epochs=20,
-    lr=1e-4,
-    model_name="farseg",
-):
-    # create datasets
-    train_ds = SaltwaterSegDataset(train_samples)
-    # val_ds = SaltwaterSegDataset(val_samples)
+    model: Union[BaseSegModel, BaseSalinityModel],
+    data_pairs: List[Tuple[Union[str, Path], Union[str, Path]]],
+    out_dir: Union[str, Path],
+    val_pairs: List[Tuple[Union[str, Path], Union[str, Path]]] = None,
+    **kwargs,
+) -> Any:
+    """
+    Generic training orchestrator.
 
-    train_loader = DataLoader(train_ds, batch_size=8, shuffle=True, num_workers=4)
-    # val_loader = DataLoader(val_ds, batch_size=8, shuffle=False, num_workers=4)
+    This function delegates the actual training process to the model's
+    internal 'train_model' implementation. This allows different architectures
+    (like FarSeg vs. Heuristics) to manage their own unique data loading
+    and loss requirements.
 
-    # model
-    model = get_model(model_name, num_classes=num_classes)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model.to(device)
+    Args:
+        model: An instance of a model inheriting from BaseSegModel or BaseSalinityModel.
+        data_pairs: List of (image_path, mask_path) for training.
+        out_dir: Directory where the model should save its results.
+        val_pairs: Optional list of (image_path, mask_path) for validation.
+        **kwargs: Arbitrary training parameters (epochs, lr, batch_size)
+                  passed from the TOML config.
+    """
+    logging.info(
+        f"Initializing training orchestrator for model: {model.__class__.__name__}"
+    )
 
-    optimizer = Adam(model.parameters(), lr=lr)
-    criterion = torch.nn.CrossEntropyLoss()
+    if not data_pairs:
+        logging.error("No training data pairs provided to the orchestrator.")
+        return None
 
-    for epoch in range(epochs):
-        model.train()
-        running_loss = 0.0
+    # Ensure output directory exists
+    out_path = Path(out_dir)
+    out_path.mkdir(parents=True, exist_ok=True)
 
-        for imgs, masks in train_loader:
-            imgs = imgs.to(device)
-            masks = masks.to(device)
-
-            optimizer.zero_grad()
-            outputs = model(imgs)
-            loss = criterion(outputs, masks)
-            loss.backward()
-            optimizer.step()
-
-            running_loss += loss.item()
-
-        print(f"Epoch {epoch} train loss: {running_loss / len(train_loader)}")
+    # Delegate to the model-specific training logic
+    # We pass val_pairs inside kwargs so the model can handle validation if it supports it
+    return model.train_model(
+        data_pairs=data_pairs, out_dir=out_path, val_pairs=val_pairs, **kwargs
+    )

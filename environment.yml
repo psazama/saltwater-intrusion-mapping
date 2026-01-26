@@ -191,6 +191,7 @@ dependencies:
   - ptyprocess=0.7.0
   - pure_eval=0.2.2
   - pycparser=2.21
+  - pydantic=2.11.7
   - pygments=2.19.1
   - pyogrio=0.10.0
   - pyparsing=3.2.3
@@ -292,16 +293,18 @@ dependencies:
       - mypy-extensions==1.1.0
       - narwhals==1.42.0
       - nodeenv==1.9.1
-      - nvidia-nccl-cu12==2.27.3
       - partd==1.4.2
       - pathspec==0.12.1
       - pipreqs==0.4.13
       - pre-commit==4.2.0
       - pyarrow==20.0.0
+      - pydantic-settings==2.10.1
       - ruff==0.11.13
       - sortedcontainers==2.4.0
       - tblib==3.1.0
       - toolz==1.0.0
+      - torch==2.9.0
+      - torchgeo==0.7.2
       - virtualenv==20.31.2
       - xarray==2025.4.0
       - xgboost==3.0.2

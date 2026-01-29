@@ -133,6 +133,8 @@ def main():
         training_pairs = []
 
         for mosaic in mosaics:
+            if "aligned_cdl" in str(mosaic):
+                continue
             label_path = mosaic.with_name(f"aligned_cdl_{mosaic.name}")
 
             if not label_path.exists():
@@ -146,7 +148,7 @@ def main():
             seg_out = cfg.get("segmentation_out_dir", download_dir / "models")
 
             farseg_model = FarSegModel(
-                num_classes=cfg.get("segmentation_num_classes", 16)
+                num_classes=cfg.get("segmentation_num_classes", 256)
             )
 
             # Pass config kwargs like batch_size if they exist in your TOML

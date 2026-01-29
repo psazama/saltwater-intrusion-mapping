@@ -92,7 +92,7 @@ class FarSegModel(BaseSegModel):
         """
         Executes the FarSeg-specific training loop.
         """
-        device = self.device
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.to(device)
 
         # 1. Prepare Data

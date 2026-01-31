@@ -109,6 +109,17 @@ def main():
         download_cdl(cfg)
         logging.info("CDL download step complete")
 
+    if cfg.get("do_val", False):
+        logging.info("Downloading Validation imagery")
+        print("Downloading Validation imagery")
+        val_download_results = download_data(cfg, val=True)
+        logging.info(f"Download step complete: {len(val_download_results)} files")
+
+        if cfg.get("download_cdl", False):
+            logging.info("Downloading Validation CDL as requested by config")
+            download_cdl(cfg, val=True)
+            logging.info("Validation CDL download step complete")
+
     # -----------------------------------------------------------
     # Step 2.5 — Segmentation
     # -----------------------------------------------------------
@@ -118,14 +129,13 @@ def main():
         from swmaps.datasets.cdl import align_cdl_to_imagery
         from swmaps.models.farseg import FarSegModel
 
-        # This identifies the "Master" CDL file downloaded in Step 2
         master_cdl_path = Path(cfg.get("cdl_out"))
 
         if not master_cdl_path.exists():
             logging.error(
                 f"Master CDL not found at {master_cdl_path}. Cannot align labels."
             )
-            return  # or raise error
+            return
 
         download_dir = Path(cfg.get("out_dir", data_path("mosaics")))
         mosaics = sorted(download_dir.rglob("*_multiband.tif"))
@@ -139,26 +149,50 @@ def main():
 
             if not label_path.exists():
                 logging.info(f"Generating aligned label for {mosaic.name}")
-                # We pass the master CDL as the source and the mosaic as the reference
                 align_cdl_to_imagery(master_cdl_path, mosaic, label_path)
 
             training_pairs.append((mosaic, label_path))
 
+        validation_pairs = None
+        if cfg.get("do_val", False):
+            val_download_dir = Path(cfg.get("val_dir"))
+            val_mosaics = sorted(val_download_dir.rglob("*_multiband.tif"))
+            validation_pairs = []
+
+            master_val_cdl_path = Path(cfg.get("val_cdl_out"))
+            if not master_val_cdl_path.exists():
+                logging.error(
+                    f"Master CDL not found at {master_val_cdl_path}. Cannot align labels."
+                )
+                return
+
+            for mosaic in val_mosaics:
+                if "aligned_cdl" in str(mosaic):
+                    continue
+                label_path = mosaic.with_name(f"aligned_cdl_{mosaic.name}")
+
+                if not label_path.exists():
+                    logging.info(f"Generating aligned label for {mosaic.name}")
+                    align_cdl_to_imagery(master_val_cdl_path, mosaic, label_path)
+
+                validation_pairs.append((mosaic, label_path))
+
         if training_pairs:
-            seg_out = cfg.get("segmentation_out_dir", download_dir / "models")
+            seg_model_dir = Path(cfg["segmentation_model_dir"])
+            seg_model_dir.mkdir(parents=True, exist_ok=True)
 
             farseg_model = FarSegModel(
                 num_classes=cfg.get("segmentation_num_classes", 256)
             )
 
-            # Pass config kwargs like batch_size if they exist in your TOML
             train(
                 model=farseg_model,
                 data_pairs=training_pairs,
-                out_dir=seg_out,
+                out_dir=seg_model_dir,
                 epochs=cfg.get("epochs", 50),
                 learning_rate=cfg.get("lr", 1e-4),
                 batch_size=cfg.get("batch_size", 4),
+                val_pairs=validation_pairs,
             )
 
     if cfg.get("run_segmentation", False):
@@ -166,16 +200,19 @@ def main():
 
         download_dir = Path(cfg.get("out_dir", data_path("mosaics")))
         mosaics = sorted(download_dir.rglob("*_multiband.tif"))
+        mosaics = [m for m in mosaics if "aligned_cdl" not in str(m)]
 
         if not mosaics:
             logging.warning("No mosaics found for segmentation")
         else:
-            seg_out = cfg.get("segmentation_out_dir", download_dir / "segmentation")
+            seg_out = Path(cfg["segmentation_out_dir"])
+            seg_out.mkdir(parents=True, exist_ok=True)
 
             run_segmentation(
                 mosaics=mosaics,
                 out_dir=seg_out,
-                num_classes=cfg.get("segmentation_num_classes", 2),
+                model_name=cfg.get("segmentation_model", "farseg"),
+                weights_path=cfg.get("segmentation_weights_path"),
                 save_png=bool(cfg.get("segmentation_png", False)),
             )
 

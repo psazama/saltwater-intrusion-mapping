@@ -1,16 +1,16 @@
 """Utilities for downloading CDL land-cover products."""
 
-import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Sequence, Union
 
-import pyproj
-import requests
+import ee
+import geemap
 import rioxarray
 from PIL import Image
 from rasterio.enums import Resampling
-from shapely.geometry import MultiPolygon, Polygon, box
-from shapely.ops import transform
+from shapely.geometry import MultiPolygon, Polygon, box, mapping
+
+from swmaps.core.satellite_query import initialize_ee
 
 
 def align_cdl_to_imagery(cdl_path, imagery_path, output_path):
@@ -31,61 +31,50 @@ def download_nass_cdl(
     overwrite: bool = False,
     save_png: bool = True,
 ) -> Path | None:
-    """Download the USDA NASS Cropland Data Layer for the provided region.
+    """Download the USDA NASS Cropland Data Layer for the provided region using GEE.
 
     Args:
-        region (Sequence[float] | Polygon | MultiPolygon): AOI in WGS84
-            coordinates.
-        year (int): Target CDL year.
-        output_path (Union[str, Path] | None): Optional destination path.
-        overwrite (bool): Placeholder argument for compatibility.
+        region: AOI in WGS84 coordinates.
+        year: Target CDL year.
+        output_path: Optional destination path.
+        overwrite: Placeholder argument for compatibility.
 
     Returns:
-        Path | None: Path to the downloaded CDL raster, or ``None`` if the
-        download fails.
+        Path | None: Path to the downloaded CDL raster.
     """
-    cdl_url = "https://nassgeodata.gmu.edu/axis2/services/CDLService/GetCDLFile"
-
-    proj_wgs84 = pyproj.CRS("EPSG:4326")
-    proj_albers = pyproj.CRS("EPSG:5070")
-    transformer = pyproj.Transformer.from_crs(
-        proj_wgs84, proj_albers, always_xy=True
-    ).transform
-
-    # bounds should be xmin, ymin, xmax, ymax
-    if isinstance(region, (Polygon, MultiPolygon)):
-        region = transform(transformer, region)
-        bounds = region.bounds
-    else:
-        region = box(*region)
-        region = transform(transformer, region)
-        bounds = region.bounds
-    bbox_str = ",".join(map(str, bounds))
-
-    params = {"year": str(year), "bbox": bbox_str, "epsg": "5070"}
+    initialize_ee()
 
     if output_path is None:
         output_path = Path(f"cdl_{year}.tif")
     else:
         output_path = Path(output_path)
 
-    resp = requests.get(cdl_url, params=params, stream=True)
-    resp.raise_for_status()
+    if output_path.exists() and not overwrite:
+        return output_path
 
-    root = ET.fromstring(resp.content)
-    download_url = root.find(".//returnURL").text
-    print("Download URL:", download_url)
+    # Normalize region to shapely geometry
+    if isinstance(region, (Polygon, MultiPolygon)):
+        geom = region
+    else:
+        geom = box(*region)
 
-    tif_resp = requests.get(download_url, stream=True)
-    tif_resp.raise_for_status()
+    # Convert shapely -> ee.Geometry
+    ee_geom = ee.Geometry(mapping(geom))
 
-    with open(output_path, "wb") as f:
-        for chunk in tif_resp.iter_content(chunk_size=8192):
-            f.write(chunk)
+    # Load CDL image
+    cdl = ee.Image("USDA/NASS/CDL/" + str(year)).select("cropland").clip(ee_geom)
+
+    # Native CDL projection is already EPSG:5070
+    geemap.ee_export_image(
+        cdl,
+        filename=str(output_path),
+        scale=30,
+        region=ee_geom,
+        file_per_band=False,
+    )
 
     if save_png:
         png_output_path = output_path.with_suffix(".png")
-
         with Image.open(output_path) as img:
             img.save(png_output_path, format="PNG")
 

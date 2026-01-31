@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import numpy as np
 import rasterio
 import torch
 import torch.nn.functional as F
@@ -70,6 +71,8 @@ class FarSegModel(BaseSegModel):
             backbone_pretrained=backbone_pretrained,
         )
 
+        self.backbone = backbone
+
         # If input channels != 3, we must replace the first conv layer
         if in_channels != 3:
             # For ResNet backbones, the first layer is usually self.model.backbone.conv1
@@ -86,48 +89,135 @@ class FarSegModel(BaseSegModel):
     def forward(self, x):
         return self.model(x)
 
+    def _calculate_miou(self, conf_matrix):
+        """Calculates Mean IoU from a confusion matrix, ignoring classes with no samples."""
+        intersection = np.diag(conf_matrix)
+        union = np.sum(conf_matrix, axis=1) + np.sum(conf_matrix, axis=0) - intersection
+
+        # Avoid division by zero
+        mask = union > 0
+        iou = intersection[mask] / union[mask]
+        return np.mean(iou) if len(iou) > 0 else 0.0
+
+    def _save_checkpoint(self, out_dir, filename):
+        """Helper to save the model state."""
+        out_path = Path(out_dir) / filename
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(
+            {
+                "model_type": "farseg",
+                "model_kwargs": {
+                    "num_classes": self.num_classes,
+                    "backbone": self.backbone,
+                    "in_channels": self.model.backbone.conv1.in_channels,
+                },
+                "state_dict": self.state_dict(),
+            },
+            out_path,
+        )
+        print(f"Model saved to {out_path}")
+
     def train_model(
-        self, data_pairs, out_dir, epochs=10, batch_size=4, lr=1e-4, **kwargs
+        self,
+        data_pairs,
+        out_dir,
+        epochs=10,
+        batch_size=4,
+        lr=1e-4,
+        val_pairs=None,
+        **kwargs,
     ):
-        """
-        Executes the FarSeg-specific training loop.
-        """
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.to(device)
+        num_classes = self.num_classes
 
-        # 1. Prepare Data
-        dataset = FarSegDataset(data_pairs)
-        loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+        # 1. Prepare Data Loaders
+        train_loader = DataLoader(
+            FarSegDataset(data_pairs), batch_size=batch_size, shuffle=True
+        )
+        val_loader = (
+            DataLoader(FarSegDataset(val_pairs), batch_size=batch_size)
+            if val_pairs
+            else None
+        )
 
-        # 2. Setup Optimizer & Loss
-        # FarSeg benefits from Adam or SGD with momentum
         optimizer = optim.Adam(self.parameters(), lr=lr)
-
-        # Standard CrossEntropy is used, but FarSeg's internal
-        # Relation-aware module handles the 'far-field' context during forward()
         criterion = nn.CrossEntropyLoss(ignore_index=255)
 
-        print(f"Starting FarSeg training on {device}...")
+        print(f"Starting FarSeg training on {device} with {num_classes} classes...")
+        best_miou = 0.0
 
-        self.train()
-        for epoch in tqdm(range(epochs)):
-            epoch_loss = 0.0
-            for images, masks in loader:
+        for epoch in range(epochs):
+            # --- TRAINING PHASE ---
+            self.train()
+            train_loss = 0.0
+            train_conf_matrix = np.zeros((num_classes, num_classes))
+
+            pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs} [Train]")
+            for images, masks in pbar:
                 images, masks = images.to(device), masks.to(device)
 
                 optimizer.zero_grad()
                 outputs = self.forward(images)
-
                 loss = criterion(outputs, masks)
                 loss.backward()
                 optimizer.step()
 
-                epoch_loss += loss.item()
+                train_loss += loss.item()
 
-            print(f"Epoch {epoch+1}/{epochs} - Loss: {epoch_loss/len(loader):.4f}")
+                # Metrics update
+                preds = torch.argmax(outputs, dim=1).detach().cpu().numpy()
+                targets = masks.detach().cpu().numpy()
+                valid = (targets >= 0) & (targets < num_classes)
+                # Compute histogram for confusion matrix
+                train_conf_matrix += np.bincount(
+                    num_classes * targets[valid].astype(int) + preds[valid],
+                    minlength=num_classes**2,
+                ).reshape(num_classes, num_classes)
 
-        # 3. Save weights
-        out_path = Path(out_dir) / "farseg_final.pth"
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        torch.save(self.state_dict(), out_path)
-        print(f"Model saved to {out_path}")
+            avg_train_loss = train_loss / len(train_loader)
+            train_miou = self._calculate_miou(train_conf_matrix)
+
+            # --- VALIDATION PHASE ---
+            avg_val_loss = None
+            val_miou = None
+
+            if val_loader:
+                self.eval()
+                val_loss = 0.0
+                val_conf_matrix = np.zeros((num_classes, num_classes))
+
+                with torch.no_grad():
+                    for v_images, v_masks in tqdm(
+                        val_loader, desc=f"Epoch {epoch+1} [Val]", leave=False
+                    ):
+                        v_images, v_masks = v_images.to(device), v_masks.to(device)
+                        v_outputs = self.forward(v_images)
+                        val_loss += criterion(v_outputs, v_masks).item()
+
+                        v_preds = torch.argmax(v_outputs, dim=1).cpu().numpy()
+                        v_targets = v_masks.cpu().numpy()
+                        v_valid = (v_targets >= 0) & (v_targets < num_classes)
+                        val_conf_matrix += np.bincount(
+                            num_classes * v_targets[v_valid].astype(int)
+                            + v_preds[v_valid],
+                            minlength=num_classes**2,
+                        ).reshape(num_classes, num_classes)
+
+                avg_val_loss = val_loss / len(val_loader)
+                val_miou = self._calculate_miou(val_conf_matrix)
+
+            # --- LOGGING ---
+            print(f"\n--- Epoch {epoch+1} Summary ---")
+            print(f"TRAIN | Loss: {avg_train_loss:.4f} | mIoU: {train_miou:.4f}")
+
+            if val_loader:
+                print(f"VAL   | Loss: {avg_val_loss:.4f} | mIoU: {val_miou:.4f}")
+                # Save best based on Val mIoU (usually more meaningful than loss)
+                if val_miou > best_miou:
+                    best_miou = val_miou
+                    self._save_checkpoint(out_dir, "farseg_best.pth")
+                    print(f"*** New Best mIoU: {val_miou:.4f}! Saved checkpoint. ***")
+
+        self._save_checkpoint(out_dir, "farseg_final.pth")
+        return out_dir

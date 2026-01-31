@@ -10,49 +10,89 @@ from swmaps.core.missions import get_mission
 
 def mission_from_path(path: str) -> str:
     p = Path(path)
-    parent = p.parent.name
-    if parent in ("sentinel-2", "landsat-5", "landsat-7"):
-        return parent
+    # Check parents or stem for mission keywords
+    parts = [p.parent.name.lower(), p.stem.lower()]
+    for part in parts:
+        if "sentinel-2" in part:
+            return "sentinel-2"
+        if "landsat-5" in part:
+            return "landsat-5"
+        if "landsat-7" in part:
+            return "landsat-7"
+        if "landsat-8" in part:
+            return "landsat-8"
+
+    # Fallback to splitting stem
     return p.stem.split("_")[0]
 
 
-class SaltwaterSegDataset(Dataset):
+class SegDataset(Dataset):
     def __init__(self, samples, crop_size=512, inference_only=False):
         """
         samples: list of dicts with "image_path" and possibly "mask_path"
-        crop_size: desired H and W for model input
+        crop_size: desired H and W for model input (must be multiple of 32 for FarSeg)
         """
         self.samples = samples
         self.crop_size = crop_size
         self.inference_only = inference_only
 
+        # Auto-infer channel count from the first sample
+        if len(samples) > 0:
+            with rasterio.open(samples[0]["image_path"]) as src:
+                self.in_channels = src.count
+        else:
+            self.in_channels = 3
+
     def __len__(self):
         return len(self.samples)
 
-    def _read_rgb(self, image_path):
-        mission = mission_from_path(image_path)
-        band_index = get_mission(mission).band_indices()
-
-        rgb_bands = [
-            band_index["red"],
-            band_index["green"],
-            band_index["blue"],
-        ]
-
+    def _read_image(self, image_path):
+        """
+        Reads the number of bands inferred during initialization.
+        """
         with rasterio.open(image_path) as src:
-            arr = src.read(rgb_bands).astype("float32")
+            # If it's a 3-band model, we ensure RGB order via mission logic
+            if self.in_channels == 3 and src.count >= 3:
+                mission_name = mission_from_path(image_path)
+                try:
+                    band_index = get_mission(mission_name).band_indices()
+                    indices = [
+                        band_index["red"],
+                        band_index["green"],
+                        band_index["blue"],
+                    ]
+                except (KeyError, ValueError):
+                    # Fallback to first 3 bands if mission lookup fails
+                    indices = [1, 2, 3]
+            else:
+                # For FarSeg/Multiband, read all inferred channels
+                indices = list(range(1, self.in_channels + 1))
+
+            # Safety check: don't request more bands than the file actually has
+            indices = [i for i in indices if i <= src.count]
+
+            arr = src.read(indices).astype("float32")
+
+            # Scale to [0, 1]
+            if arr.max() > 1.0:
+                arr /= 65535.0 if src.dtypes[0] == "uint16" else 255.0
 
         return arr
 
     def _crop_center(self, arr):
         """
-        Center‑crop a NumPy array to self.crop_size.
+        Center-crops or pads a NumPy array to self.crop_size.
+        Handles both 3D (C, H, W) and 2D (H, W) arrays.
         """
-        _, h, w = arr.shape
+        is_2d = arr.ndim == 2
+        if is_2d:
+            arr = arr[np.newaxis, ...]
+
+        c, h, w = arr.shape
         ch = self.crop_size
 
+        # Padding if the image is smaller than the crop_size
         if h < ch or w < ch:
-            # pad if smaller than requested
             pad_h = max(0, ch - h)
             pad_w = max(0, ch - w)
             arr = np.pad(
@@ -64,29 +104,36 @@ class SaltwaterSegDataset(Dataset):
                 ),
                 mode="reflect",
             )
-            h, w = arr.shape[1:]
+            _, h, w = arr.shape
 
-        # calculate crop corners
+        # Calculate crop corners
         top = (h - ch) // 2
         left = (w - ch) // 2
-        return arr[:, top : top + ch, left : left + ch]
+        cropped = arr[:, top : top + ch, left : left + ch]
+
+        return cropped[0] if is_2d else cropped
 
     def __getitem__(self, idx):
         s = self.samples[idx]
         image_path = s["image_path"]
 
-        # read the RGB and crop
-        image_arr = self._read_rgb(image_path)
+        # Read and process image
+        image_arr = self._read_image(image_path)
         image_arr = self._crop_center(image_arr)
-
         image = torch.from_numpy(image_arr)
 
         if self.inference_only:
-            dummy_mask = torch.zeros(1, dtype=torch.int64)
+            # FarSeg expects a mask in the training loop, so we return a dummy
+            # during inference to keep the loader consistent
+            dummy_mask = torch.zeros(
+                (self.crop_size, self.crop_size), dtype=torch.int64
+            )
             return image, dummy_mask
 
+        # Read and process mask
         with rasterio.open(s["mask_path"]) as src:
             mask_arr = src.read(1).astype("int64")
-        mask_arr = self._crop_center(mask_arr[np.newaxis, ...])[0]
+
+        mask_arr = self._crop_center(mask_arr)
 
         return image, torch.from_numpy(mask_arr)

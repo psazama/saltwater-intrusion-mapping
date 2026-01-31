@@ -45,14 +45,31 @@ cloud_filter  = 30         # maximum % cloud cover allowed
 days_before   = 30          # temporal window around each date
 days_after    = 30
 samples_per_date = 3       # Will try to get the 3 cleanest images for every date step
-out_dir       = "/gcs/eo-ml-data/choptank_cdl_finetune"
+out_dir       = "/gcs/eo-ml-data/choptank_cdl_finetune/mosaics"
 
 # -------------------------
 # Segmentation settings
 # -------------------------
+# training
 train_segmentation = true
 segmentation_num_classes = 256
 epochs = 500
 lr = 0.0001
-segmentation_out_dir = "/gcs/eo-ml-data/choptank_cdl_finetune/models/farseg_v1"
+segmentation_model_dir = "/gcs/eo-ml-data/choptank_cdl_finetune/models/farseg_v1"
+
+# validation
+do_val = true
+val_start_date = "1999-04-01"
+val_end_date   = "2000-04-10"
+val_date_step = 120
+val_latitude  = 38.32
+val_longitude = -75.85
+val_dir       = "/gcs/eo-ml-data/choptank_cdl_finetune/validation"
+val_cdl_out = "/gcs/eo-ml-data/choptank_cdl_finetune/cdl/val_cdl_2019.tif"
+
+# inference
+run_segmentation = true
+segmentation_weights_path = "/gcs/eo-ml-data/choptank_cdl_finetune/models/farseg_v1/farseg_final.pth"
+segmentation_out_dir = "/gcs/eo-ml-data/choptank_cdl_finetune/segmentation/farseg_v1"
+segmentation_png = true
 

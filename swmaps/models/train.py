@@ -36,12 +36,9 @@ def train(
         logging.error("No training data pairs provided to the orchestrator.")
         return None
 
-    # Ensure output directory exists
     out_path = Path(out_dir)
     out_path.mkdir(parents=True, exist_ok=True)
 
-    # Delegate to the model-specific training logic
-    # We pass val_pairs inside kwargs so the model can handle validation if it supports it
     return model.train_model(
         data_pairs=data_pairs, out_dir=out_path, val_pairs=val_pairs, **kwargs
     )

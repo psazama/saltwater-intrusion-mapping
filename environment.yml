@@ -285,6 +285,7 @@ dependencies:
       - docopt==0.6.2
       - filelock==3.18.0
       - fsspec==2025.5.1
+      - geemap==0.37.1
       - identify==2.6.12
       - isort==6.0.1
       - locket==1.0.0

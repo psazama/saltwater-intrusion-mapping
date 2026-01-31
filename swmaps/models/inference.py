@@ -3,8 +3,9 @@ from pathlib import Path
 import torch
 from torch.utils.data import DataLoader
 
-from swmaps.models.dataset import SaltwaterSegDataset
-from swmaps.models.model_factory import get_model
+from swmaps.models.dataset import SegDataset
+from swmaps.models.farseg import FarSegModel
+from swmaps.models.model_factory import MODEL_REGISTRY, get_model
 
 
 def _write_mask_like(ref_raster, mask_tensor, out_path):
@@ -48,7 +49,6 @@ def run_segmentation(
     mosaics,
     out_dir,
     model_name="farseg",
-    num_classes=2,
     batch_size=4,
     save_png=False,
     weights_path=None,
@@ -56,20 +56,35 @@ def run_segmentation(
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     # 1. Load the Model via Factory
-    model = get_model(model_name, num_classes=num_classes)
+    if model_name == "farseg":
+        model = FarSegModel()
+    else:
+        model = get_model(model_name)
 
     # 2. Load Weights if provided
     if weights_path:
-        model.load_state_dict(torch.load(weights_path))
+        ckpt = torch.load(weights_path, map_location=device)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        model_type = ckpt["model_type"]
+        model_kwargs = ckpt["model_kwargs"]
+
+        if model_type not in MODEL_REGISTRY:
+            raise ValueError(f"Unknown model type: {model_type}")
+
+        model_cls = MODEL_REGISTRY[model_type]
+        model = model_cls(**model_kwargs)
+
+        model.load_state_dict(ckpt["state_dict"])
+
     model.to(device)
     model.eval()
 
     # 3. Use the existing Dataset loader
     samples = [{"image_path": p, "mask_path": None} for p in mosaics]
-    dataset = SaltwaterSegDataset(samples, inference_only=True)
+    dataset = SegDataset(samples, inference_only=True)
     loader = DataLoader(dataset, batch_size=batch_size)
 
     # 4. Run Inference using the model's internal predict()

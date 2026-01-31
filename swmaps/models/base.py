@@ -10,9 +10,6 @@ class BaseSegModel(nn.Module):
         super().__init__()
         self.num_classes = num_classes
 
-    def forward(self, x):
-        raise NotImplementedError
-
     def train_model(
         self,
         data_pairs: List[Tuple[Union[str, Path], Union[str, Path]]],

@@ -27,7 +27,7 @@ def _daterange(start: datetime, end: datetime, step_days: int = 1):
 # ---------------------------------------------------------------------
 
 
-def download_data(cfg: dict):
+def download_data(cfg: dict, val=False):
     """
     Main entry point used by `examples/workflow_runner.py`.
 
@@ -47,14 +47,25 @@ def download_data(cfg: dict):
     # -------------------------------------------------------
     # Extract config values
     # -------------------------------------------------------
-    start_date = datetime.fromisoformat(cfg["start_date"])
-    end_date = datetime.fromisoformat(cfg["end_date"])
-    date_step = cfg.get("date_step", 1)
+    if not val:
+        start_date = datetime.fromisoformat(cfg["start_date"])
+        end_date = datetime.fromisoformat(cfg["end_date"])
+        date_step = cfg.get("date_step", 1)
+        lat = cfg["latitude"]
+        lon = cfg["longitude"]
+        out_dir = cfg.get("out_dir")
+    else:
+        start_date = datetime.fromisoformat(cfg["val_start_date"])
+        end_date = datetime.fromisoformat(cfg["val_end_date"])
+        date_step = cfg.get("val_date_step", 1)
+        lat = cfg["val_latitude"]
+        lon = cfg["val_longitude"]
+        out_dir = cfg.get("val_dir")
+
     samples_per_date = cfg.get("samples_per_date", 1)
-    lat = cfg["latitude"]
-    lon = cfg["longitude"]
     missions_cfg = cfg.get("mission", "sentinel-2")
     save_png = bool(cfg.get("save_png", False))
+
     if isinstance(missions_cfg, (list, tuple)):
         mission_list = list(missions_cfg)
     else:
@@ -64,7 +75,6 @@ def download_data(cfg: dict):
         else:
             mission_list = [missions_cfg]
 
-    out_dir = cfg.get("out_dir")
     if out_dir is None:
         out_dir = data_path("downloads")
 
@@ -139,7 +149,7 @@ def download_data(cfg: dict):
 # ---------------------------------------------------------------------
 # CDL helper: add CDL download support via config
 # ---------------------------------------------------------------------
-def download_cdl(cfg: dict):
+def download_cdl(cfg: dict, val=False):
     """
     If config contains download_cdl = true, download the USDA NASS CDL for
     the requested region/year and save to cdl_out (or cwd).
@@ -147,9 +157,12 @@ def download_cdl(cfg: dict):
     if not cfg.get("download_cdl", False):
         return None
 
-    cdl_out = cfg.get("cdl_out")
-    if cdl_out is None:
-        cdl_out = data_path("downloads")
+    if not val:
+        cdl_out = cfg.get("cdl_out")
+        if cdl_out is None:
+            cdl_out = data_path("downloads")
+    else:
+        cdl_out = cfg.get("val_cdl_out")
 
     cdl_out = Path(cdl_out)
     cdl_out.parent.mkdir(parents=True, exist_ok=True)
@@ -164,7 +177,10 @@ def download_cdl(cfg: dict):
     #  - path to GeoJSON (string)
     #  - bounds sequence: [xmin, ymin, xmax, ymax]
     #  - else fallback to center latitude/longitude + buffer (km)
-    region_cfg = cfg.get("cdl_region", cfg.get("region", None))
+    if not val:
+        region_cfg = cfg.get("cdl_region", cfg.get("region", None))
+    else:
+        region_cfg = cfg.get("val_cdl_region", cfg.get("val_region", None))
 
     region = None
     if isinstance(region_cfg, str) and Path(region_cfg).exists():
@@ -173,8 +189,12 @@ def download_cdl(cfg: dict):
     elif isinstance(region_cfg, (list, tuple)) and len(region_cfg) == 4:
         region = region_cfg  # pass bounds through
     else:
-        lat = cfg.get("latitude")
-        lon = cfg.get("longitude")
+        if not val:
+            lat = cfg.get("latitude")
+            lon = cfg.get("longitude")
+        else:
+            lat = cfg.get("val_latitude")
+            lon = cfg.get("val_longitude")
         if lat is None or lon is None:
             raise ValueError(
                 "download_cdl requested but no cdl_region/path and no latitude/longitude in config"

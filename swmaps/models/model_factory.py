@@ -5,6 +5,10 @@ from swmaps.models.salinity_heuristic import SalinityHeuristicModel
 
 # Import other models as you add them
 
+MODEL_REGISTRY = {
+    "farseg": FarSegModel,
+}
+
 
 def get_model(model_name: str, **kwargs) -> Union[FarSegModel, SalinityHeuristicModel]:
     """

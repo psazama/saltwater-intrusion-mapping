@@ -14,8 +14,8 @@ date_step = 120
 # -------------------------
 # Center coordinate where imagery will be clipped.
 # Choptank River watershed example:
-latitude  = 38.75
-longitude = -75.95
+latitude  = [38.75, 38.93, 38.05]
+longitude = [-75.95, -76.16, -75.74]
 
 # -------------------------
 # CDL download options
@@ -26,7 +26,6 @@ cdl_year = 2019
 # Can be a path to a GeoJSON polygon, or bounds [xmin, ymin, xmax, ymax].
 # If not provided, the script falls back to latitude/longitude + cdl_buffer_km.
 # cdl_region = "config/choptank_river_region.geojson"
-cdl_out = "data/choptank_cdl_finetune/cdl/cdl_2019.tif"
 cdl_buffer_km = 10.0
 
 # -------------------------
@@ -53,7 +52,7 @@ out_dir       = "data/choptank_cdl_finetune/mosaics"
 # training
 train_segmentation = true
 segmentation_num_classes = 256
-epochs = 1
+epochs = 3
 lr = 0.0001
 segmentation_model_dir = "data/choptank_cdl_finetune/models/farseg_v1"
 

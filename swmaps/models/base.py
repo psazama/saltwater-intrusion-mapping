@@ -14,17 +14,13 @@ class BaseSegModel(nn.Module):
         self,
         data_pairs: List[Tuple[Union[str, Path], Union[str, Path]]],
         out_dir: Union[str, Path],
+        label_map: dict = None,  # Added this
+        val_pairs: List[Tuple[Union[str, Path], Union[str, Path]]] = None,  # Added this
         **kwargs
     ):
         """
         Abstract training method.
-        Specific models (like FarSeg) must override this to handle their
-        own specific loss functions, dataloaders, and hyperparameters.
-
-        Args:
-            data_pairs: List of (image_path, mask_path) tuples.
-            out_dir: Directory to save weights and logs.
-            **kwargs: Flexible arguments for epochs, lr, batch_size, etc.
+        Specific models (like FarSeg) must override this.
         """
         raise NotImplementedError(
             "This model does not implement a custom training loop."

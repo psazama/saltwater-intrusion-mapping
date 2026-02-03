@@ -12,6 +12,64 @@ from shapely.geometry import MultiPolygon, Polygon, box, mapping
 
 from swmaps.core.satellite_query import initialize_ee
 
+CDL_TO_SUPERCLASS = {
+    # 0: Background
+    81: 0,
+    255: 0,
+    # 1: Crops (Broad range)
+    **{i: 1 for i in range(1, 61)},
+    **{i: 1 for i in range(66, 78)},
+    **{i: 1 for i in range(204, 255)},
+    # 2: Fallow
+    61: 2,
+    # 3: Grassland
+    62: 3,
+    176: 3,
+    # 4: Forest
+    63: 4,
+    141: 4,
+    142: 4,
+    143: 4,
+    # 5: Shrubland
+    64: 5,
+    152: 5,
+    # 6: Barren
+    65: 6,
+    131: 6,
+    # 7: Water
+    82: 7,
+    111: 7,
+    112: 7,
+    92: 7,
+    # 8: Wetlands
+    83: 8,
+    190: 8,
+    195: 8,
+    # 9: Developed
+    84: 9,
+    85: 9,
+    86: 9,
+    87: 9,
+    88: 9,
+    121: 9,
+    122: 9,
+    123: 9,
+    124: 9,
+}
+
+
+def remap_labels(mask_array):
+    """
+    Apply the mapping to a NumPy array.
+    Any ID not in the map defaults to 0.
+    """
+    import numpy as np
+
+    new_mask = np.zeros_like(mask_array)
+    for cdl_id, super_id in CDL_TO_SUPERCLASS.items():
+        new_mask[mask_array == cdl_id] = super_id
+    return new_mask
+
 
 def align_cdl_to_imagery(cdl_path, imagery_path, output_path):
     imagery = rioxarray.open_rasterio(imagery_path)

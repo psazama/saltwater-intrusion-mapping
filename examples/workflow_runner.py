@@ -7,11 +7,12 @@ Updated: Site-specific subdirectories (1, 2, 3...) and global validation.
 
 import argparse
 import logging
+import shutil
 import tomllib
 from pathlib import Path
 
 from swmaps.config import data_path
-from swmaps.datasets.cdl import CDL_TO_SUPERCLASS
+from swmaps.datasets.cdl import CDL_TO_BINARY_CLASS
 from swmaps.models.inference import run_segmentation
 from swmaps.models.salinity_heuristic import SalinityHeuristicModel
 from swmaps.pipeline.download import download_cdl, download_data
@@ -49,6 +50,19 @@ def main():
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
     )
+
+    for dir_str in [
+        "out_dir",
+        "segmentation_model_dir",
+        "val_dir",
+        "val_cdl_out",
+        "segmentation_weights_path",
+        "segmentation_out_dir",
+    ]:
+        path = Path(cfg.get(dir_str, None))
+        if path.exists() and path.is_dir():
+            logging.info(f"Clearing existing data in: {path}")
+            shutil.rmtree(path)
 
     base_out_dir = Path(cfg.get("out_dir", data_path("mosaics")))
     base_out_dir.mkdir(parents=True, exist_ok=True)
@@ -167,7 +181,7 @@ def main():
             farseg_model.train_model(
                 data_pairs=training_pairs,
                 out_dir=seg_model_dir,
-                label_map=CDL_TO_SUPERCLASS,  # Make sure this is imported
+                label_map=CDL_TO_BINARY_CLASS,
                 val_pairs=validation_pairs if validation_pairs else None,
                 epochs=cfg.get("epochs", 50),
                 lr=cfg.get("lr", 1e-4),

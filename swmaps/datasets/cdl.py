@@ -12,6 +12,24 @@ from shapely.geometry import MultiPolygon, Polygon, box, mapping
 
 from swmaps.core.satellite_query import initialize_ee
 
+# Refined Binary Mapping: 0 = Non-Vegetated/Water, 1 = Vegetated
+CDL_TO_BINARY_CLASS = {
+    # --- CLASS 0: Non-Vegetated / Water / Developed ---
+    **{i: 0 for i in [81, 82, 111, 112, 92]},  # Clouds & Open Water
+    **{i: 0 for i in [83, 190, 195]},  # Wetlands (often saturated/water-dominant)
+    **{i: 0 for i in [84, 85, 86, 87, 88]},  # Developed/Urban
+    **{i: 0 for i in [121, 122, 123, 124]},  # Developed/Infrastructure
+    **{i: 0 for i in [65, 131]},  # Barren/Salt Flats
+    255: 0,  # Background/No Data
+    # --- CLASS 1: Vegetated (Crops, Forest, Grass) ---
+    **{i: 1 for i in range(1, 61)},  # All Primary Crops
+    **{i: 1 for i in range(66, 78)},  # Specialty Crops/Orchards
+    **{i: 1 for i in range(204, 255)},  # Double Crops/Misc
+    **{i: 1 for i in [61, 62, 176]},  # Fallow & Grassland
+    **{i: 1 for i in [63, 141, 142, 143]},  # Forests
+    **{i: 1 for i in [64, 152]},  # Shrubland
+}
+
 CDL_TO_SUPERCLASS = {
     # 0: Background
     81: 0,

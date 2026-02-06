@@ -1,10 +1,11 @@
 import json
 from pathlib import Path
 
+import albumentations as A
 import numpy as np
 import rasterio
 import torch
-import torch.nn.functional as F
+from albumentations.pytorch import ToTensorV2
 from torch import nn, optim
 from torch.utils.data import DataLoader, Dataset
 from torchgeo.models import FarSeg
@@ -14,12 +15,19 @@ from swmaps.models.base import BaseSegModel
 
 
 class FarSegDataset(Dataset):
-    """Helper to load aligned GeoTIFF pairs with on-the-fly remapping."""
-
-    def __init__(self, data_pairs, label_map=None, target_size=512):
+    def __init__(self, data_pairs, label_map=None, target_size=512, transform=None):
         self.data_pairs = data_pairs
-        self.label_map = label_map
         self.target_size = target_size
+        self.transform = transform
+
+        # Pre-compute lookup table once
+        self.lookup = None
+        if label_map:
+            # Initialize with 255 (ignore index) or 0 depending on your preference
+            self.lookup = np.arange(256, dtype="int64")
+            for k, v in label_map.items():
+                if k < 256:
+                    self.lookup[k] = v
 
     def __len__(self):
         return len(self.data_pairs)
@@ -27,41 +35,33 @@ class FarSegDataset(Dataset):
     def __getitem__(self, idx):
         img_path, mask_path = self.data_pairs[idx]
 
+        # Load Image
         with rasterio.open(img_path) as src:
-            img = src.read().astype("float32")
+            img = src.read().transpose(1, 2, 0).astype("float32")
+            nodata_mask = np.all(img == 0, axis=-1)
             if img.max() > 1.0:
                 img /= 65535.0 if src.dtypes[0] == "uint16" else 255.0
 
+        # Load Mask
         with rasterio.open(mask_path) as src:
             mask = src.read(1).astype("int64")
 
-        # --- REMAP CDL CLASSES TO SUPERCLASSES ---
-        if self.label_map:
-            # Efficient remapping using a lookup table
-            max_val = mask.max()
-            # Create a lookup array (defaulting to class 0)
-            lookup = np.zeros(max(256, max_val + 1), dtype=mask.dtype)
-            for k, v in self.label_map.items():
-                if k < len(lookup):
-                    lookup[k] = v
-            mask = lookup[mask]
+        mask[nodata_mask] = 255
 
-        # Convert to tensors
-        img_tensor = torch.from_numpy(img)
-        mask_tensor = torch.from_numpy(mask)
+        # Apply label mapping via vectorized lookup
+        if self.lookup is not None:
+            # Ensure mask values don't exceed lookup bounds
+            mask = np.clip(mask, 0, 255)
+            mask = self.lookup[mask]
 
-        # CROP/PAD LOGIC
-        c, h, w = img_tensor.shape
-        pad_h = max(0, self.target_size - h)
-        pad_w = max(0, self.target_size - w)
-
-        if pad_h > 0 or pad_w > 0:
-            img_tensor = F.pad(img_tensor, (0, pad_w, 0, pad_h))
-            # 255 is the standard ignore_index for CrossEntropyLoss
-            mask_tensor = F.pad(mask_tensor, (0, pad_w, 0, pad_h), value=255)
-
-        img_tensor = img_tensor[:, : self.target_size, : self.target_size]
-        mask_tensor = mask_tensor[: self.target_size, : self.target_size]
+        # Apply Augmentations
+        if self.transform:
+            augmented = self.transform(image=img, mask=mask)
+            img_tensor = augmented["image"]
+            mask_tensor = augmented["mask"].long()
+        else:
+            img_tensor = torch.from_numpy(img.transpose(2, 0, 1))
+            mask_tensor = torch.from_numpy(mask).long()
 
         return img_tensor, mask_tensor
 
@@ -113,6 +113,27 @@ class FarSegModel(BaseSegModel):
         mask = union > 0
         iou = intersection[mask] / union[mask]
         return np.mean(iou) if len(iou) > 0 else 0.0
+
+    def _print_confusion_matrix(self, conf_matrix, epoch, label_names=None):
+        """Prints a formatted confusion matrix to the console."""
+        print(f"\n--- Confusion Matrix (Epoch {epoch}) ---")
+        # If no labels provided, use indices
+        if label_names is None:
+            label_names = [f"Cls {i}" for i in range(self.num_classes)]
+
+        # Header
+        header = "Target \\ Pred".ljust(15) + "".join(
+            [str(label).rjust(10) for label in label_names]
+        )
+        print(header)
+        print("-" * len(header))
+
+        for i, row in enumerate(conf_matrix):
+            row_str = str(label_names[i]).ljust(15)
+            for cell in row:
+                row_str += str(int(cell)).rjust(10)
+            print(row_str)
+        print("-" * len(header) + "\n")
 
     def _save_checkpoint(self, out_dir, filename):
         """Helper to save the model state."""
@@ -176,24 +197,25 @@ class FarSegModel(BaseSegModel):
         label_map=None,
         val_pairs=None,
         epochs=10,
-        batch_size=4,
-        lr=1e-4,
+        batch_size=64,
+        lr=5e-5,
         patience=7,
+        target_size=512,  # Added as a parameter with a sensible default
         **kwargs,
     ):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         # 1. DYNAMIC CLASS ADJUSTMENT
-        # Calculate required classes from the label_map values
         if label_map:
             unique_superclasses = set(label_map.values())
-            # Add 1 if classes are 0-indexed to get count
             new_num_classes = max(unique_superclasses) + 1
 
             if new_num_classes != self.num_classes:
                 print(
                     f"[*] Reconfiguring model from {self.num_classes} to {new_num_classes} classes."
                 )
+
+                # Capture current input channels before re-initializing
                 old_in_channels = self.model.backbone.conv1.in_channels
 
                 # Rebuild FarSeg internal model
@@ -204,7 +226,7 @@ class FarSegModel(BaseSegModel):
                     backbone_pretrained=True,
                 )
 
-                # Restore in_channels if they were modified from default 3
+                # Restore in_channels if they were modified (e.g., for 4-band or multi-spectral)
                 if old_in_channels != 3:
                     old_conv = self.model.backbone.conv1
                     self.model.backbone.conv1 = torch.nn.Conv2d(
@@ -216,39 +238,134 @@ class FarSegModel(BaseSegModel):
                         bias=False,
                     )
 
+        # Move to device AFTER potential reconfiguration
         self.to(device)
         num_classes = self.num_classes
 
-        # 2. CALCULATE WEIGHTS
+        # for m in self.modules():
+        #    if isinstance(m, nn.BatchNorm2d):
+        #        m.momentum = 0.01
+
+        # 2. CALCULATE WEIGHTS & CRITERION
+        # We define this once here to include class weights and ignore_index
         weights = self._compute_class_weights(data_pairs, label_map, self.num_classes)
         weights = weights.to(device)
         print(f"Computed Weights: {weights.cpu().numpy()}")
 
-        # 3. APPLY TO CRITERION
-        # Pass the weights to CrossEntropyLoss
         criterion = nn.CrossEntropyLoss(weight=weights, ignore_index=255)
 
-        # 4. Data setup
+        # 3. DEFINE TRANSFORMS
+        train_transform = A.Compose(
+            [
+                # 1. Geometric
+                A.RandomRotate90(p=0.5),
+                A.HorizontalFlip(p=0.5),
+                A.VerticalFlip(p=0.5),
+                A.ShiftScaleRotate(
+                    shift_limit=0.1, scale_limit=0.15, rotate_limit=30, p=0.7
+                ),
+                # 2. Spectral/Atmospheric
+                A.OneOf(
+                    [
+                        A.RandomBrightnessContrast(
+                            brightness_limit=0.2, contrast_limit=0.2
+                        ),
+                        A.RandomGamma(
+                            gamma_limit=(80, 120)
+                        ),  # Simulates atmospheric haze/clarity
+                        A.MultiplicativeNoise(
+                            multiplier=(0.9, 1.1), per_channel=True
+                        ),  # Spectral variation
+                    ],
+                    p=0.4,
+                ),
+                # 3. Noise/Quality
+                A.OneOf(
+                    [
+                        A.GaussNoise(
+                            var_limit=(0.001, 0.01)
+                        ),  # Adjusted for 0.0-1.0 range
+                        A.Blur(blur_limit=3),
+                    ],
+                    p=0.3,
+                ),
+                # 4. Structural
+                A.CoarseDropout(
+                    max_holes=8, max_height=32, max_width=32, fill_value=0, p=0.3
+                ),
+                # 5. Final Sizing
+                # Set value=0 for image padding and mask_value=255 for the ignore index
+                A.PadIfNeeded(
+                    min_height=target_size,
+                    min_width=target_size,
+                    border_mode=0,
+                    value=0,
+                    mask_value=255,
+                ),
+                A.RandomCrop(target_size, target_size),
+                ToTensorV2(),
+            ]
+        )
+
+        val_transform = A.Compose(
+            [
+                A.PadIfNeeded(
+                    min_height=target_size,
+                    min_width=target_size,
+                    value=0,
+                    mask_value=255,
+                ),
+                A.CenterCrop(target_size, target_size),
+                ToTensorV2(),
+            ]
+        )
+
+        # 4. INITIALIZE DATALOADERS
         train_loader = DataLoader(
-            FarSegDataset(data_pairs, label_map=label_map),
+            FarSegDataset(
+                data_pairs,
+                label_map=label_map,
+                target_size=target_size,
+                transform=train_transform,
+            ),
             batch_size=batch_size,
             shuffle=True,
+            num_workers=8,
+            pin_memory=True,
         )
-        val_loader = (
-            DataLoader(
-                FarSegDataset(val_pairs, label_map=label_map), batch_size=batch_size
+
+        val_loader = None
+        if val_pairs:
+            val_loader = DataLoader(
+                FarSegDataset(
+                    val_pairs,
+                    label_map=label_map,
+                    target_size=target_size,
+                    transform=val_transform,
+                ),
+                batch_size=batch_size,
+                num_workers=8,
+                pin_memory=True,
             )
-            if val_pairs
-            else None
+
+        # 5. OPTIMIZER & SCHEDULER
+        optimizer = optim.Adam(self.parameters(), lr=lr, weight_decay=1e-4)
+
+        warmup_epochs = 2
+        total_warmup_steps = len(train_loader) * warmup_epochs
+        warmup_sched = optim.lr_scheduler.LambdaLR(
+            optimizer, lr_lambda=lambda step: min(1.0, step / total_warmup_steps)
+        )
+        plateau_sched = optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, "min", patience=patience, factor=0.1
+        )
+        scheduler = optim.lr_scheduler.SequentialLR(
+            optimizer,
+            schedulers=[warmup_sched, plateau_sched],
+            milestones=[total_warmup_steps],
         )
 
-        optimizer = optim.Adam(self.parameters(), lr=lr)
-        # 255 is used for padding pixels or background we want to ignore
-        criterion = nn.CrossEntropyLoss(ignore_index=255)
-        scheduler = optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, "min", patience=3, factor=0.1
-        )
-
+        # 6. TRAINING LOOP
         best_val_loss = float("inf")
         best_miou = 0.0
         early_stop_counter = 0
@@ -270,16 +387,27 @@ class FarSegModel(BaseSegModel):
             pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs} [Train]")
             for images, masks in pbar:
                 images, masks = images.to(device), masks.to(device)
+
                 optimizer.zero_grad()
                 outputs = self.forward(images)
-                loss = criterion(outputs, masks)
+                loss = criterion(
+                    outputs, masks.long()
+                )  # Ensure masks are long for CELoss
                 loss.backward()
                 optimizer.step()
 
+                current_step = epoch * len(train_loader) + pbar.n
+                if current_step < total_warmup_steps:
+                    scheduler.step()
+
                 train_loss += loss.item()
+
+                # Metric calculation
                 preds = torch.argmax(outputs, dim=1).detach().cpu().numpy()
                 targets = masks.detach().cpu().numpy()
+
                 valid = (targets >= 0) & (targets < num_classes)
+
                 train_conf_matrix += np.bincount(
                     num_classes * targets[valid].astype(int) + preds[valid],
                     minlength=num_classes**2,
@@ -298,7 +426,8 @@ class FarSegModel(BaseSegModel):
                     for v_images, v_masks in val_loader:
                         v_images, v_masks = v_images.to(device), v_masks.to(device)
                         v_outputs = self.forward(v_images)
-                        val_loss += criterion(v_outputs, v_masks).item()
+                        val_loss += criterion(v_outputs, v_masks.long()).item()
+
                         v_preds = torch.argmax(v_outputs, dim=1).cpu().numpy()
                         v_targets = v_masks.cpu().numpy()
                         v_valid = (v_targets >= 0) & (v_targets < num_classes)
@@ -310,8 +439,11 @@ class FarSegModel(BaseSegModel):
 
                 avg_val_loss = val_loss / len(val_loader)
                 val_miou = self._calculate_miou(val_conf_matrix)
-                scheduler.step(avg_val_loss)
 
+                if (epoch + 1) * len(train_loader) >= total_warmup_steps:
+                    scheduler.step(avg_val_loss)
+
+                # Checkpoints & Early Stopping
                 if avg_val_loss < best_val_loss:
                     best_val_loss, early_stop_counter = avg_val_loss, 0
                 else:
@@ -334,6 +466,9 @@ class FarSegModel(BaseSegModel):
                 f"Val Loss: {avg_val_loss:.4f}, mIoU: {val_miou:.4f} | "
                 f"LR: {current_lr:.6f}"
             )
+
+            if (epoch + 1) % 5 == 0 and val_loader:
+                self._print_confusion_matrix(val_conf_matrix, epoch + 1)
 
             if early_stop_counter >= patience:
                 print(f"Early stopping at epoch {epoch+1}")

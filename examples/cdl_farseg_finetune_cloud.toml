@@ -51,9 +51,16 @@ out_dir       = "/gcs/eo-ml-data/choptank_cdl_finetune_binary/mosaics"
 # training
 train_segmentation = true
 segmentation_num_classes = 256
+segmentation_model_dir = "/gcs/eo-ml-data/choptank_cdl_finetune_binary/models/farseg_v1"
+
+# hyperparameters
+model_type = "farseg"
+loss_function = "ce"   # supports "ce" "focal", "dice", "hybrid"
+batch_size = 64
+lr_patience = 5
+stopping_patience = 15
 epochs = 500
 lr = 0.00001
-segmentation_model_dir = "/gcs/eo-ml-data/choptank_cdl_finetune_binary/models/farseg_v1"
 
 # validation
 do_val = true

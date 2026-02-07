@@ -1,0 +1,17 @@
+[
+  {
+    "name": "delete-all-older-than-one-hour",
+    "action": {"type": "Delete"},
+    "condition": {
+      "tagState": "ANY",
+      "olderThan": "3600s"
+    }
+  },
+  {
+    "name": "keep-the-most-recent-image",
+    "action": {"type": "Keep"},
+    "mostRecentVersions": {
+      "keepCount": 1
+    }
+  }
+]

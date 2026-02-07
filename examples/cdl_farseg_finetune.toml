@@ -13,8 +13,8 @@ date_step = 120
 # Location of interest
 # -------------------------
 # Center coordinate where imagery will be clipped.
-latitude  = [38.75, 38.93, 38.05, 39.38, 39.22, 39.14, 39.18, 39.05, 38.98, 38.71, 38.65, 38.56, 38.53, 38.42, 38.40, 38.18, 38.12, 38.15]
-longitude = [-75.95, -76.16, -75.74, -75.85, -75.95, -76.15, -75.82, -76.05, -75.80, -75.90, -76.05, -75.72, -75.92, -75.70, -75.40, -75.80, -75.68, -75.48]
+latitude  = [38.75, 38.93]
+longitude = [-75.95, -76.16]
 
 # -------------------------
 # CDL download options
@@ -42,7 +42,7 @@ buffer_km     = 10.0        # size of region around lat/lon
 cloud_filter  = 30         # maximum % cloud cover allowed
 days_before   = 30          # temporal window around each date
 days_after    = 30
-samples_per_date = 3       # Will try to get the 3 cleanest images for every date step
+samples_per_date = 1       # Will try to get the 3 cleanest images for every date step
 out_dir       = "data/choptank_cdl_finetune/mosaics"
 
 # -------------------------
@@ -51,17 +51,24 @@ out_dir       = "data/choptank_cdl_finetune/mosaics"
 # training
 train_segmentation = true
 segmentation_num_classes = 256
-epochs = 3
-lr = 0.0001
 segmentation_model_dir = "data/choptank_cdl_finetune/models/farseg_v1"
+
+# hyperparameters
+model_type = "farseg"
+loss_function = "focal"   # Or "focal", "dice", etc.
+batch_size = 64
+lr_patience = 5
+stopping_patience = 15
+epochs = 2
+lr = 0.00001
 
 # validation
 do_val = true
 val_start_date = "1999-04-01"
 val_end_date   = "2000-04-10"
 val_date_step = 120
-val_latitude  = 38.32
-val_longitude = -75.85
+val_latitude  = 38.75
+val_longitude = -75.95
 val_dir       = "data/choptank_cdl_finetune/validation"
 val_cdl_out = "data/choptank_cdl_finetune/cdl/val_cdl_2019.tif"
 

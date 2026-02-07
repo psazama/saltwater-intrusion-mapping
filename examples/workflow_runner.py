@@ -44,12 +44,20 @@ def ensure_list(val):
 def main():
     parser = argparse.ArgumentParser(description="GEE Saltwater Intrusion Pipeline")
     parser.add_argument("--config", required=True, help="Path to TOML config")
+    parser.add_argument("--loss_function", type=str)
     args = parser.parse_args()
 
     cfg = load_config(args.config)
     logging.basicConfig(
         level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
     )
+
+    if args.loss_function:
+        cfg["loss_function"] = args.loss_function
+        # Highly recommended: update the output dir so they don't overwrite each other
+        cfg["segmentation_model_dir"] = (
+            f"{cfg['segmentation_model_dir']}_{args.loss_function}"
+        )
 
     for dir_str in [
         "out_dir",
@@ -119,7 +127,17 @@ def main():
     if cfg.get("train_segmentation", False):
         logging.info("Preparing CDL labels and training FarSeg")
         from swmaps.datasets.cdl import align_cdl_to_imagery
-        from swmaps.models.farseg import FarSegModel
+
+        model_type = cfg.get("model_type", "farseg").lower()
+        if model_type == "farseg":
+            from swmaps.models.farseg import FarSegModel
+
+            ModelClass = FarSegModel
+        # elif model_type == "unet":
+        #     from swmaps.models.unet import UNetModel
+        #     ModelClass = UNetModel
+        else:
+            raise ValueError(f"Unsupported model_type: {model_type}")
 
         # 1. Collect Training Pairs (Skip 'validation' folder)
         training_pairs = []
@@ -169,16 +187,12 @@ def main():
             seg_model_dir = Path(cfg["segmentation_model_dir"])
             seg_model_dir.mkdir(parents=True, exist_ok=True)
 
-            # 1. Initialize the model
-            # (Note: FarSegModel will auto-adjust classes inside train_model if label_map is provided)
-            farseg_model = FarSegModel(
+            model_instance = ModelClass(
                 num_classes=cfg.get("segmentation_num_classes", 256),
                 in_channels=cfg.get("in_channels", 6),
             )
 
-            # 2. Use the internal model method instead of an external train function
-            # We pass the CDL_TO_SUPERCLASS map here
-            farseg_model.train_model(
+            model_instance.train_model(
                 data_pairs=training_pairs,
                 out_dir=seg_model_dir,
                 label_map=CDL_TO_BINARY_CLASS,
@@ -186,7 +200,9 @@ def main():
                 epochs=cfg.get("epochs", 50),
                 lr=cfg.get("lr", 1e-4),
                 batch_size=cfg.get("batch_size", 4),
-                patience=cfg.get("patience", 7),
+                loss_type=cfg.get("loss_function", "ce"),
+                lr_patience=cfg.get("lr_patience", 5),
+                stopping_patience=cfg.get("stopping_patience", 15),
             )
 
         if validation_pairs:

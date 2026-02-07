@@ -1,9 +1,8 @@
-import json
-from pathlib import Path
-
 import albumentations as A
+import hypertune
 import numpy as np
 import rasterio
+import segmentation_models_pytorch as smp
 import torch
 from albumentations.pytorch import ToTensorV2
 from torch import nn, optim
@@ -35,6 +34,15 @@ class FarSegDataset(Dataset):
     def __getitem__(self, idx):
         img_path, mask_path = self.data_pairs[idx]
 
+        # Load Satellite ID
+        path_str = str(img_path).lower()
+        if "landsat5" in path_str or "lt05" in path_str:
+            sat_id = 0  # L5
+        elif "landsat7" in path_str or "le07" in path_str:
+            sat_id = 1  # L7
+        else:
+            sat_id = 2  # S2 (default)
+
         # Load Image
         with rasterio.open(img_path) as src:
             img = src.read().transpose(1, 2, 0).astype("float32")
@@ -63,7 +71,7 @@ class FarSegDataset(Dataset):
             img_tensor = torch.from_numpy(img.transpose(2, 0, 1))
             mask_tensor = torch.from_numpy(mask).long()
 
-        return img_tensor, mask_tensor
+        return img_tensor, mask_tensor, sat_id
 
 
 class FarSegModel(BaseSegModel):
@@ -101,94 +109,8 @@ class FarSegModel(BaseSegModel):
                 bias=False,
             )
 
-    def forward(self, x):
+    def forward(self, x, sat_ids=None):
         return self.model(x)
-
-    def _calculate_miou(self, conf_matrix):
-        """Calculates Mean IoU from a confusion matrix, ignoring classes with no samples."""
-        intersection = np.diag(conf_matrix)
-        union = np.sum(conf_matrix, axis=1) + np.sum(conf_matrix, axis=0) - intersection
-
-        # Avoid division by zero
-        mask = union > 0
-        iou = intersection[mask] / union[mask]
-        return np.mean(iou) if len(iou) > 0 else 0.0
-
-    def _print_confusion_matrix(self, conf_matrix, epoch, label_names=None):
-        """Prints a formatted confusion matrix to the console."""
-        print(f"\n--- Confusion Matrix (Epoch {epoch}) ---")
-        # If no labels provided, use indices
-        if label_names is None:
-            label_names = [f"Cls {i}" for i in range(self.num_classes)]
-
-        # Header
-        header = "Target \\ Pred".ljust(15) + "".join(
-            [str(label).rjust(10) for label in label_names]
-        )
-        print(header)
-        print("-" * len(header))
-
-        for i, row in enumerate(conf_matrix):
-            row_str = str(label_names[i]).ljust(15)
-            for cell in row:
-                row_str += str(int(cell)).rjust(10)
-            print(row_str)
-        print("-" * len(header) + "\n")
-
-    def _save_checkpoint(self, out_dir, filename):
-        """Helper to save the model state."""
-        out_path = Path(out_dir) / filename
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-        torch.save(
-            {
-                "model_type": "farseg",
-                "model_kwargs": {
-                    "num_classes": self.num_classes,
-                    "backbone": self.backbone,
-                    "in_channels": self.model.backbone.conv1.in_channels,
-                },
-                "state_dict": self.state_dict(),
-            },
-            out_path,
-        )
-        print(f"Model saved to {out_path}")
-
-    def _save_logs(self, out_dir, history):
-        """Saves the training history to a JSON or text file."""
-        log_path = Path(out_dir) / "training_log.json"
-        with open(log_path, "w") as f:
-            json.dump(history, f, indent=4)
-        print(f"Metrics log saved to {log_path}")
-
-    def _compute_class_weights(self, data_pairs, label_map, num_classes):
-        """Scans the dataset to calculate inverse frequency weights."""
-        print("Calculating class weights (this may take a moment)...")
-        counts = np.zeros(num_classes)
-
-        # We only scan a subset (e.g., 100 pairs) if the dataset is massive
-        subset = data_pairs[: min(len(data_pairs), 200)]
-
-        for _, mask_path in subset:
-            with rasterio.open(mask_path) as src:
-                mask = src.read(1)
-                if label_map:
-                    # Apply mapping logic to match training
-                    mapped_mask = np.zeros_like(mask)
-                    for k, v in label_map.items():
-                        mapped_mask[mask == k] = v
-                    mask = mapped_mask
-
-                # Count pixels for valid classes (ignore index 255)
-                for c in range(num_classes):
-                    counts[c] += np.sum(mask == c)
-
-        # Inverse frequency: weights = total_pixels / (num_classes * class_pixels)
-        total_pixels = np.sum(counts)
-        weights = total_pixels / (num_classes * counts + 1e-6)
-
-        # Normalize weights so the average weight is 1.0
-        weights = weights / weights.mean()
-        return torch.tensor(weights, dtype=torch.float32)
 
     def train_model(
         self,
@@ -198,9 +120,11 @@ class FarSegModel(BaseSegModel):
         val_pairs=None,
         epochs=10,
         batch_size=64,
+        loss_type="ce",
         lr=5e-5,
-        patience=7,
-        target_size=512,  # Added as a parameter with a sensible default
+        lr_patience=5,
+        stopping_patience=15,
+        target_size=512,
         **kwargs,
     ):
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -238,13 +162,20 @@ class FarSegModel(BaseSegModel):
                         bias=False,
                     )
 
+        self.meta = {
+            "model_type": "farseg",
+            "model_kwargs": {
+                "num_classes": self.num_classes,
+                "backbone": (
+                    self.backbone_name if hasattr(self, "backbone_name") else "resnet50"
+                ),
+                # Add any other FarSeg specific init args here
+            },
+        }
+
         # Move to device AFTER potential reconfiguration
         self.to(device)
         num_classes = self.num_classes
-
-        # for m in self.modules():
-        #    if isinstance(m, nn.BatchNorm2d):
-        #        m.momentum = 0.01
 
         # 2. CALCULATE WEIGHTS & CRITERION
         # We define this once here to include class weights and ignore_index
@@ -252,7 +183,26 @@ class FarSegModel(BaseSegModel):
         weights = weights.to(device)
         print(f"Computed Weights: {weights.cpu().numpy()}")
 
-        criterion = nn.CrossEntropyLoss(weight=weights, ignore_index=255)
+        if loss_type == "focal":
+            print("Using Focal Loss")
+            self.criterion = smp.losses.FocalLoss(mode="multiclass", ignore_index=255)
+        elif loss_type == "dice":
+            print("Using Dice Loss")
+            self.criterion = smp.losses.DiceLoss(
+                mode="multiclass", ignore_index=255, from_logits=True
+            )
+        elif loss_type == "hybrid":
+            print("Using Hybrid Dice-Focal Loss")
+            self.criterion = smp.losses.JointLoss(
+                first_loss=smp.losses.DiceLoss(mode="multiclass", ignore_index=255),
+                second_loss=smp.losses.FocalLoss(mode="multiclass", ignore_index=255),
+                first_weight=0.5,
+                second_weight=0.5,
+            )
+        elif loss_type == "ce":
+            print("Using Cross Entropy Loss")
+            self.criterion = nn.CrossEntropyLoss(weight=weights, ignore_index=255)
+        criterion = self.criterion
 
         # 3. DEFINE TRANSFORMS
         train_transform = A.Compose(
@@ -357,12 +307,7 @@ class FarSegModel(BaseSegModel):
             optimizer, lr_lambda=lambda step: min(1.0, step / total_warmup_steps)
         )
         plateau_sched = optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, "min", patience=patience, factor=0.1
-        )
-        scheduler = optim.lr_scheduler.SequentialLR(
-            optimizer,
-            schedulers=[warmup_sched, plateau_sched],
-            milestones=[total_warmup_steps],
+            optimizer, "min", patience=lr_patience, factor=0.1
         )
 
         # 6. TRAINING LOOP
@@ -385,11 +330,15 @@ class FarSegModel(BaseSegModel):
             train_loss, train_conf_matrix = 0.0, np.zeros((num_classes, num_classes))
 
             pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs} [Train]")
-            for images, masks in pbar:
-                images, masks = images.to(device), masks.to(device)
+            for images, masks, sat_ids in pbar:
+                images, masks, sat_ids = (
+                    images.to(device),
+                    masks.to(device),
+                    sat_ids.to(device),
+                )
 
                 optimizer.zero_grad()
-                outputs = self.forward(images)
+                outputs = self.forward(images, sat_ids)
                 loss = criterion(
                     outputs, masks.long()
                 )  # Ensure masks are long for CELoss
@@ -398,7 +347,7 @@ class FarSegModel(BaseSegModel):
 
                 current_step = epoch * len(train_loader) + pbar.n
                 if current_step < total_warmup_steps:
-                    scheduler.step()
+                    warmup_sched.step()
 
                 train_loss += loss.item()
 
@@ -406,7 +355,7 @@ class FarSegModel(BaseSegModel):
                 preds = torch.argmax(outputs, dim=1).detach().cpu().numpy()
                 targets = masks.detach().cpu().numpy()
 
-                valid = (targets >= 0) & (targets < num_classes)
+                valid = (targets != 255) & (targets >= 0) & (targets < num_classes)
 
                 train_conf_matrix += np.bincount(
                     num_classes * targets[valid].astype(int) + preds[valid],
@@ -423,14 +372,22 @@ class FarSegModel(BaseSegModel):
                 self.eval()
                 val_loss, val_conf_matrix = 0.0, np.zeros((num_classes, num_classes))
                 with torch.no_grad():
-                    for v_images, v_masks in val_loader:
-                        v_images, v_masks = v_images.to(device), v_masks.to(device)
-                        v_outputs = self.forward(v_images)
+                    for v_images, v_masks, sat_ids in val_loader:
+                        v_images, v_masks, sat_ids = (
+                            v_images.to(device),
+                            v_masks.to(device),
+                            sat_ids.to(device),
+                        )
+                        v_outputs = self.forward(v_images, sat_ids)
                         val_loss += criterion(v_outputs, v_masks.long()).item()
 
                         v_preds = torch.argmax(v_outputs, dim=1).cpu().numpy()
                         v_targets = v_masks.cpu().numpy()
-                        v_valid = (v_targets >= 0) & (v_targets < num_classes)
+                        v_valid = (
+                            (v_targets != 255)
+                            & (v_targets >= 0)
+                            & (v_targets < num_classes)
+                        )
                         val_conf_matrix += np.bincount(
                             num_classes * v_targets[v_valid].astype(int)
                             + v_preds[v_valid],
@@ -441,7 +398,7 @@ class FarSegModel(BaseSegModel):
                 val_miou = self._calculate_miou(val_conf_matrix)
 
                 if (epoch + 1) * len(train_loader) >= total_warmup_steps:
-                    scheduler.step(avg_val_loss)
+                    plateau_sched.step(avg_val_loss)
 
                 # Checkpoints & Early Stopping
                 if avg_val_loss < best_val_loss:
@@ -451,8 +408,16 @@ class FarSegModel(BaseSegModel):
 
                 if val_miou > best_miou:
                     best_miou = val_miou
-                    self._save_checkpoint(out_dir, "best_model.pth")
+                    self._save_checkpoint(
+                        out_dir, "best_model.pth", extra_meta=self.meta
+                    )
 
+                hpt = hypertune.HyperTune()
+                hpt.report_hyperparameter_tuning_metric(
+                    hyperparameter_metric_tag="val_miou",
+                    metric_value=val_miou,
+                    global_step=epoch,
+                )
                 history["val_loss"].append(avg_val_loss)
                 history["val_miou"].append(val_miou)
 
@@ -470,10 +435,10 @@ class FarSegModel(BaseSegModel):
             if (epoch + 1) % 5 == 0 and val_loader:
                 self._print_confusion_matrix(val_conf_matrix, epoch + 1)
 
-            if early_stop_counter >= patience:
+            if early_stop_counter >= stopping_patience:
                 print(f"Early stopping at epoch {epoch+1}")
                 break
 
-        self._save_checkpoint(out_dir, "farseg_final.pth")
+        self._save_checkpoint(out_dir, "farseg_final.pth", extra_meta=self.meta)
         self._save_logs(out_dir, history)
         return out_dir

@@ -279,6 +279,7 @@ dependencies:
       - black==25.1.0
       - bokeh==3.7.3
       - cfgv==3.4.0
+      - cloudml-hypertune
       - cloudpickle==3.1.1
       - dask==2025.5.1
       - distlib==0.3.9

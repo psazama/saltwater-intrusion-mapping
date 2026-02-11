@@ -2,10 +2,9 @@ import albumentations as A
 import hypertune
 import numpy as np
 import rasterio
-import segmentation_models_pytorch as smp
 import torch
 from albumentations.pytorch import ToTensorV2
-from torch import nn, optim
+from torch import optim
 from torch.utils.data import DataLoader, Dataset
 from torchgeo.models import FarSeg
 from tqdm import tqdm
@@ -167,7 +166,7 @@ class FarSegModel(BaseSegModel):
             "model_kwargs": {
                 "num_classes": self.num_classes,
                 "backbone": (
-                    self.backbone_name if hasattr(self, "backbone_name") else "resnet50"
+                    self.backbone if hasattr(self, "backbone") else "resnet50"
                 ),
                 # Add any other FarSeg specific init args here
             },
@@ -178,33 +177,14 @@ class FarSegModel(BaseSegModel):
         num_classes = self.num_classes
 
         # 2. CALCULATE WEIGHTS & CRITERION
-        # We define this once here to include class weights and ignore_index
         weights = self._compute_class_weights(data_pairs, label_map, self.num_classes)
         weights = weights.to(device)
         print(f"Computed Weights: {weights.cpu().numpy()}")
 
-        if loss_type == "focal":
-            print("Using Focal Loss")
-            self.criterion = smp.losses.FocalLoss(mode="multiclass", ignore_index=255)
-        elif loss_type == "dice":
-            print("Using Dice Loss")
-            self.criterion = smp.losses.DiceLoss(
-                mode="multiclass", ignore_index=255, from_logits=True
-            )
-        elif loss_type == "hybrid":
-            print("Using Hybrid Dice-Focal Loss")
-            self.criterion = smp.losses.JointLoss(
-                first_loss=smp.losses.DiceLoss(mode="multiclass", ignore_index=255),
-                second_loss=smp.losses.FocalLoss(mode="multiclass", ignore_index=255),
-                first_weight=0.5,
-                second_weight=0.5,
-            )
-        elif loss_type == "ce":
-            print("Using Cross Entropy Loss")
-            self.criterion = nn.CrossEntropyLoss(weight=weights, ignore_index=255)
-        criterion = self.criterion
+        criterion = self._get_loss_criterion(loss_type, weights=weights)
 
         # 3. DEFINE TRANSFORMS
+        # TODO: data augmentation transformations probably generalize to other architectures and should be in base.py
         train_transform = A.Compose(
             [
                 # 1. Geometric
@@ -280,8 +260,8 @@ class FarSegModel(BaseSegModel):
             ),
             batch_size=batch_size,
             shuffle=True,
-            num_workers=8,
-            pin_memory=True,
+            num_workers=4,
+            pin_memory=False,
         )
 
         val_loader = None
@@ -294,13 +274,15 @@ class FarSegModel(BaseSegModel):
                     transform=val_transform,
                 ),
                 batch_size=batch_size,
-                num_workers=8,
-                pin_memory=True,
+                num_workers=4,
+                pin_memory=False,
             )
 
         # 5. OPTIMIZER & SCHEDULER
+        # TODO: make weight_decay a parameter
         optimizer = optim.Adam(self.parameters(), lr=lr, weight_decay=1e-4)
 
+        # TODO: make warmup_epochs a parameter
         warmup_epochs = 2
         total_warmup_steps = len(train_loader) * warmup_epochs
         warmup_sched = optim.lr_scheduler.LambdaLR(
@@ -321,6 +303,11 @@ class FarSegModel(BaseSegModel):
             "val_miou": [],
             "lr": [],
         }
+        # TODO: get this dictionary programmatically from Missions
+        sat_names = {0: "L5", 1: "L7", 2: "S2"}
+        for name in sat_names.values():
+            history[f"train_miou_{name.lower()}"] = []
+            history[f"val_miou_{name.lower()}"] = []
 
         print(f"Starting FarSeg training on {device} with {num_classes} classes...")
 
@@ -328,6 +315,9 @@ class FarSegModel(BaseSegModel):
             # --- TRAINING PHASE ---
             self.train()
             train_loss, train_conf_matrix = 0.0, np.zeros((num_classes, num_classes))
+            train_sat_matrices = {
+                sid: np.zeros((num_classes, num_classes)) for sid in sat_names.keys()
+            }
 
             pbar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{epochs} [Train]")
             for images, masks, sat_ids in pbar:
@@ -354,13 +344,11 @@ class FarSegModel(BaseSegModel):
                 # Metric calculation
                 preds = torch.argmax(outputs, dim=1).detach().cpu().numpy()
                 targets = masks.detach().cpu().numpy()
+                sids = sat_ids.detach().cpu().numpy()
 
-                valid = (targets != 255) & (targets >= 0) & (targets < num_classes)
-
-                train_conf_matrix += np.bincount(
-                    num_classes * targets[valid].astype(int) + preds[valid],
-                    minlength=num_classes**2,
-                ).reshape(num_classes, num_classes)
+                self._update_conf_matrices(
+                    preds, targets, sids, train_conf_matrix, train_sat_matrices
+                )
 
             avg_train_loss = train_loss / len(train_loader)
             train_miou = self._calculate_miou(train_conf_matrix)
@@ -370,7 +358,13 @@ class FarSegModel(BaseSegModel):
             avg_val_loss, val_miou = 0.0, 0.0
             if val_loader:
                 self.eval()
+
                 val_loss, val_conf_matrix = 0.0, np.zeros((num_classes, num_classes))
+                val_sat_matrices = {
+                    sid: np.zeros((num_classes, num_classes))
+                    for sid in sat_names.keys()
+                }
+
                 with torch.no_grad():
                     for v_images, v_masks, sat_ids in val_loader:
                         v_images, v_masks, sat_ids = (
@@ -383,16 +377,14 @@ class FarSegModel(BaseSegModel):
 
                         v_preds = torch.argmax(v_outputs, dim=1).cpu().numpy()
                         v_targets = v_masks.cpu().numpy()
-                        v_valid = (
-                            (v_targets != 255)
-                            & (v_targets >= 0)
-                            & (v_targets < num_classes)
+                        v_sids = sat_ids.cpu().numpy()
+                        self._update_conf_matrices(
+                            v_preds,
+                            v_targets,
+                            v_sids,
+                            val_conf_matrix,
+                            val_sat_matrices,
                         )
-                        val_conf_matrix += np.bincount(
-                            num_classes * v_targets[v_valid].astype(int)
-                            + v_preds[v_valid],
-                            minlength=num_classes**2,
-                        ).reshape(num_classes, num_classes)
 
                 avg_val_loss = val_loss / len(val_loader)
                 val_miou = self._calculate_miou(val_conf_matrix)
@@ -418,12 +410,28 @@ class FarSegModel(BaseSegModel):
                     metric_value=val_miou,
                     global_step=epoch,
                 )
+                for sid, name in sat_names.items():
+                    s_miou = self._calculate_miou(val_sat_matrices[sid])
+                    history[f"val_miou_{name.lower()}"].append(s_miou)
                 history["val_loss"].append(avg_val_loss)
                 history["val_miou"].append(val_miou)
 
+            for sid, name in sat_names.items():
+                s_miou = self._calculate_miou(train_sat_matrices[sid])
+                history[f"train_miou_{name.lower()}"].append(s_miou)
             history["train_loss"].append(avg_train_loss)
             history["train_miou"].append(train_miou)
             history["lr"].append(current_lr)
+
+            if val_loader:
+                # Build a dynamic string per satellite: "L5: 0.4521 | L7: 0.3982 | S2: 0.6120"
+                sat_summary = " | ".join(
+                    [
+                        f"{name}: {history[f'val_miou_{name.lower()}'][-1]:.4f}"
+                        for name in sat_names.values()
+                    ]
+                )
+                print(f"   [Satellite Val mIoU] {sat_summary}")
 
             print(
                 f"Epoch {epoch+1:02d}/{epochs} | "
@@ -433,7 +441,13 @@ class FarSegModel(BaseSegModel):
             )
 
             if (epoch + 1) % 5 == 0 and val_loader:
+                print(" Global Confusion Matrix")
                 self._print_confusion_matrix(val_conf_matrix, epoch + 1)
+                for sid, name in sat_names.items():
+                    print(f" SENSOR: {name} Confusion Matrix")
+                    self._print_confusion_matrix(
+                        val_sat_matrices[sid], f"{epoch+1} ({name})"
+                    )
 
             if early_stop_counter >= stopping_patience:
                 print(f"Early stopping at epoch {epoch+1}")

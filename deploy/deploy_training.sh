@@ -61,7 +61,7 @@ workerPoolSpecs:
         value: $EE_PROJECT
 scheduling:
   timeout: 604800s
-  restartJobOnWorkerRestart: true
+  restartJobOnWorkerRestart: false
   strategy: SPOT
 EOF
 

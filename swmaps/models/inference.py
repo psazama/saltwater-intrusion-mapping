@@ -77,7 +77,7 @@ def run_segmentation(
         model_cls = MODEL_REGISTRY[model_type]
         model = model_cls(**model_kwargs)
 
-        model.load_state_dict(ckpt["state_dict"])
+        model.load_state_dict(ckpt["state_dict"], strict=False)
 
     model.to(device)
     model.eval()

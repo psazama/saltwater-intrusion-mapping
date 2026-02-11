@@ -63,17 +63,12 @@ trialJobSpec:
       imageUri: $IMAGE_URI
       # IMPORTANT: Use args instead of command to let Vertex pass the --loss_function flag
       args:
-        - conda
-        - run
-        - --no-capture-output
-        - -p
-        - /opt/conda/envs/swmaps_env
-        - python
-        - examples/workflow_runner.py
         - --config=examples/cdl_farseg_finetune_cloud.toml
       env:
         - name: EARTHENGINE_PROJECT
           value: $EE_PROJECT
+        - name: PYTORCH_CUDA_ALLOC_CONF
+          value: "expandable_segments:True"
   scheduling:
     timeout: 604800s
     strategy: SPOT

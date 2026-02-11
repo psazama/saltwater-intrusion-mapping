@@ -51,11 +51,11 @@ out_dir       = "data/choptank_cdl_finetune/mosaics"
 # training
 train_segmentation = true
 segmentation_num_classes = 256
-segmentation_model_dir = "data/choptank_cdl_finetune/models/farseg_v1"
+segmentation_model_dir = "data/choptank_cdl_finetune/models/farseg_v1_hybrid"
 
 # hyperparameters
 model_type = "farseg"
-loss_function = "focal"   # Or "focal", "dice", etc.
+loss_function = "hybrid"   # supports "ce" "focal", "dice", "hybrid"
 batch_size = 64
 lr_patience = 5
 stopping_patience = 15
@@ -74,7 +74,7 @@ val_cdl_out = "data/choptank_cdl_finetune/cdl/val_cdl_2019.tif"
 
 # inference
 run_segmentation = true
-segmentation_weights_path = "data/choptank_cdl_finetune/models/farseg_v1/farseg_final.pth"
-segmentation_out_dir = "data/choptank_cdl_finetune/segmentation/farseg_v1"
+segmentation_weights_path = "data/choptank_cdl_finetune/models/farseg_v1_hybrid/farseg_final.pth"
+segmentation_out_dir = "data/choptank_cdl_finetune/segmentation/farseg_v1_hybrid"
 segmentation_png = true
 

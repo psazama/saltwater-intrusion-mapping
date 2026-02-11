@@ -4,14 +4,52 @@ from typing import List, Tuple, Union
 
 import numpy as np
 import rasterio
+import segmentation_models_pytorch as smp
 import torch
 from torch import nn
+
+
+class JointLoss(nn.Module):
+    def __init__(self, first_loss, second_loss, first_weight=0.5, second_weight=0.5):
+        super().__init__()
+        self.first_loss = first_loss
+        self.second_loss = second_loss
+        self.first_weight = first_weight
+        self.second_weight = second_weight
+
+    def forward(self, logits, targets):
+        loss1 = self.first_loss(logits, targets)
+        loss2 = self.second_loss(logits, targets)
+        return (self.first_weight * loss1) + (self.second_weight * loss2)
 
 
 class BaseSegModel(nn.Module):
     def __init__(self, num_classes: int):
         super().__init__()
         self.num_classes = num_classes
+
+    def _get_loss_criterion(self, loss_type, weights=None):
+        if loss_type == "focal":
+            print("Using Focal Loss")
+            return smp.losses.FocalLoss(mode="multiclass", ignore_index=255)
+        elif loss_type == "dice":
+            print("Using Dice Loss")
+            return smp.losses.DiceLoss(
+                mode="multiclass", ignore_index=255, from_logits=True
+            )
+        elif loss_type == "hybrid":
+            print("Using Hybrid Dice-Focal Loss")
+            return JointLoss(
+                first_loss=smp.losses.DiceLoss(mode="multiclass", ignore_index=255),
+                second_loss=smp.losses.FocalLoss(mode="multiclass", ignore_index=255),
+                first_weight=0.5,
+                second_weight=0.5,
+            )
+        elif loss_type == "ce":
+            print("Using Cross Entropy Loss")
+            return nn.CrossEntropyLoss(weight=weights, ignore_index=255)
+        else:
+            raise ValueError(f"Unknown loss_type: {loss_type}")
 
     def _compute_class_weights(self, data_pairs, label_map, num_classes):
         """Scans the dataset to calculate inverse frequency weights."""
@@ -52,6 +90,44 @@ class BaseSegModel(nn.Module):
         mask = union > 0
         iou = intersection[mask] / union[mask]
         return np.mean(iou) if len(iou) > 0 else 0.0
+
+    def _update_conf_matrices(
+        self, preds, targets, sat_ids, global_matrix, sat_matrices
+    ):
+        """
+        Updates global and per-satellite confusion matrices.
+        Args:
+            preds: numpy array of predictions
+            targets: numpy array of ground truth
+            sat_ids: numpy array of satellite identifiers
+            global_matrix: the main confusion matrix to update
+            sat_matrices: dict mapping {id: matrix}
+        """
+        valid = (targets != 255) & (targets >= 0) & (targets < self.num_classes)
+        global_matrix += np.bincount(
+            self.num_classes * targets[valid].astype(int) + preds[valid],
+            minlength=self.num_classes**2,
+        ).reshape(self.num_classes, self.num_classes)
+
+        for sid in sat_matrices.keys():
+            s_mask = sat_ids == sid
+            if not np.any(s_mask):
+                continue
+
+            ts_targets = targets[s_mask]
+            ts_preds = preds[s_mask]
+            ts_valid = (
+                (ts_targets != 255)
+                & (ts_targets >= 0)
+                & (ts_targets < self.num_classes)
+            )
+
+            if np.any(ts_valid):
+                sat_matrices[sid] += np.bincount(
+                    self.num_classes * ts_targets[ts_valid].astype(int)
+                    + ts_preds[ts_valid],
+                    minlength=self.num_classes**2,
+                ).reshape(self.num_classes, self.num_classes)
 
     def _print_confusion_matrix(self, conf_matrix, epoch, label_names=None):
         """Prints a formatted confusion matrix to the console."""

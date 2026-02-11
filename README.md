@@ -1,124 +1,254 @@
-# 🌊 Saltwater Intrusion Detection from Satellite Imagery
+# 🌊 Saltwater Intrusion Mapping Pipeline
 
-This project provides a modular pipeline for detecting and visualizing saltwater intrusion in coastal agricultural regions. It combines remote sensing data, geospatial processing, and machine‑learning feature engineering to track changes in surface water and salinity over time.
+> **An end-to-end, configuration-driven workflow for satellite imagery analysis of saltwater intrusion and coastal land cover change.**
 
-The core library retrieves imagery from multiple satellite missions, including Sentinel‑2 and the Landsat series, assembles mosaics for areas of interest, computes spectral indices, and applies heuristic rules to derive salinity indicators. Additional modules provide tools for trend analysis, salinity truth matching, and optional integration with orchestration frameworks.
+This repository integrates Google Earth Engine (GEE) data acquisition, supervised land cover segmentation (FarSeg), heuristic salinity estimation, and temporal trend analysis. It is designed for both local research and scalable cloud-based training on Google Vertex AI.
 
------
+---
 
-## 🚀 Features
+## 📍 Table of Contents
+* [🚀 Quick Start](#-quick-start)
+* [📂 Repository Structure](#-repository-structure)
+* [🗺️ High-Level Capabilities](#️-high-level-capabilities)
+* [🔀 Workflow Stages](#-workflow-stages)
+* [🧠 Segmentation Models](#-segmentation-models)
+* [🧂 Salinity and Water Trends](#-salinity-and-water-trends)
+* [☁️ Cloud & Docker](#-cloud-training-and-deployment)
+* [📖 License](#-license)
 
- - Remote‑sensing imagery retrieval - loads optical data from multiple missions and supports bounding‑box queries for scalable processing.
- - Patch‑based mosaic construction - downloads small tiles around each observation point and stitches them into multi‑band GeoTIFF mosaics
- - Index computation - calculates NDWI/MNDWI and other water proxies, turbidity and chlorophyll ratios, and salinity‑sensitive SWIR indices
- - Heuristic salinity classification - combines multiple indices into per‑pixel scores and qualitative salinity classes (fresh, brackish, saline)
- - Water mask and trend analysis - generates binary masks and models pixel‑level inundation frequency over time to highlight long‑term changes
- - Modular Python API - separates reusable core functions (swmaps.core) from higher‑level orchestration (swmaps.pipeline) so you can integrate specific pieces into your own workflows
- - Config‑driven workflows - run full workflows by supplying a simple TOML file that defines dates, location, mission, and other parameters.
- - Optional advanced orchestration - includes Dagster definitions and a Kubernetes configuration for scaling out jobs in the cloud.
+---
 
------
+## 🚀 Quick Start
 
-## 🗺️ Use Cases
-
-- Monitoring farmland degradation caused by saltwater intrusion and sea‑level rise.
-- Detecting changes in surface water and flooding over seasonal or multi‑year periods.
-- Pre‑processing satellite imagery for downstream machine‑learning tasks, such as classification or regression models in Earth observation.
-
------
-
-## 🗃️ Repository Layout
+### 1. Environment Setup 🛠️
+Clone the repository and install the package in editable mode.
 
 ```
-saltwater-intrusion-mapping/
-├── config/            - definitions of study areas, date ranges and example config templates
-├── swmaps/            - Python package with core utilities (gee_query, mission metadata, mosaic, salinity tools, water trends) and pipeline helpers
-├── examples/          - command‑line scripts and TOML files to run the pipeline (`workflow_runner.py`, example configs)
-├── notebooks/         - Jupyter notebooks for experiments and visual demos
-├── docs/              - HTML documentation generated via Sphinx
-├── tests/             - unit tests
-├── pyproject.toml     - project metadata and dependencies
-└── README.md          - project overview
-```
+git clone https://github.com/your-org/swmaps.git
+cd swmaps
 
------
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 
-## ⚙️ Running the Pipeline
-
-1. Install - clone the repository, create a clean environment, and install the package. You’ll also need to install the Earth Engine API if it’s not already included.
-
-```bash
-git clone https://github.com/psazama/saltwater-intrusion-mapping.git
-cd saltwater-intrusion-mapping
 pip install -e .
 ```
 
-2. Authenticate - follow the Earth Engine authentication flow to link your Google account and project, then initialise the API. Alternatively, set the EARTHENGINE_PROJECT environment variable and call ee.Initialize()
-3. Create a configuration file - copy one of the TOML templates under examples/ and customise start/end dates, latitude/longitude, mission, buffer size, cloud filter and other parameters
-```bash
-python examples/workflow_runner.py --config examples/choptank.toml
+> You must have a **Google Earth Engine** account authenticated on your system:  
 ```
-4. Run the workflow - use the provided workflow_runner.py script with your configuration file. The runner will optionally build a coastal AOI, download mosaics, and run the salinity pipeline, saving results to your chosen output directory
-5. Salinity analysis - if you have ground‑truth salinity data, call the salinity_pipeline.py script to extract features and match them to your truth data. You can also import and use functions like estimate_salinity_level from swmaps.core.salinity_tools directly in your own code.
+earthengine authenticate
+```
 
------
+---
 
-## 🧂 Water Salinity Estimation
+### 2. Run a Minimal Example Workflow 🏃‍♂️
 
-Provides routines to compute multiple indices and combine them into a salinity score and classification. See the docstring of estimate_salinity_level in swmaps/core/salinity_tools.py for details
+The pipeline uses a Python workflow runner with TOML configuration files. Here’s a minimal inference example:
 
-| **Feature** | **Sentinel-2 Bands** | **Purpose** |
-|---|---|---|
-| NDWI / MNDWI | B3 (green), B8 (NIR), B11 (SWIR) | Water detection |
-| Turbidity Index | B4 (red) / B3 (green), B4 / B8 | Suspended sediment proxy |
-| Chlorophyll Index | (B5 − B4)/(B5 + B4), or B3/B2 | Low chlorophyll can indicate salinity |
-| Salinity Proxy Index (custom) | B11 + B12 (SWIR) | High reflectance in saline water/salt crusts |
-| NDTI (Normalized Difference Turbidity Index) | (B3 − B2)/(B3 + B2) | Surface turbidity |
-| Salinity-sensitive Vegetation Mask | NDVI around water | Nearby plant stress as salinity indicator |
+```
+python -m swmaps.runner --config examples/quickstart_inference.toml
+```
 
-### Estimating salinity classes in code
+**`quickstart_inference.toml` example:**
 
-The helper `estimate_salinity_level` in `swmaps.core.salinity_tools` combines the proxies above to
-return a per-pixel salinity score and qualitative class (fresh, brackish, saline). Provide the
-individual band arrays (either in raw Sentinel-2 scale 0-10,000 or already scaled reflectances) and
-the function handles the rest:
+```
+[general]
+output_dir = "outputs/quickstart_inference"
+skip_download = false
+
+[imagery]
+start_date = "2021-01-01"
+end_date = "2021-12-31"
+cloud_cover_max = 20
+
+[[sites]]
+name = "eastern_shore_md"
+geometry = "data/regions/eastern_shore.geojson"
+
+[inference]
+enabled = true
+model_arch = "farseg"
+weights_path = "models/farseg_pretrained.pt"
+save_png = true
+```
+
+This workflow will:
+
+* Download and mosaic imagery for the specified site
+* Run FarSeg inference
+* Save georeferenced prediction rasters and optional PNG previews
+
+---
+
+### 3. Training + Inference Example 🏋️
+
+To train a FarSeg model on CDL labels and then run inference:
+
+```
+python -m swmaps.runner --config examples/quickstart_train.toml
+```
+
+**`quickstart_train.toml` example:**
+
+```
+[general]
+output_dir = "outputs/quickstart_train"
+skip_download = false
+clear_outputs = true
+
+[imagery]
+start_date = "2020-01-01"
+end_date = "2021-12-31"
+cloud_cover_max = 30
+
+[[training_sites]]
+name = "delmarva_train"
+geometry = "data/regions/delmarva.geojson"
+
+[validation_site]
+name = "delmarva_val"
+geometry = "data/regions/delmarva_val.geojson"
+
+[training]
+enabled = true
+model_arch = "farseg"
+epochs = 10
+batch_size = 8
+learning_rate = 1e-4
+loss = "dice"
+
+[inference]
+enabled = true
+save_png = true
+```
+
+This workflow will:
+
+* Download imagery and CDL labels for training/validation
+* Align labels to imagery mosaics
+* Train a FarSeg segmentation model
+* Run inference on trained model outputs
+
+---
+
+### 4. Download-Only Workflow ⬇️
+
+Skip all modeling steps and just download imagery:
+
+```
+python -m swmaps.runner --config examples/quickstart_download_only.toml
+```
+
+---
+
+## 📂 Repository Structure
+
+```
+.
+├── swmaps/                   # Main package source
+│   ├── core/                 # GEE logic, satellites (L5, S2, L7), & spectral indices
+│   ├── datasets/             # Data loaders for CDL, NLCD, and Salinity truth
+│   ├── models/               # FarSeg, SAM, training logic, and inference
+│   └── pipeline/             # Workflow stages (Trend, Masks, Salinity, Download)
+├── config/                   # GeoJSON and GPKG region definitions
+├── deploy/                   # Vertex AI deployment & hyperparameter search scripts
+├── docs/                     # HTML documentation and API references
+├── examples/                 # TOML configs and workflow runner entry points
+├── notebooks/                # Visualization and output exploration tools
+├── tests/                    # Pytest suite
+└── pyproject.toml            # Build system and dependencies
+```
+
+---
+
+## 🗺️ High-Level Capabilities
+
+| Feature | Description |
+| :--- | :--- |
+| **🛰️ Multi-Sensor** | Native support for Landsat 5, 7, 8 and Sentinel-2 |
+| **🧠 Deep Learning** | FarSeg architecture for semantic segmentation of coastal land cover |
+| **🧂 Salinity** | Heuristic spectral classification using SWIR and turbidity proxies |
+| **🌊 Water Masking** | NDWI-based water extent and temporal trend heatmaps |
+| **☁️ Scaling** | One-command deployment to Vertex AI for A100 GPU training |
+
+---
+
+## 🔀 Workflow Stages
+
+1. **📥 Download:** Imagery and auxiliary labels (CDL/NLCD) via GEE  
+2. **🧩 Alignment:** Automatic reprojection and resampling of labels to imagery  
+3. **🎓 Training:** Supervised segmentation model training (FarSeg)  
+4. **🎯 Inference:** Batch processing of GeoTIFFs with spatial metadata preservation  
+5. **🧪 Salinity:** Rule-based classification using spectral thresholds  
+6. **📊 Analysis:** Temporal aggregation of water masks to generate trend heatmaps  
+
+---
+
+## 🧠 Segmentation Models
+
+### Supported Architectures
+* **FarSeg (Foreground-Aware Segmentation):** Optimized for sparse foregrounds like saltwater-affected areas  
+* **SAM (Segment Anything Model):** Experimental zero-shot segmentation  
+
+### Training Features
+* Multi-site training with optional validation  
+* Configurable batch size, learning rate, epochs, and loss function (Dice, Cross-Entropy, Focal)  
+* Checkpointing of best-performing models  
+* Learning rate scheduling and early stopping  
+
+---
+
+## 🧂 Salinity and Water Trends
+
+### Heuristic Salinity Estimation
+
+| Feature | Purpose | Bands (Sentinel-2) |
+|:---|:---|:---|
+| NDWI / MNDWI | Water detection | B3, B8, B11 |
+| Turbidity Index | Suspended sediment proxy | B4/B3 |
+| Salinity Proxy | Salt crust reflectance | B11 + B12 |
+| Veg Mask | Plant stress indicator | NDVI |
+
+**Python Usage Example:**
 
 ```python
 from swmaps.core.salinity_tools import estimate_salinity_level
 
 result = estimate_salinity_level(blue, green, red, nir, swir1, swir2)
-class_map = result["class_map"]  # string labels per pixel
-salinity_score = result["score"]  # 0-1 heuristic intensity (NaN outside water)
+# Returns {"class_map": "fresh/brackish/saline", "score": 0.0-1.0}
 ```
 
-Tune the optional thresholds (e.g., `water_threshold`, `salinity_proxy_threshold`) if you have
-region-specific calibration data.
+### Water Trend Analysis
 
------
-
-## 🌡️ Water Trend Analysis
-
-Includes utilities to assemble yearly wet masks, run pixel‑wise trend regressions, and plot heatmaps of inundation frequency
-
-Use `swmaps.core.water_trend` to model how long each pixel stays water-covered and how that changes over time.
+* Inputs: multi-temporal stack of mosaics  
+* Logic: pixel-wise linear regression on water frequency  
 
 ```python
-from swmaps.core.water_trend import (
-    load_wet_year,
-    pixel_trend,
-    plot_trend_heatmap,
-    save_trend_results,
-)
+from swmaps.core.water_trend import pixel_trend, plot_trend_heatmap
 
-wet_year = load_wet_year("masks/*.tif")
-slope, pval = pixel_trend(wet_year)
-signif = pval < 0.05
-plot_trend_heatmap(slope, signif, title="Trend in % wet months per year")
-# Save arrays to GeoTIFF and NumPy for later inspection
-save_trend_results(slope, pval, "water_trend")
+slope, pval = pixel_trend(wet_year_stack)
+plot_trend_heatmap(slope, (pval < 0.05))
 ```
------
+
+---
+
+## ☁️ Cloud & Docker
+
+### Docker Execution
+```
+docker build -t swmaps .
+docker run --rm -v ~/.config/earthengine:/root/.config/earthengine \
+  -v $(pwd):/workspace swmaps \
+  python -m swmaps.runner --config examples/quickstart_inference.toml
+```
+
+### Vertex AI Deployment
+* Single GPU training on A100  
+* Hyperparameter search (loss functions, learning rates)  
+* Spot instance scheduling and environment setup  
+
+---
 
 ## 📖 License
 
-MIT License
+This project is licensed under the **MIT License**.
+

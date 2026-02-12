@@ -1,0 +1,46 @@
+# ---------------------------------------------------------------------
+# Download Only Example Workflow Configuration
+# ---------------------------------------------------------------------
+
+# -------------------------
+# Imagery date range
+# -------------------------
+start_date = "2018-04-01"
+end_date   = "2020-04-10"
+date_step = 120
+
+# -------------------------
+# Location(s) of interest
+# -------------------------
+# Center coordinate where imagery will be clipped.
+# sites included are (38.75,-75.95) and (38.93, -76.16)
+latitude  = [38.75, 38.93]
+longitude = [-75.95, -76.16]
+
+# -------------------------
+# CDL download options
+# -------------------------
+# If true, the runner will download the NASS CDL product before imagery.
+download_cdl = true
+cdl_year = 2019
+# Can be a path to a GeoJSON polygon, or bounds [xmin, ymin, xmax, ymax].
+# If not provided, the script falls back to latitude/longitude + cdl_buffer_km.
+# cdl_region = "config/choptank_river_region.geojson"
+cdl_buffer_km = 10.0
+
+# -------------------------
+# Mission / sensor
+# -------------------------
+mission = ["sentinel-2", "landsat-5", "landsat-7"]
+
+# -------------------------
+# Download and mosaic settings
+# -------------------------
+skip_download = false
+save_png      = true
+buffer_km     = 10.0        # size of region around lat/lon
+cloud_filter  = 30         # maximum % cloud cover allowed
+days_before   = 30          # temporal window around each date
+days_after    = 30
+samples_per_date = 3       # Will try to get the 3 cleanest images for every date step
+out_dir       = "data/outputs/quickstart_download_only"

@@ -1,0 +1,18 @@
+[general]
+output_dir = "data/outputs/quickstart_inference"
+skip_download = false
+
+[imagery]
+start_date = "2021-01-01"
+end_date = "2021-12-31"
+cloud_cover_max = 20
+
+[[sites]]
+name = "eastern_shore_md"
+geometry = "data/regions/eastern_shore.geojson"
+
+[inference]
+enabled = true
+model_arch = "farseg"
+weights_path = "models/samples/farseg_pretrained.pt"
+save_png = true

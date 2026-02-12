@@ -1,0 +1,29 @@
+[general]
+output_dir = "data/outputs/quickstart_train"
+skip_download = false
+clear_outputs = true
+
+[imagery]
+start_date = "2020-01-01"
+end_date = "2021-12-31"
+cloud_cover_max = 30
+
+[[training_sites]]
+name = "delmarva_train"
+geometry = "data/regions/delmarva.geojson"
+
+[validation_site]
+name = "delmarva_val"
+geometry = "data/regions/delmarva_val.geojson"
+
+[training]
+enabled = true
+model_arch = "farseg"
+epochs = 10
+batch_size = 8
+learning_rate = 1e-4
+loss = "dice"
+
+[inference]
+enabled = true
+save_png = true

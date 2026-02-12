@@ -13,7 +13,7 @@ This repository integrates Google Earth Engine (GEE) data acquisition, supervise
 * [🔀 Workflow Stages](#-workflow-stages)
 * [🧠 Segmentation Models](#-segmentation-models)
 * [🧂 Salinity and Water Trends](#-salinity-and-water-trends)
-* [☁️ Cloud & Docker](#-cloud-training-and-deployment)
+* [☁️ Cloud and Docker](#️-cloud-and-docker)
 * [📖 License](#-license)
 
 ---
@@ -24,11 +24,11 @@ This repository integrates Google Earth Engine (GEE) data acquisition, supervise
 Clone the repository and install the package in editable mode.
 
 ```
-git clone https://github.com/your-org/swmaps.git
-cd swmaps
+git clone https://github.com/psazama/saltwater-intrusion-mapping.git
+cd saltwater-intrusion-mapping
 
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
+conda env create -f environment.yml
+conda activate saltmapping
 
 pip install -e .
 ```
@@ -45,30 +45,7 @@ earthengine authenticate
 The pipeline uses a Python workflow runner with TOML configuration files. Here’s a minimal inference example:
 
 ```
-python -m swmaps.runner --config examples/quickstart_inference.toml
-```
-
-**`quickstart_inference.toml` example:**
-
-```
-[general]
-output_dir = "outputs/quickstart_inference"
-skip_download = false
-
-[imagery]
-start_date = "2021-01-01"
-end_date = "2021-12-31"
-cloud_cover_max = 20
-
-[[sites]]
-name = "eastern_shore_md"
-geometry = "data/regions/eastern_shore.geojson"
-
-[inference]
-enabled = true
-model_arch = "farseg"
-weights_path = "models/farseg_pretrained.pt"
-save_png = true
+python examples/workflow_runner.py --config examples/quickstart_inference.toml
 ```
 
 This workflow will:
@@ -84,41 +61,7 @@ This workflow will:
 To train a FarSeg model on CDL labels and then run inference:
 
 ```
-python -m swmaps.runner --config examples/quickstart_train.toml
-```
-
-**`quickstart_train.toml` example:**
-
-```
-[general]
-output_dir = "outputs/quickstart_train"
-skip_download = false
-clear_outputs = true
-
-[imagery]
-start_date = "2020-01-01"
-end_date = "2021-12-31"
-cloud_cover_max = 30
-
-[[training_sites]]
-name = "delmarva_train"
-geometry = "data/regions/delmarva.geojson"
-
-[validation_site]
-name = "delmarva_val"
-geometry = "data/regions/delmarva_val.geojson"
-
-[training]
-enabled = true
-model_arch = "farseg"
-epochs = 10
-batch_size = 8
-learning_rate = 1e-4
-loss = "dice"
-
-[inference]
-enabled = true
-save_png = true
+python examples/workflow_runner.py --config examples/quickstart_train.toml
 ```
 
 This workflow will:
@@ -135,7 +78,7 @@ This workflow will:
 Skip all modeling steps and just download imagery:
 
 ```
-python -m swmaps.runner --config examples/quickstart_download_only.toml
+python examples/workflow_runner.py --config examples/quickstart_download_only.toml
 ```
 
 ---
@@ -231,24 +174,25 @@ plot_trend_heatmap(slope, (pval < 0.05))
 
 ---
 
-## ☁️ Cloud & Docker
-
-### Docker Execution
-```
-docker build -t swmaps .
-docker run --rm -v ~/.config/earthengine:/root/.config/earthengine \
-  -v $(pwd):/workspace swmaps \
-  python -m swmaps.runner --config examples/quickstart_inference.toml
-```
+## ☁️ Cloud and Docker
 
 ### Vertex AI Deployment
 * Single GPU training on A100  
 * Hyperparameter search (loss functions, learning rates)  
-* Spot instance scheduling and environment setup  
+* Spot instance scheduling and environment setup
+
+```
+./deploy/deploy_training.sh -p <your-gcp-project-id>
+```
+
+```
+./deploy/deploy_hyperparameter_search.sh -p <your-gcp-project-id>
+```
 
 ---
 
 ## 📖 License
 
 This project is licensed under the **MIT License**.
+
 

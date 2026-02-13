@@ -45,17 +45,17 @@ def initialize_ee():
 # ---------------------------------------------------------
 
 
-def wait_for_ee_task(task: ee.batch.Task, timeout: int = 3600, poll_interval: int = 10):
+def wait_for_ee_task(task: ee.batch.Task, timeout: int = 3600, poll_interval: int = 15):
     """
     Wait for an Earth Engine task to complete.
 
     Args:
         task (ee.batch.Task): The task to wait for
         timeout (int): Maximum time to wait in seconds (default: 3600 = 1 hour)
-        poll_interval (int): Time between status checks in seconds (default: 10)
+        poll_interval (int): Time between status checks in seconds (default: 15)
 
     Returns:
-        bool: True when task completes successfully (never returns False)
+        bool: Always returns True when task completes successfully
 
     Raises:
         TimeoutError: If task doesn't complete within timeout period

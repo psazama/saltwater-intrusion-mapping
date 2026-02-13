@@ -222,33 +222,38 @@ def merge_geotiff_tiles(tile_paths: list[Path], output_path: Path) -> Path:
     """
     print(f"[GEE] Merging {len(tile_paths)} tiles into {output_path.name}")
 
-    # Open all tiles
+    # Open all tiles with proper resource management
     src_files = []
-    for tile_path in tile_paths:
-        src = rasterio.open(tile_path)
-        src_files.append(src)
+    try:
+        for tile_path in tile_paths:
+            src = rasterio.open(tile_path)
+            src_files.append(src)
 
-    # Merge tiles into a single array
-    mosaic, transform = merge(src_files)
+        # Merge tiles into a single array
+        mosaic, transform = merge(src_files)
 
-    # Get metadata from the first tile
-    meta = src_files[0].meta.copy()
-    meta.update(
-        {
-            "driver": "GTiff",
-            "height": mosaic.shape[1],
-            "width": mosaic.shape[2],
-            "transform": transform,
-        }
-    )
+        # Get metadata from the first tile
+        meta = src_files[0].meta.copy()
+        meta.update(
+            {
+                "driver": "GTiff",
+                "height": mosaic.shape[1],
+                "width": mosaic.shape[2],
+                "transform": transform,
+            }
+        )
 
-    # Write merged output
-    with rasterio.open(output_path, "w", **meta) as dest:
-        dest.write(mosaic)
+        # Write merged output
+        with rasterio.open(output_path, "w", **meta) as dest:
+            dest.write(mosaic)
 
-    # Close all source files
-    for src in src_files:
-        src.close()
+    finally:
+        # Always close all source files
+        for src in src_files:
+            try:
+                src.close()
+            except Exception as e:
+                print(f"[GEE] Warning: Could not close {src.name}: {e}")
 
     # Clean up tile files
     for tile_path in tile_paths:
@@ -353,10 +358,10 @@ def download_gee_multiband(
         # Determine grid size based on estimated size
         # For ~30 MB threshold, 2x2 grid reduces each tile to ~1/4 size
         n_tiles = 2
-        if est_mb > 120:  # Very large images need more tiles
-            n_tiles = 3
         if est_mb > 270:  # Extremely large images
             n_tiles = 4
+        elif est_mb > 120:  # Very large images need more tiles
+            n_tiles = 3
 
         prefix = f"{mission}_{image_id}"
         tile_paths = tile_and_download_gee_image(

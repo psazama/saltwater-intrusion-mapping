@@ -13,7 +13,11 @@ from pathlib import Path
 
 import ee
 import geopandas as gpd
+import numpy as np
 import pandas as pd
+import rasterio
+from rasterio.merge import merge
+from rasterio.transform import from_bounds
 import requests
 from tqdm import tqdm
 
@@ -126,6 +130,123 @@ def get_best_image(collection: ee.ImageCollection, mission: str, samples: int):
 
 
 # ---------------------------------------------------------
+#  TILE-BASED DOWNLOAD HELPERS
+# ---------------------------------------------------------
+
+
+def _get_tile_grid(bbox: list[float], num_tiles: int):
+    """
+    Generate a grid of tile bounding boxes.
+    
+    Args:
+        bbox (list): [minx, miny, maxx, maxy]
+        num_tiles (int): Number of tiles per dimension (e.g., 2 means 2x2 = 4 tiles)
+    
+    Returns:
+        list: List of tile bounding boxes
+    """
+    minx, miny, maxx, maxy = bbox
+    width = (maxx - minx) / num_tiles
+    height = (maxy - miny) / num_tiles
+    
+    tiles = []
+    for i in range(num_tiles):
+        for j in range(num_tiles):
+            tile_minx = minx + j * width
+            tile_miny = miny + i * height
+            tile_maxx = tile_minx + width
+            tile_maxy = tile_miny + height
+            tiles.append([tile_minx, tile_miny, tile_maxx, tile_maxy])
+    
+    return tiles
+
+
+def _download_tile(
+    image: ee.Image,
+    bbox: list[float],
+    band_list: list[str],
+    scale: int,
+    crs: str,
+    tile_path: Path,
+):
+    """
+    Download a single tile synchronously using getDownloadURL.
+    
+    Args:
+        image (ee.Image): The clipped and reprojected GEE image
+        bbox (list): Tile bounding box [minx, miny, maxx, maxy]
+        band_list (list): List of band names
+        scale (int): Resolution in meters
+        crs (str): Coordinate reference system
+        tile_path (Path): Output path for the tile
+    
+    Returns:
+        str: Path to the downloaded tile
+    """
+    region = ee.Geometry.BBox(*bbox)
+    tile_img = image.clip(region)
+    
+    url = tile_img.getDownloadURL(
+        {
+            "scale": scale,
+            "crs": crs,
+            "region": region,
+            "format": "GEOTIFF",
+            "filePerBand": False,
+        }
+    )
+    
+    r = requests.get(url, stream=True)
+    r.raise_for_status()
+    
+    with open(tile_path, "wb") as f:
+        for chunk in r.iter_content(chunk_size=8192):
+            f.write(chunk)
+    
+    return str(tile_path)
+
+
+def _stitch_tiles(tile_paths: list[str], output_path: Path):
+    """
+    Merge tiles into a single output GeoTIFF using rasterio.
+    
+    Args:
+        tile_paths (list): List of paths to tile GeoTIFFs
+        output_path (Path): Output path for the stitched GeoTIFF
+    
+    Returns:
+        str: Path to the stitched output file
+    """
+    # Open all tiles
+    src_files = [rasterio.open(tile) for tile in tile_paths]
+    
+    try:
+        # Merge tiles
+        mosaic, out_trans = merge(src_files)
+        
+        # Get metadata from the first tile
+        out_meta = src_files[0].meta.copy()
+        
+        # Update metadata for the mosaic
+        out_meta.update({
+            "height": mosaic.shape[1],
+            "width": mosaic.shape[2],
+            "transform": out_trans,
+        })
+        
+        # Write the mosaic
+        with rasterio.open(output_path, "w", **out_meta) as dest:
+            dest.write(mosaic)
+        
+    finally:
+        # Close all source files
+        for src in src_files:
+            src.close()
+    
+    return str(output_path)
+
+
+# ---------------------------------------------------------
 #  DOWNLOAD MULTIBAND IMAGE FROM GEE
 # ---------------------------------------------------------
 
@@ -140,7 +261,7 @@ def download_gee_multiband(
 ):
     """
     Export a clipped, multiband GeoTIFF for the given GEE image.
-    Automatically switches Sentinel-2 to async export if request is large.
+    Automatically switches Sentinel-2 to tile-based download if request is large.
     """
     initialize_ee()
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -190,26 +311,67 @@ def download_gee_multiband(
     out_path = out_dir / f"{mission}_{image_id}_multiband.tif"
 
     # -------------------------------------------------
-    # Sentinel auto-export rule
+    # Sentinel auto-export rule -> Use tile-based download
     # -------------------------------------------------
     if mission.startswith("sentinel") and est_mb > 30:
         print(
             f"[GEE] Size exceeds 30 MB for Sentinel-2, "
-            f"exporting asynchronously: {out_path.name}"
+            f"using tile-based download: {out_path.name}"
         )
 
-        task = ee.batch.Export.image.toDrive(
-            image=clipped,
-            description=f"{mission}_{image_id}",
-            folder=str(out_dir.name),
-            fileNamePrefix=out_path.stem,
-            region=region,
-            scale=scale,
-            crs=ANALYSIS_CRS,
-            maxPixels=1e13,
-        )
-        task.start()
+        # Determine number of tiles based on estimated size
+        # For ~30 MB threshold, split into 2x2 (4 tiles) or 3x3 (9 tiles)
+        if est_mb > 100:
+            num_tiles = 3  # 3x3 = 9 tiles
+        else:
+            num_tiles = 2  # 2x2 = 4 tiles
 
+        print(f"[GEE] Splitting region into {num_tiles}x{num_tiles} = {num_tiles**2} tiles")
+
+        # Generate tile grid
+        tiles = _get_tile_grid(bbox, num_tiles)
+
+        # Download each tile
+        tile_paths = []
+        tile_dir = out_dir / "tiles_tmp"
+        tile_dir.mkdir(parents=True, exist_ok=True)
+
+        for idx, tile_bbox in enumerate(tqdm(tiles, desc="Downloading tiles")):
+            tile_path = tile_dir / f"{out_path.stem}_tile_{idx}.tif"
+            try:
+                _download_tile(
+                    clipped,
+                    tile_bbox,
+                    band_list,
+                    scale,
+                    ANALYSIS_CRS,
+                    tile_path,
+                )
+                tile_paths.append(str(tile_path))
+            except Exception as e:
+                print(f"[GEE] Warning: Failed to download tile {idx}: {e}")
+                # Continue with other tiles
+
+        if not tile_paths:
+            raise RuntimeError("Failed to download any tiles")
+
+        print(f"[GEE] Successfully downloaded {len(tile_paths)} tiles, stitching...")
+
+        # Stitch tiles together
+        _stitch_tiles(tile_paths, out_path)
+
+        # Clean up temporary tiles
+        for tile_path in tile_paths:
+            try:
+                Path(tile_path).unlink()
+            except Exception:
+                pass
+        try:
+            tile_dir.rmdir()
+        except Exception:
+            pass
+
+        print(f"[GEE] Stitching complete: {out_path.name}")
         return str(out_path)
 
     # -------------------------------------------------

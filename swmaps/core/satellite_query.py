@@ -13,12 +13,10 @@ from pathlib import Path
 
 import ee
 import geopandas as gpd
-import numpy as np
 import pandas as pd
 import rasterio
-from rasterio.merge import merge
-from rasterio.transform import from_bounds
 import requests
+from rasterio.merge import merge
 from tqdm import tqdm
 
 from swmaps.config import data_path
@@ -137,18 +135,18 @@ def get_best_image(collection: ee.ImageCollection, mission: str, samples: int):
 def _get_tile_grid(bbox: list[float], num_tiles: int):
     """
     Generate a grid of tile bounding boxes.
-    
+
     Args:
         bbox (list): [minx, miny, maxx, maxy]
         num_tiles (int): Number of tiles per dimension (e.g., 2 means 2x2 = 4 tiles)
-    
+
     Returns:
         list: List of tile bounding boxes
     """
     minx, miny, maxx, maxy = bbox
     width = (maxx - minx) / num_tiles
     height = (maxy - miny) / num_tiles
-    
+
     tiles = []
     for i in range(num_tiles):
         for j in range(num_tiles):
@@ -157,7 +155,7 @@ def _get_tile_grid(bbox: list[float], num_tiles: int):
             tile_maxx = tile_minx + width
             tile_maxy = tile_miny + height
             tiles.append([tile_minx, tile_miny, tile_maxx, tile_maxy])
-    
+
     return tiles
 
 
@@ -171,7 +169,7 @@ def _download_tile(
 ):
     """
     Download a single tile synchronously using getDownloadURL.
-    
+
     Args:
         image (ee.Image): The clipped and reprojected GEE image
         bbox (list): Tile bounding box [minx, miny, maxx, maxy]
@@ -179,13 +177,13 @@ def _download_tile(
         scale (int): Resolution in meters
         crs (str): Coordinate reference system
         tile_path (Path): Output path for the tile
-    
+
     Returns:
         str: Path to the downloaded tile
     """
     region = ee.Geometry.BBox(*bbox)
     tile_img = image.clip(region)
-    
+
     url = tile_img.getDownloadURL(
         {
             "scale": scale,
@@ -195,32 +193,32 @@ def _download_tile(
             "filePerBand": False,
         }
     )
-    
+
     r = requests.get(url, stream=True)
     r.raise_for_status()
-    
+
     with open(tile_path, "wb") as f:
         for chunk in r.iter_content(chunk_size=8192):
             f.write(chunk)
-    
+
     return str(tile_path)
 
 
 def _stitch_tiles(tile_paths: list[str], output_path: Path):
     """
     Merge tiles into a single output GeoTIFF using rasterio.
-    
+
     Args:
         tile_paths (list): List of paths to tile GeoTIFFs
         output_path (Path): Output path for the stitched GeoTIFF
-    
+
     Returns:
         str: Path to the stitched output file
     """
     # Use context managers to avoid keeping all tiles open
     with rasterio.open(tile_paths[0]) as first_tile:
         out_meta = first_tile.meta.copy()
-    
+
     # Open tiles in a context manager for merging
     with rasterio.Env():
         datasets = []
@@ -228,21 +226,23 @@ def _stitch_tiles(tile_paths: list[str], output_path: Path):
             # Open all datasets
             for tile_path in tile_paths:
                 datasets.append(rasterio.open(tile_path))
-            
+
             # Merge tiles
             mosaic, out_trans = merge(datasets)
-            
+
             # Update metadata for the mosaic
-            out_meta.update({
-                "height": mosaic.shape[1],
-                "width": mosaic.shape[2],
-                "transform": out_trans,
-            })
-            
+            out_meta.update(
+                {
+                    "height": mosaic.shape[1],
+                    "width": mosaic.shape[2],
+                    "transform": out_trans,
+                }
+            )
+
             # Write the mosaic
             with rasterio.open(output_path, "w", **out_meta) as dest:
                 dest.write(mosaic)
-            
+
         finally:
             # Close all source files
             for dataset in datasets:
@@ -250,7 +250,7 @@ def _stitch_tiles(tile_paths: list[str], output_path: Path):
                     dataset.close()
                 except Exception:
                     pass
-    
+
     return str(output_path)
 
 
@@ -334,7 +334,9 @@ def download_gee_multiband(
         else:
             num_tiles = 2  # 2x2 = 4 tiles
 
-        print(f"[GEE] Splitting region into {num_tiles}x{num_tiles} = {num_tiles**2} tiles")
+        print(
+            f"[GEE] Splitting region into {num_tiles}x{num_tiles} = {num_tiles**2} tiles"
+        )
 
         # Generate tile grid
         tiles = _get_tile_grid(bbox, num_tiles)

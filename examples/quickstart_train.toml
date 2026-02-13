@@ -1,29 +1,55 @@
+# -------------------------
+# Imagery date range
+# -------------------------
+
+start_date = "2020-01-01"
+end_date = "2021-12-31"
+
+# -------------------------
+# General Settings & Mission / sensor
+# -------------------------
+
 [general]
-output_dir = "data/outputs/quickstart_train"
+cloud_filter  = 30
+out_dir = "data/outputs/quickstart_train"
 skip_download = false
 clear_outputs = true
 
-[imagery]
-start_date = "2020-01-01"
-end_date = "2021-12-31"
-cloud_cover_max = 30
+mission = ["sentinel-2"]
+
+# -------------------------
+# Location of interest
+# -------------------------
 
 [[training_sites]]
 name = "delmarva_train"
-geometry = "data/regions/delmarva.geojson"
+geometry = "data/regions/somerset_train.geojson"
 
 [validation_site]
 name = "delmarva_val"
-geometry = "data/regions/delmarva_val.geojson"
+geometry = "data/regions/somerset_val.geojson"
+
+# -------------------------
+# CDL labels download
+# -------------------------
+
+download_cdl = true
+cdl_year = 2019
+cdl_region = ["data/regions/somerset_train.geojson", "data/regions/somerset_val.geojson"]
+
+# -------------------------
+# Segmentation Traing
+# -------------------------
 
 [training]
-enabled = true
-model_arch = "farseg"
+segmentation_model = "farseg"
 epochs = 10
 batch_size = 8
 learning_rate = 1e-4
 loss = "dice"
+segmentation_weights = "pretrained"
 
 [inference]
-enabled = true
+run_segmentation = true
+segmentation_out_dir = "data/outputs/quickstart_train/segmentation"
 save_png = true

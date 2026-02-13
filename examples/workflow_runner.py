@@ -67,10 +67,12 @@ def main():
         "segmentation_weights_path",
         "segmentation_out_dir",
     ]:
-        path = Path(cfg.get(dir_str, None))
-        if path.exists() and path.is_dir():
-            logging.info(f"Clearing existing data in: {path}")
-            shutil.rmtree(path)
+        path = cfg.get(dir_str, None)
+        if path:
+            path = Path(path)
+            if path.exists() and path.is_dir():
+                logging.info(f"Clearing existing data in: {path}")
+                shutil.rmtree(path)
 
     base_out_dir = Path(cfg.get("out_dir", data_path("mosaics")))
     base_out_dir.mkdir(parents=True, exist_ok=True)

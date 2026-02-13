@@ -183,20 +183,20 @@ def process_date(
     # Wait for all async tasks to complete before proceeding
     if async_tasks:
         print(f"[GEE] Waiting for {len(async_tasks)} async task(s) to complete...")
-        failed_paths = []
+        failed_paths = set()
         for output_path, task in async_tasks:
             try:
                 wait_for_ee_task(task, timeout=3600, poll_interval=15)
                 print(f"[GEE] Async export completed: {output_path}")
             except (TimeoutError, RuntimeError) as e:
                 print(f"[GEE] Error waiting for task: {e}")
-                failed_paths.append(output_path)
+                failed_paths.add(output_path)
 
         # Remove failed paths from output_paths
         output_paths = [p for p in output_paths if p not in failed_paths]
 
     # Generate PNGs after all files are ready
-    if save_png and rgb_bands is not None:
+    if output_paths and save_png and rgb_bands is not None:
         for output_path in output_paths:
             png_path = Path(output_path).with_suffix(".png")
             try:

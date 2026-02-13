@@ -242,6 +242,11 @@ def download_cdl_and_imagery(
         # Remove failed paths from imagery_paths
         imagery_paths = [p for p in imagery_paths if p not in failed_paths]
 
+    # Check if we have any imagery to process
+    if not imagery_paths:
+        print("[CDL] No imagery available for CDL alignment")
+        return {"cdl_aligned": [], "imagery": []}
+
     # Now process imagery files (CDL alignment)
     for out_path in imagery_paths:
         # 4) EXTRACT EXACT BOUNDS FROM THE SAVED TIF

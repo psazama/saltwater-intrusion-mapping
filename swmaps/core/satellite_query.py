@@ -460,11 +460,23 @@ def download_matching_gee_images(
     # Wait for all async tasks to complete
     if async_tasks:
         print(f"[GEE] Waiting for {len(async_tasks)} async task(s) to complete...")
+        failed_paths = set()
         for path, task in tqdm(async_tasks, desc="Waiting for async tasks"):
             try:
                 wait_for_ee_task(task, timeout=3600, poll_interval=15)
             except (TimeoutError, RuntimeError) as e:
                 print(f"[GEE] Error waiting for task at {path}: {e}")
+                failed_paths.add(path)
+
+        # Clean up failed paths from seen and downloaded_paths
+        if failed_paths:
+            # Remove from seen dictionary
+            seen = {k: v for k, v in seen.items() if v not in failed_paths}
+            # Remove from downloaded_paths lists
+            downloaded_paths = [
+                [p for p in row_files if p not in failed_paths]
+                for row_files in downloaded_paths
+            ]
 
     df = df.copy()
     df["downloaded_files"] = downloaded_paths

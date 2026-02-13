@@ -175,6 +175,7 @@ def download_cdl_and_imagery(
         download_gee_multiband,
         get_best_image,
         query_gee_images,
+        wait_for_ee_task,
     )
 
     # 1) Setup original WGS84 region for the initial GEE query
@@ -208,12 +209,13 @@ def download_cdl_and_imagery(
 
     imagery_paths = []
     aligned_cdl_paths = []
+    async_tasks = []  # Track async tasks
 
     iterable = list(best) if isinstance(best, (list, tuple)) else [best]
 
     for img in iterable:
         # 3) DOWNLOAD IMAGERY FIRST
-        out_path = download_gee_multiband(
+        out_path, task = download_gee_multiband(
             image=img,
             mission=mission,
             bands=bands,
@@ -222,7 +224,21 @@ def download_cdl_and_imagery(
             scale=gee_scale,
         )
         imagery_paths.append(out_path)
-
+        
+        if task is not None:
+            async_tasks.append((out_path, task))
+    
+    # Wait for all async tasks to complete before proceeding to file operations
+    if async_tasks:
+        print(f"[CDL] Waiting for {len(async_tasks)} async task(s) to complete...")
+        for out_path, task in async_tasks:
+            try:
+                wait_for_ee_task(task, timeout=3600, poll_interval=15)
+            except (TimeoutError, RuntimeError) as e:
+                print(f"[CDL] Error waiting for task at {out_path}: {e}")
+    
+    # Now process imagery files (CDL alignment)
+    for out_path in imagery_paths:
         # 4) EXTRACT EXACT BOUNDS FROM THE SAVED TIF
         # This ensures we request the CDL for the exact area Earth Engine delivered
         with rasterio.open(out_path) as src:

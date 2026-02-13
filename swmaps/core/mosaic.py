@@ -19,6 +19,7 @@ from swmaps.core.satellite_query import (
     download_gee_multiband,
     get_best_image,
     query_gee_images,
+    wait_for_ee_task,
 )
 
 # ---------------------------------------------------------------------
@@ -157,10 +158,11 @@ def process_date(
         return None
 
     output_paths = []
+    async_tasks = []  # Track async tasks that need to complete
     print(f"Begin processing mosaic count: {len(imgs)}")
     for img in imgs:
         # Export clipped multiband raster
-        output_path = download_gee_multiband(
+        output_path, task = download_gee_multiband(
             image=img,
             mission=mission,
             bands=band_map,
@@ -170,16 +172,41 @@ def process_date(
         )
 
         output_paths.append(output_path)
-        print(f"[GEE] Wrote mosaic to: {output_path}")
-
-        if save_png and rgb_bands is not None:
+        
+        if task is not None:
+            # Store task for later waiting
+            async_tasks.append((output_path, task))
+            print(f"[GEE] Started async export for: {output_path}")
+        else:
+            print(f"[GEE] Wrote mosaic to: {output_path}")
+    
+    # Wait for all async tasks to complete before proceeding
+    if async_tasks:
+        print(f"[GEE] Waiting for {len(async_tasks)} async task(s) to complete...")
+        for output_path, task in async_tasks:
+            try:
+                wait_for_ee_task(task, timeout=3600, poll_interval=15)
+                print(f"[GEE] Async export completed: {output_path}")
+            except (TimeoutError, RuntimeError) as e:
+                print(f"[GEE] Error waiting for task: {e}")
+                # Remove failed path from output_paths
+                if output_path in output_paths:
+                    output_paths.remove(output_path)
+    
+    # Generate PNGs after all files are ready
+    if save_png and rgb_bands is not None:
+        for output_path in output_paths:
             png_path = Path(output_path).with_suffix(".png")
-            _write_rgb_png_from_tif(
-                tif_path=Path(output_path),
-                png_path=png_path,
-                rgb_bands=rgb_bands,
-            )
-            print(f"[GEE] Wrote RGB preview to: {png_path}")
+            try:
+                _write_rgb_png_from_tif(
+                    tif_path=Path(output_path),
+                    png_path=png_path,
+                    rgb_bands=rgb_bands,
+                )
+                print(f"[GEE] Wrote RGB preview to: {png_path}")
+            except Exception as e:
+                print(f"[GEE] Failed to create PNG for {output_path}: {e}")
+    
     return output_paths
 
 

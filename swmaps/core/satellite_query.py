@@ -8,6 +8,7 @@ Downstream code simply receives local multiband GeoTIFFs, same as before.
 """
 
 import os
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -37,6 +38,58 @@ def initialize_ee():
                 "Earth Engine initialization failed and EARTHENGINE_PROJECT is not set."
             )
         ee.Initialize(project=project)
+
+
+# ---------------------------------------------------------
+#  TASK TRACKING HELPERS
+# ---------------------------------------------------------
+
+
+def wait_for_ee_task(task: ee.batch.Task, timeout: int = 3600, poll_interval: int = 10):
+    """
+    Wait for an Earth Engine task to complete.
+
+    Args:
+        task (ee.batch.Task): The task to wait for
+        timeout (int): Maximum time to wait in seconds (default: 3600 = 1 hour)
+        poll_interval (int): Time between status checks in seconds (default: 10)
+
+    Returns:
+        bool: True if task completed successfully, False otherwise
+
+    Raises:
+        TimeoutError: If task doesn't complete within timeout period
+        RuntimeError: If task fails during execution
+    """
+    start_time = time.time()
+    
+    while True:
+        elapsed = time.time() - start_time
+        if elapsed > timeout:
+            raise TimeoutError(
+                f"Task {task.id} exceeded timeout of {timeout} seconds"
+            )
+        
+        status = task.status()
+        state = status.get("state")
+        
+        if state == "COMPLETED":
+            print(f"[GEE] Task {task.id} completed successfully")
+            return True
+        elif state == "FAILED":
+            error_msg = status.get("error_message", "Unknown error")
+            raise RuntimeError(
+                f"Task {task.id} failed: {error_msg}"
+            )
+        elif state == "CANCELLED":
+            raise RuntimeError(f"Task {task.id} was cancelled")
+        elif state in ("READY", "RUNNING"):
+            print(f"[GEE] Task {task.id} is {state}, waiting... ({elapsed:.0f}s elapsed)")
+            time.sleep(poll_interval)
+        else:
+            # UNSUBMITTED or unknown state
+            print(f"[GEE] Task {task.id} in state: {state}")
+            time.sleep(poll_interval)
 
 
 # ---------------------------------------------------------
@@ -141,6 +194,11 @@ def download_gee_multiband(
     """
     Export a clipped, multiband GeoTIFF for the given GEE image.
     Automatically switches Sentinel-2 to async export if request is large.
+    
+    Returns:
+        tuple: (str, ee.batch.Task | None) where:
+            - str is the output file path
+            - ee.batch.Task is the task object for async exports, or None for sync exports
     """
     initialize_ee()
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -210,7 +268,7 @@ def download_gee_multiband(
         )
         task.start()
 
-        return str(out_path)
+        return str(out_path), task
 
     # -------------------------------------------------
     # Synchronous download path
@@ -230,7 +288,7 @@ def download_gee_multiband(
         for chunk in r.iter_content(chunk_size=8192):
             f.write(chunk)
 
-    return str(out_path)
+    return str(out_path), None
 
 
 # ---------------------------------------------------------
@@ -351,6 +409,7 @@ def download_matching_gee_images(
 
     downloaded_paths = []
     seen = {}  # (mission, cluster_id) -> file path
+    async_tasks = []  # Track async tasks
 
     buffer_deg = buffer_km / 111.0
 
@@ -383,7 +442,7 @@ def download_matching_gee_images(
                 continue
 
             mission_dir = output_dir / mission / cid
-            path = download_gee_multiband(
+            path, task = download_gee_multiband(
                 best,
                 mission,
                 bands,
@@ -392,10 +451,22 @@ def download_matching_gee_images(
                 scale=get_mission(mission).gee_scale,
             )
 
+            if task is not None:
+                async_tasks.append((path, task))
+
             seen[key] = path
             row_files.append(path)
 
         downloaded_paths.append(row_files)
+
+    # Wait for all async tasks to complete
+    if async_tasks:
+        print(f"[GEE] Waiting for {len(async_tasks)} async task(s) to complete...")
+        for path, task in tqdm(async_tasks, desc="Waiting for async tasks"):
+            try:
+                wait_for_ee_task(task, timeout=3600, poll_interval=15)
+            except (TimeoutError, RuntimeError) as e:
+                print(f"[GEE] Error waiting for task at {path}: {e}")
 
     df = df.copy()
     df["downloaded_files"] = downloaded_paths

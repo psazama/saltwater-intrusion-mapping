@@ -13,7 +13,6 @@ from pathlib import Path
 
 import ee
 import geopandas as gpd
-import numpy as np
 import pandas as pd
 import rasterio
 import requests
@@ -278,12 +277,12 @@ def download_gee_multiband(
 ):
     """
     Export a clipped, multiband GeoTIFF for the given GEE image.
-    
+
     For large Sentinel-2 images (>30 MB), automatically splits the request
     into smaller tiles, downloads each synchronously, and merges them into
     a single GeoTIFF. This avoids async Drive exports and ensures files
     are immediately available on the local filesystem.
-    
+
     Args:
         image: GEE Image to download
         mission: Mission slug (e.g., "sentinel-2")
@@ -291,7 +290,7 @@ def download_gee_multiband(
         bbox: [minx, miny, maxx, maxy]
         out_dir: Directory to save output
         scale: Resolution in meters (default 10)
-        
+
     Returns:
         str: Path to the downloaded (or merged) GeoTIFF
     """
@@ -347,8 +346,8 @@ def download_gee_multiband(
     # -------------------------------------------------
     if mission.startswith("sentinel") and est_mb > 30:
         print(
-            f"[GEE] Size exceeds 30 MB for Sentinel-2, "
-            f"splitting into tiles for synchronous download"
+            "[GEE] Size exceeds 30 MB for Sentinel-2, "
+            "splitting into tiles for synchronous download"
         )
 
         # Determine grid size based on estimated size

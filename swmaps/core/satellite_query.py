@@ -62,29 +62,27 @@ def wait_for_ee_task(task: ee.batch.Task, timeout: int = 3600, poll_interval: in
         RuntimeError: If task fails during execution
     """
     start_time = time.time()
-    
+
     while True:
         elapsed = time.time() - start_time
         if elapsed > timeout:
-            raise TimeoutError(
-                f"Task {task.id} exceeded timeout of {timeout} seconds"
-            )
-        
+            raise TimeoutError(f"Task {task.id} exceeded timeout of {timeout} seconds")
+
         status = task.status()
         state = status.get("state")
-        
+
         if state == "COMPLETED":
             print(f"[GEE] Task {task.id} completed successfully")
             return True
         elif state == "FAILED":
             error_msg = status.get("error_message", "Unknown error")
-            raise RuntimeError(
-                f"Task {task.id} failed: {error_msg}"
-            )
+            raise RuntimeError(f"Task {task.id} failed: {error_msg}")
         elif state == "CANCELLED":
             raise RuntimeError(f"Task {task.id} was cancelled")
         elif state in ("READY", "RUNNING"):
-            print(f"[GEE] Task {task.id} is {state}, waiting... ({elapsed:.0f}s elapsed)")
+            print(
+                f"[GEE] Task {task.id} is {state}, waiting... ({elapsed:.0f}s elapsed)"
+            )
             time.sleep(poll_interval)
         else:
             # UNSUBMITTED or unknown state
@@ -194,7 +192,7 @@ def download_gee_multiband(
     """
     Export a clipped, multiband GeoTIFF for the given GEE image.
     Automatically switches Sentinel-2 to async export if request is large.
-    
+
     Returns:
         tuple: (str, ee.batch.Task | None) where:
             - str is the output file path

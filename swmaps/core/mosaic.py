@@ -172,14 +172,14 @@ def process_date(
         )
 
         output_paths.append(output_path)
-        
+
         if task is not None:
             # Store task for later waiting
             async_tasks.append((output_path, task))
             print(f"[GEE] Started async export for: {output_path}")
         else:
             print(f"[GEE] Wrote mosaic to: {output_path}")
-    
+
     # Wait for all async tasks to complete before proceeding
     if async_tasks:
         print(f"[GEE] Waiting for {len(async_tasks)} async task(s) to complete...")
@@ -192,7 +192,7 @@ def process_date(
                 # Remove failed path from output_paths
                 if output_path in output_paths:
                     output_paths.remove(output_path)
-    
+
     # Generate PNGs after all files are ready
     if save_png and rgb_bands is not None:
         for output_path in output_paths:
@@ -206,7 +206,7 @@ def process_date(
                 print(f"[GEE] Wrote RGB preview to: {png_path}")
             except Exception as e:
                 print(f"[GEE] Failed to create PNG for {output_path}: {e}")
-    
+
     return output_paths
 
 

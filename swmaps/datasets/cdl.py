@@ -224,10 +224,10 @@ def download_cdl_and_imagery(
             scale=gee_scale,
         )
         imagery_paths.append(out_path)
-        
+
         if task is not None:
             async_tasks.append((out_path, task))
-    
+
     # Wait for all async tasks to complete before proceeding to file operations
     if async_tasks:
         print(f"[CDL] Waiting for {len(async_tasks)} async task(s) to complete...")
@@ -236,7 +236,7 @@ def download_cdl_and_imagery(
                 wait_for_ee_task(task, timeout=3600, poll_interval=15)
             except (TimeoutError, RuntimeError) as e:
                 print(f"[CDL] Error waiting for task at {out_path}: {e}")
-    
+
     # Now process imagery files (CDL alignment)
     for out_path in imagery_paths:
         # 4) EXTRACT EXACT BOUNDS FROM THE SAVED TIF

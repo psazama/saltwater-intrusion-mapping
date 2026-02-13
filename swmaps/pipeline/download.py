@@ -22,6 +22,23 @@ def _daterange(start: datetime, end: datetime, step_days: int = 1):
         current = current + timedelta(days=step_days)
 
 
+def _extract_coords_from_geojson(geojson_path: str | Path) -> tuple[float, float]:
+    """
+    Extract center coordinates (latitude, longitude) from a GeoJSON file.
+
+    Args:
+        geojson_path: Path to a GeoJSON file
+
+    Returns:
+        Tuple of (latitude, longitude) representing the centroid of the geometry
+    """
+    import geopandas as gpd
+
+    gdf = gpd.read_file(geojson_path)
+    centroid = gdf.union_all().centroid
+    return centroid.y, centroid.x  # Return as (lat, lon)
+
+
 # ---------------------------------------------------------------------
 # Main API
 # ---------------------------------------------------------------------
@@ -36,13 +53,16 @@ def download_data(cfg: dict, val=False):
             Must include keys:
                 - start_date
                 - end_date
-                - latitude
-                - longitude
                 - mission
                 - date_step (optional)
                 - out_dir (optional)
                 - buffer_km (optional)
                 - cloud_filter (optional)
+
+            Location specification (one of the following):
+                - latitude and longitude: explicit center coordinates
+                - geometry: path to GeoJSON file (for training data)
+                - val_region: path to GeoJSON file (for validation data, when val=True)
     """
     # -------------------------------------------------------
     # Extract config values
@@ -51,15 +71,29 @@ def download_data(cfg: dict, val=False):
         start_date = datetime.fromisoformat(cfg["start_date"])
         end_date = datetime.fromisoformat(cfg["end_date"])
         date_step = cfg.get("date_step", 1)
-        lat = cfg["latitude"]
-        lon = cfg["longitude"]
+
+        # Support both GeoJSON geometry and explicit lat/lon
+        geometry_path = cfg.get("geometry")
+        if geometry_path and Path(geometry_path).exists():
+            lat, lon = _extract_coords_from_geojson(geometry_path)
+        else:
+            lat = cfg["latitude"]
+            lon = cfg["longitude"]
+
         out_dir = cfg.get("out_dir")
     else:
         start_date = datetime.fromisoformat(cfg["val_start_date"])
         end_date = datetime.fromisoformat(cfg["val_end_date"])
         date_step = cfg.get("val_date_step", 1)
-        lat = cfg["val_latitude"]
-        lon = cfg["val_longitude"]
+
+        # Support both GeoJSON val_region and explicit val_latitude/val_longitude
+        val_region_path = cfg.get("val_region")
+        if val_region_path and Path(val_region_path).exists():
+            lat, lon = _extract_coords_from_geojson(val_region_path)
+        else:
+            lat = cfg["val_latitude"]
+            lon = cfg["val_longitude"]
+
         out_dir = cfg.get("val_dir")
 
     samples_per_date = cfg.get("samples_per_date", 1)

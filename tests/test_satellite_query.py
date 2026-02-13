@@ -113,12 +113,17 @@ def test_tile_and_download_gee_image():
         bbox = [-120.0, 36.0, -119.0, 37.0]
         
         # Mock the requests.get to create actual tile files
-        with patch('swmaps.core.satellite_query.requests.get') as mock_requests:
+        with patch('swmaps.core.satellite_query.requests.get') as mock_requests, \
+             patch('swmaps.core.satellite_query.ee.Geometry.BBox') as mock_bbox:
+            
             # Setup mock response
             mock_response = Mock()
             mock_response.iter_content = lambda chunk_size: [b'fake_geotiff_data']
             mock_response.raise_for_status = Mock()
             mock_requests.return_value = mock_response
+            
+            # Mock ee.Geometry.BBox to avoid EE initialization
+            mock_bbox.return_value = MagicMock()
             
             # Call the function
             tile_paths = tile_and_download_gee_image(

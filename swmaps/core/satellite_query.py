@@ -55,7 +55,7 @@ def wait_for_ee_task(task: ee.batch.Task, timeout: int = 3600, poll_interval: in
         poll_interval (int): Time between status checks in seconds (default: 10)
 
     Returns:
-        bool: True if task completed successfully, False otherwise
+        bool: True if task completed successfully
 
     Raises:
         TimeoutError: If task doesn't complete within timeout period

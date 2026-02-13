@@ -231,11 +231,16 @@ def download_cdl_and_imagery(
     # Wait for all async tasks to complete before proceeding to file operations
     if async_tasks:
         print(f"[CDL] Waiting for {len(async_tasks)} async task(s) to complete...")
+        failed_paths = []
         for out_path, task in async_tasks:
             try:
                 wait_for_ee_task(task, timeout=3600, poll_interval=15)
             except (TimeoutError, RuntimeError) as e:
                 print(f"[CDL] Error waiting for task at {out_path}: {e}")
+                failed_paths.append(out_path)
+
+        # Remove failed paths from imagery_paths
+        imagery_paths = [p for p in imagery_paths if p not in failed_paths]
 
     # Now process imagery files (CDL alignment)
     for out_path in imagery_paths:

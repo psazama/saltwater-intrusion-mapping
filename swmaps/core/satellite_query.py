@@ -217,31 +217,39 @@ def _stitch_tiles(tile_paths: list[str], output_path: Path):
     Returns:
         str: Path to the stitched output file
     """
-    # Open all tiles
-    src_files = [rasterio.open(tile) for tile in tile_paths]
+    # Use context managers to avoid keeping all tiles open
+    with rasterio.open(tile_paths[0]) as first_tile:
+        out_meta = first_tile.meta.copy()
     
-    try:
-        # Merge tiles
-        mosaic, out_trans = merge(src_files)
-        
-        # Get metadata from the first tile
-        out_meta = src_files[0].meta.copy()
-        
-        # Update metadata for the mosaic
-        out_meta.update({
-            "height": mosaic.shape[1],
-            "width": mosaic.shape[2],
-            "transform": out_trans,
-        })
-        
-        # Write the mosaic
-        with rasterio.open(output_path, "w", **out_meta) as dest:
-            dest.write(mosaic)
-        
-    finally:
-        # Close all source files
-        for src in src_files:
-            src.close()
+    # Open tiles in a context manager for merging
+    with rasterio.Env():
+        datasets = []
+        try:
+            # Open all datasets
+            for tile_path in tile_paths:
+                datasets.append(rasterio.open(tile_path))
+            
+            # Merge tiles
+            mosaic, out_trans = merge(datasets)
+            
+            # Update metadata for the mosaic
+            out_meta.update({
+                "height": mosaic.shape[1],
+                "width": mosaic.shape[2],
+                "transform": out_trans,
+            })
+            
+            # Write the mosaic
+            with rasterio.open(output_path, "w", **out_meta) as dest:
+                dest.write(mosaic)
+            
+        finally:
+            # Close all source files
+            for dataset in datasets:
+                try:
+                    dataset.close()
+                except Exception:
+                    pass
     
     return str(output_path)
 
@@ -349,11 +357,17 @@ def download_gee_multiband(
                 )
                 tile_paths.append(str(tile_path))
             except Exception as e:
-                print(f"[GEE] Warning: Failed to download tile {idx}: {e}")
+                print(
+                    f"[GEE] Warning: Failed to download tile {idx}/{len(tiles)}: {e}. "
+                    f"Successfully downloaded {len(tile_paths)}/{idx+1} tiles so far."
+                )
                 # Continue with other tiles
 
         if not tile_paths:
-            raise RuntimeError("Failed to download any tiles")
+            raise RuntimeError(
+                f"Failed to download all {len(tiles)} tiles. "
+                "Check network connectivity, GEE quota limits, or try reducing region size."
+            )
 
         print(f"[GEE] Successfully downloaded {len(tile_paths)} tiles, stitching...")
 

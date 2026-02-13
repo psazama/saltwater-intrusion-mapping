@@ -195,3 +195,35 @@ def test_download_data_val_with_geojson():
             assert abs(lon_arg - (-75.5)) < 0.01, f"Expected lon ~-75.5, got {lon_arg}"
     finally:
         Path(temp_path).unlink()
+
+
+def test_download_data_geojson_not_found():
+    """Test that download_data() raises FileNotFoundError when GeoJSON doesn't exist."""
+    cfg = {
+        "start_date": "2020-01-01",
+        "end_date": "2020-01-02",
+        "mission": "sentinel-2",
+        "geometry": "/nonexistent/path/to/file.geojson",
+    }
+
+    with pytest.raises(FileNotFoundError) as exc_info:
+        download_data(cfg)
+
+    assert "GeoJSON file not found" in str(exc_info.value)
+    assert "/nonexistent/path/to/file.geojson" in str(exc_info.value)
+
+
+def test_download_data_val_geojson_not_found():
+    """Test that download_data() raises FileNotFoundError when validation GeoJSON doesn't exist."""
+    cfg = {
+        "val_start_date": "2020-01-01",
+        "val_end_date": "2020-01-02",
+        "mission": "sentinel-2",
+        "val_region": "/nonexistent/path/to/val_file.geojson",
+    }
+
+    with pytest.raises(FileNotFoundError) as exc_info:
+        download_data(cfg, val=True)
+
+    assert "Validation GeoJSON file not found" in str(exc_info.value)
+    assert "/nonexistent/path/to/val_file.geojson" in str(exc_info.value)

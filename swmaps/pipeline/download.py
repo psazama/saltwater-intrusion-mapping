@@ -74,7 +74,13 @@ def download_data(cfg: dict, val=False):
 
         # Support both GeoJSON geometry and explicit lat/lon
         geometry_path = cfg.get("geometry")
-        if geometry_path and Path(geometry_path).exists():
+        if geometry_path:
+            geojson_file = Path(geometry_path)
+            if not geojson_file.exists():
+                raise FileNotFoundError(
+                    f"GeoJSON file not found: {geometry_path}. "
+                    "Please provide a valid 'geometry' path or use explicit 'latitude' and 'longitude' values."
+                )
             lat, lon = _extract_coords_from_geojson(geometry_path)
         else:
             lat = cfg["latitude"]
@@ -88,7 +94,13 @@ def download_data(cfg: dict, val=False):
 
         # Support both GeoJSON val_region and explicit val_latitude/val_longitude
         val_region_path = cfg.get("val_region")
-        if val_region_path and Path(val_region_path).exists():
+        if val_region_path:
+            val_geojson_file = Path(val_region_path)
+            if not val_geojson_file.exists():
+                raise FileNotFoundError(
+                    f"Validation GeoJSON file not found: {val_region_path}. "
+                    "Please provide a valid 'val_region' path or use explicit 'val_latitude' and 'val_longitude' values."
+                )
             lat, lon = _extract_coords_from_geojson(val_region_path)
         else:
             lat = cfg["val_latitude"]

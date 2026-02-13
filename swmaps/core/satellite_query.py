@@ -13,7 +13,10 @@ from pathlib import Path
 
 import ee
 import geopandas as gpd
+import numpy as np
 import pandas as pd
+import rasterio
+from rasterio.merge import merge
 import requests
 from tqdm import tqdm
 
@@ -126,6 +129,144 @@ def get_best_image(collection: ee.ImageCollection, mission: str, samples: int):
 
 
 # ---------------------------------------------------------
+#  TILE-BASED DOWNLOAD HELPERS
+# ---------------------------------------------------------
+
+
+def tile_bbox(bbox: list[float], grid_size: int = 2) -> list[list[float]]:
+    """
+    Split a bounding box into a grid of smaller sub-regions.
+    
+    Args:
+        bbox: [minx, miny, maxx, maxy] in degrees
+        grid_size: Number of tiles per side (e.g., 2 = 2x2 = 4 tiles)
+    
+    Returns:
+        List of bboxes, each [minx, miny, maxx, maxy]
+    """
+    minx, miny, maxx, maxy = bbox
+    
+    # Calculate step sizes
+    dx = (maxx - minx) / grid_size
+    dy = (maxy - miny) / grid_size
+    
+    tiles = []
+    for i in range(grid_size):
+        for j in range(grid_size):
+            tile_minx = minx + i * dx
+            tile_miny = miny + j * dy
+            tile_maxx = tile_minx + dx
+            tile_maxy = tile_miny + dy
+            tiles.append([tile_minx, tile_miny, tile_maxx, tile_maxy])
+    
+    return tiles
+
+
+def merge_geotiff_tiles(
+    tile_paths: list[str],
+    output_path: str | Path,
+    bbox: list[float],
+) -> None:
+    """
+    Merge multiple GeoTIFF tiles into a single file with proper georeferencing.
+    
+    Args:
+        tile_paths: List of paths to tile GeoTIFF files
+        output_path: Path for the merged output file
+        bbox: Original bounding box [minx, miny, maxx, maxy] for reference
+    """
+    # Open all tile datasets
+    src_files = [rasterio.open(p) for p in tile_paths]
+    
+    try:
+        # Merge tiles using rasterio
+        mosaic, out_transform = merge(src_files)
+        
+        # Get metadata from first tile
+        out_meta = src_files[0].meta.copy()
+        
+        # Update metadata for merged image
+        out_meta.update({
+            "driver": "GTiff",
+            "height": mosaic.shape[1],
+            "width": mosaic.shape[2],
+            "transform": out_transform,
+            "compress": "lzw",
+        })
+        
+        # Write merged output
+        with rasterio.open(output_path, "w", **out_meta) as dest:
+            dest.write(mosaic)
+            
+    finally:
+        # Close all source files
+        for src in src_files:
+            src.close()
+
+
+def tile_and_download_gee_image(
+    image: ee.Image,
+    band_list: list[str],
+    bbox: list[float],
+    out_dir: Path,
+    mission: str,
+    image_id: str,
+    scale: int,
+    crs: str,
+    grid_size: int = 2,
+) -> list[str]:
+    """
+    Download a large GEE image by splitting into tiles and downloading each synchronously.
+    
+    Args:
+        image: The clipped and reprojected ee.Image
+        band_list: List of band names to download
+        bbox: Original bounding box [minx, miny, maxx, maxy]
+        out_dir: Output directory for tiles
+        mission: Mission name for filename
+        image_id: Image ID for filename
+        scale: Pixel resolution in meters
+        crs: CRS string (e.g., "EPSG:32618")
+        grid_size: Number of tiles per side
+    
+    Returns:
+        List of tile file paths
+    """
+    tiles = tile_bbox(bbox, grid_size)
+    tile_paths = []
+    
+    print(f"[GEE] Downloading {len(tiles)} tiles for large image...")
+    
+    for idx, tile_bbox_coords in enumerate(tqdm(tiles, desc="Downloading tiles")):
+        tile_region = ee.Geometry.BBox(*tile_bbox_coords)
+        
+        # Clip to tile region
+        tile_image = image.clip(tile_region)
+        
+        # Get download URL
+        url = tile_image.getDownloadURL({
+            "scale": scale,
+            "crs": crs,
+            "region": tile_region,
+            "format": "GEOTIFF",
+            "filePerBand": False,
+        })
+        
+        # Download tile
+        tile_path = out_dir / f"{mission}_{image_id}_tile_{idx}.tif"
+        r = requests.get(url, stream=True)
+        r.raise_for_status()
+        
+        with open(tile_path, "wb") as f:
+            for chunk in r.iter_content(chunk_size=8192):
+                f.write(chunk)
+        
+        tile_paths.append(str(tile_path))
+    
+    return tile_paths
+
+
+# ---------------------------------------------------------
 #  DOWNLOAD MULTIBAND IMAGE FROM GEE
 # ---------------------------------------------------------
 
@@ -140,7 +281,7 @@ def download_gee_multiband(
 ):
     """
     Export a clipped, multiband GeoTIFF for the given GEE image.
-    Automatically switches Sentinel-2 to async export if request is large.
+    Uses tile-based downloading for large images (>30 MB).
     """
     initialize_ee()
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -190,30 +331,39 @@ def download_gee_multiband(
     out_path = out_dir / f"{mission}_{image_id}_multiband.tif"
 
     # -------------------------------------------------
-    # Sentinel auto-export rule
+    # Tile-based download for large images
     # -------------------------------------------------
-    if mission.startswith("sentinel") and est_mb > 30:
+    if est_mb > 30:
         print(
-            f"[GEE] Size exceeds 30 MB for Sentinel-2, "
-            f"exporting asynchronously: {out_path.name}"
+            f"[GEE] Size exceeds 30 MB, using tile-based download: {out_path.name}"
         )
-
-        task = ee.batch.Export.image.toDrive(
+        
+        # Download tiles
+        tile_paths = tile_and_download_gee_image(
             image=clipped,
-            description=f"{mission}_{image_id}",
-            folder=str(out_dir.name),
-            fileNamePrefix=out_path.stem,
-            region=region,
+            band_list=band_list,
+            bbox=bbox,
+            out_dir=out_dir,
+            mission=mission,
+            image_id=image_id,
             scale=scale,
             crs=ANALYSIS_CRS,
-            maxPixels=1e13,
+            grid_size=2,  # 2x2 = 4 tiles
         )
-        task.start()
-
+        
+        # Merge tiles into final output
+        print(f"[GEE] Merging {len(tile_paths)} tiles...")
+        merge_geotiff_tiles(tile_paths, out_path, bbox)
+        
+        # Clean up individual tiles
+        for tile_path in tile_paths:
+            Path(tile_path).unlink()
+        
+        print(f"[GEE] Merged file written to: {out_path}")
         return str(out_path)
 
     # -------------------------------------------------
-    # Synchronous download path
+    # Synchronous download path for small images
     # -------------------------------------------------
     url = clipped.getDownloadURL(
         {

@@ -174,6 +174,9 @@ def merge_geotiff_tiles(
         output_path: Path for the merged output file
         bbox: Original bounding box [minx, miny, maxx, maxy] for reference
     """
+    if not tile_paths:
+        raise ValueError("No tiles to merge")
+
     # Open all tile datasets
     src_files = [rasterio.open(p) for p in tile_paths]
 
@@ -238,8 +241,8 @@ def tile_and_download_gee_image(
 
     print(f"[GEE] Downloading {len(tiles)} tiles for large image...")
 
-    for idx, tile_bbox_coords in enumerate(tqdm(tiles, desc="Downloading tiles")):
-        tile_region = ee.Geometry.BBox(*tile_bbox_coords)
+    for idx, tile_coords in enumerate(tqdm(tiles, desc="Downloading tiles")):
+        tile_region = ee.Geometry.BBox(*tile_coords)
 
         # Clip to tile region
         tile_image = image.clip(tile_region)
@@ -257,8 +260,12 @@ def tile_and_download_gee_image(
 
         # Download tile
         tile_path = out_dir / f"{mission}_{image_id}_tile_{idx}.tif"
-        r = requests.get(url, stream=True)
-        r.raise_for_status()
+
+        try:
+            r = requests.get(url, stream=True)
+            r.raise_for_status()
+        except requests.exceptions.RequestException as e:
+            raise RuntimeError(f"Failed to download tile {idx} from {url}: {e}") from e
 
         with open(tile_path, "wb") as f:
             for chunk in r.iter_content(chunk_size=8192):

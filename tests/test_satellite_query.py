@@ -2,7 +2,6 @@
 Tests for satellite_query module, specifically tile-based download functions.
 """
 
-
 import pytest
 
 from swmaps.core.satellite_query import merge_geotiff_tiles, tile_bbox
@@ -82,6 +81,11 @@ class TestMergeGeotiffTiles:
         assert "tile_paths" in params
         assert "output_path" in params
         assert "bbox" in params
+
+    def test_merge_empty_tile_list(self):
+        """Test that merge function raises error for empty tile list."""
+        with pytest.raises(ValueError, match="No tiles to merge"):
+            merge_geotiff_tiles([], "/tmp/output.tif", [0, 0, 1, 1])
 
 
 if __name__ == "__main__":

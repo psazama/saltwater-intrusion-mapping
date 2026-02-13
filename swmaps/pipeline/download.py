@@ -32,6 +32,7 @@ def _extract_coords_from_geojson(geojson_path: str | Path) -> tuple[float, float
     Returns:
         Tuple of (latitude, longitude) representing the centroid of the geometry
     """
+    # Lazy import to avoid adding a hard dependency before it's needed
     import geopandas as gpd
 
     gdf = gpd.read_file(geojson_path)

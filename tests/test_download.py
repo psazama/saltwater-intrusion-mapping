@@ -8,32 +8,32 @@ import pytest
 
 from swmaps.pipeline.download import _extract_coords_from_geojson, download_data
 
+# Test GeoJSON content for a simple polygon
+TEST_GEOJSON = """{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {},
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[
+          [-76.0, 38.0],
+          [-75.0, 38.0],
+          [-75.0, 39.0],
+          [-76.0, 39.0],
+          [-76.0, 38.0]
+        ]]
+      }
+    }
+  ]
+}"""
+
 
 def test_extract_coords_from_geojson():
     """Test extracting coordinates from a GeoJSON file."""
-    # Create a temporary GeoJSON file
-    geojson_content = """{
-      "type": "FeatureCollection",
-      "features": [
-        {
-          "type": "Feature",
-          "properties": {},
-          "geometry": {
-            "type": "Polygon",
-            "coordinates": [[
-              [-76.0, 38.0],
-              [-75.0, 38.0],
-              [-75.0, 39.0],
-              [-76.0, 39.0],
-              [-76.0, 38.0]
-            ]]
-          }
-        }
-      ]
-    }"""
-
     with tempfile.NamedTemporaryFile(mode="w", suffix=".geojson", delete=False) as f:
-        f.write(geojson_content)
+        f.write(TEST_GEOJSON)
         temp_path = f.name
 
     try:
@@ -65,29 +65,8 @@ def test_extract_coords_from_real_geojson():
 
 def test_download_data_with_geojson():
     """Test that download_data() correctly uses GeoJSON when provided."""
-    # Create a temporary GeoJSON file
-    geojson_content = """{
-      "type": "FeatureCollection",
-      "features": [
-        {
-          "type": "Feature",
-          "properties": {},
-          "geometry": {
-            "type": "Polygon",
-            "coordinates": [[
-              [-76.0, 38.0],
-              [-75.0, 38.0],
-              [-75.0, 39.0],
-              [-76.0, 39.0],
-              [-76.0, 38.0]
-            ]]
-          }
-        }
-      ]
-    }"""
-
     with tempfile.NamedTemporaryFile(mode="w", suffix=".geojson", delete=False) as f:
-        f.write(geojson_content)
+        f.write(TEST_GEOJSON)
         temp_path = f.name
 
     try:
@@ -144,29 +123,8 @@ def test_download_data_with_explicit_latlon():
 
 def test_download_data_val_with_geojson():
     """Test that download_data() works with GeoJSON for validation data."""
-    # Create a temporary GeoJSON file
-    geojson_content = """{
-      "type": "FeatureCollection",
-      "features": [
-        {
-          "type": "Feature",
-          "properties": {},
-          "geometry": {
-            "type": "Polygon",
-            "coordinates": [[
-              [-76.0, 38.0],
-              [-75.0, 38.0],
-              [-75.0, 39.0],
-              [-76.0, 39.0],
-              [-76.0, 38.0]
-            ]]
-          }
-        }
-      ]
-    }"""
-
     with tempfile.NamedTemporaryFile(mode="w", suffix=".geojson", delete=False) as f:
-        f.write(geojson_content)
+        f.write(TEST_GEOJSON)
         temp_path = f.name
 
     try:

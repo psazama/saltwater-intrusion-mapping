@@ -20,7 +20,7 @@ mission = ["sentinel-2"]
 # Location of interest
 # -------------------------
 
-geometry = "data/regions/somerset_train.geojson"
+geometry = "config/somerset_train.geojson"
 
 # -------------------------
 # Validation Set
@@ -30,7 +30,7 @@ do_val = true
 val_start_date = "1999-04-01"
 val_end_date   = "2000-04-10"
 val_date_step = 120
-val_region = "data/regions/somerset_val.geojson"
+val_region = "config/somerset_val.geojson"
 val_dir       = "data/outputs/quickstart_train/validation"
 val_cdl_out = "data/outputs/quickstart_train/cdl/val_cdl_2019.tif"
 

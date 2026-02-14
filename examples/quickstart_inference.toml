@@ -1,18 +1,32 @@
-[general]
-output_dir = "data/outputs/quickstart_inference"
-skip_download = false
+# -------------------------
+# Imagery date range
+# -------------------------
 
-[imagery]
 start_date = "2021-01-01"
 end_date = "2021-12-31"
-cloud_cover_max = 20
 
-[[sites]]
-name = "eastern_shore_md"
-geometry = "data/regions/eastern_shore.geojson"
+# -------------------------
+# General Settings & Mission / sensor
+# -------------------------
 
-[inference]
-enabled = true
-model_arch = "farseg"
-weights_path = "models/samples/farseg_pretrained.pt"
+cloud_filter = 20
+out_dir = "data/outputs/quickstart_inference"
+skip_download = false
+
+mission = ["sentinel-2"]
+
+# -------------------------
+# Location of interest
+# -------------------------
+
+geometry = "config/choptank_river_region.geojson"
+
+# -------------------------
+# Inference Only (No Training)
+# -------------------------
+
+run_segmentation = true
+segmentation_model = "farseg"
+segmentation_weights_path = "data/outputs/quickstart_train/model/best_model.pth"
+segmentation_out_dir = "data/outputs/quickstart_inference/segmentation"
 save_png = true

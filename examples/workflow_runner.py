@@ -63,14 +63,7 @@ def main():
             f"{cfg['segmentation_model_dir']}_{args.loss_function}"
         )
 
-    for dir_str in [
-        "out_dir",
-        "segmentation_model_dir",
-        "val_dir",
-        "val_cdl_out",
-        "segmentation_weights_path",
-        "segmentation_out_dir",
-    ]:
+    for dir_str in ["out_dir", "val_dir", "val_cdl_out"]:
         path = cfg.get(dir_str, None)
         if path:
             path = Path(path)
@@ -142,6 +135,18 @@ def main():
     # Step 2.5 — Segmentation (Training & Label Alignment)
     # -----------------------------------------------------------
     if cfg.get("train_segmentation", False):
+        for dir_str in [
+            "segmentation_model_dir",
+            "segmentation_weights_path",
+            "segmentation_out_dir",
+        ]:
+            path = cfg.get(dir_str, None)
+            if path:
+                path = Path(path)
+                if path.exists() and path.is_dir():
+                    logging.info(f"Clearing existing data in: {path}")
+                    shutil.rmtree(path)
+
         logging.info("Preparing CDL labels and training FarSeg")
         from swmaps.datasets.cdl import align_cdl_to_imagery
 
@@ -246,6 +251,7 @@ def main():
     # Inference & Post-Processing
     # -----------------------------------------------------------
     if cfg.get("run_segmentation", False):
+        logging.info("Preparing to run segmentation model.")
         mosaics = [
             m
             for m in sorted(base_out_dir.rglob("*_multiband.tif"))
@@ -261,6 +267,8 @@ def main():
                 weights_path=cfg.get("segmentation_weights_path"),
                 save_png=bool(cfg.get("segmentation_png", False)),
             )
+        else:
+            logging.warning("No mosaics found! Skipping inference...")
 
     if cfg.get("run_salinity_pipeline", False):
         salinity_pipeline(

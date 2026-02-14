@@ -15,7 +15,11 @@ from swmaps.config import data_path
 from swmaps.datasets.cdl import CDL_TO_BINARY_CLASS
 from swmaps.models.inference import run_segmentation
 from swmaps.models.salinity_heuristic import SalinityHeuristicModel
-from swmaps.pipeline.download import download_cdl, download_data
+from swmaps.pipeline.download import (
+    _extract_coords_from_geojson,
+    download_cdl,
+    download_data,
+)
 from swmaps.pipeline.masks import generate_masks
 from swmaps.pipeline.salinity import salinity_pipeline
 from swmaps.pipeline.trend import trend_heatmap
@@ -86,6 +90,17 @@ def main():
         # 1. Training Sites (Numbered Subdirectories)
         lats = ensure_list(cfg.get("latitude"))
         lons = ensure_list(cfg.get("longitude"))
+
+        if not lats or not lons:
+            geometry_path = cfg.get("geometry")
+            if geometry_path:
+                coords = _extract_coords_from_geojson(geometry_path)
+                if coords:
+                    lats = [coords[0]]
+                    lons = [coords[1]]
+                    logging.info(
+                        f"Extracted training coordinates from GeoJSON: lat={lats[0]}, lon={lons[0]}"
+                    )
 
         if lats and lons:
             for i, (lat, lon) in enumerate(zip(lats, lons), start=1):
@@ -206,9 +221,13 @@ def main():
                 lr_patience=cfg.get("lr_patience", 5),
                 stopping_patience=cfg.get("stopping_patience", 15),
             )
+        else:
+            logging.warning("No training pairs! Skipping training...")
 
         if validation_pairs:
             logging.info("Running inference on validation set for visual inspection...")
+            seg_model_dir = Path(cfg["segmentation_model_dir"])
+            seg_model_dir.mkdir(parents=True, exist_ok=True)
             val_out = seg_model_dir / "val_predictions"
             val_out.mkdir(parents=True, exist_ok=True)
 

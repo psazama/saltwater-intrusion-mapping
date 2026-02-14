@@ -20,17 +20,16 @@ mission = ["sentinel-2"]
 # Location of interest
 # -------------------------
 
-geometry = "data/regions/somerset_train.geojson"
+geometry = "config/somerset_train.geojson"
 
 # -------------------------
 # Validation Set
 # -------------------------
 
 do_val = true
-val_start_date = "1999-04-01"
-val_end_date   = "2000-04-10"
-val_date_step = 120
-val_region = "data/regions/somerset_val.geojson"
+val_start_date = "2020-04-01"
+val_end_date   = "2021-04-10"
+val_region = "config/somerset_val.geojson"
 val_dir       = "data/outputs/quickstart_train/validation"
 val_cdl_out = "data/outputs/quickstart_train/cdl/val_cdl_2019.tif"
 
@@ -43,18 +42,20 @@ cdl_year = 2019
 cdl_region = ["data/regions/somerset_train.geojson", "data/regions/somerset_val.geojson"]
 
 # -------------------------
-# Segmentation Traing
+# Segmentation Training
 # -------------------------
 
+train_segmentation = true
 segmentation_model = "farseg"
 epochs = 10
 batch_size = 8
 learning_rate = 1e-4
 loss = "dice"
 segmentation_weights = "pretrained"
+segmentation_model_dir = "data/outputs/quickstart_train/model"
 
 # -------------------------
-# Segmentation Traing
+# Segmentation Inference
 # -------------------------
 
 run_segmentation = true

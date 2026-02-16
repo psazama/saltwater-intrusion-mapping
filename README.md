@@ -40,19 +40,13 @@ earthengine authenticate
 
 ---
 
-### 2. Run a Minimal Example Workflow 🏃‍♂️
+### 2. Download-Only Workflow ⬇️
 
-The pipeline uses a Python workflow runner with TOML configuration files. Here’s a minimal inference example:
+Skip all modeling steps and just download imagery:
 
 ```
-python examples/workflow_runner.py --config examples/quickstart_inference.toml
+python examples/workflow_runner.py --config examples/quickstart_download_only.toml
 ```
-
-This workflow will:
-
-* Download and mosaic imagery for the specified site
-* Run FarSeg inference
-* Save georeferenced prediction rasters and optional PNG previews
 
 ---
 
@@ -73,13 +67,19 @@ This workflow will:
 
 ---
 
-### 4. Download-Only Workflow ⬇️
+### 4. Run Inference with a Pre-trained Model Example 🏃‍♂️
 
-Skip all modeling steps and just download imagery:
+The pipeline uses a Python workflow runner with TOML configuration files. Here’s a minimal inference example:
 
 ```
-python examples/workflow_runner.py --config examples/quickstart_download_only.toml
+python examples/workflow_runner.py --config examples/quickstart_inference.toml
 ```
+
+This workflow will:
+
+* Download and mosaic imagery for the specified site
+* Run FarSeg inference
+* Save georeferenced prediction rasters and optional PNG previews
 
 ---
 

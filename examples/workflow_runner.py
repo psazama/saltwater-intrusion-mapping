@@ -13,6 +13,7 @@ from pathlib import Path
 
 from swmaps.config import data_path
 from swmaps.datasets.cdl import CDL_TO_BINARY_CLASS
+from swmaps.models.dataset import mission_from_path, satellite_id_from_mission
 from swmaps.models.inference import run_segmentation
 from swmaps.models.salinity_heuristic import SalinityHeuristicModel
 from swmaps.pipeline.download import (
@@ -179,7 +180,8 @@ def main():
                 label_path = mosaic.with_name(f"aligned_cdl_{mosaic.name}")
                 if not label_path.exists():
                     align_cdl_to_imagery(site_cdls[0], mosaic, label_path)
-                training_pairs.append((mosaic, label_path))
+                sat_id = satellite_id_from_mission(mission_from_path(mosaic))
+                training_pairs.append((mosaic, label_path, sat_id))
             else:
                 logging.warning(f"No CDL label found in folder: {mosaic.parent}")
 
@@ -198,7 +200,8 @@ def main():
                     v_label = v_mosaic.with_name(f"aligned_cdl_{v_mosaic.name}")
                     if not v_label.exists():
                         align_cdl_to_imagery(val_cdl_file, v_mosaic, v_label)
-                    validation_pairs.append((v_mosaic, v_label))
+                    sat_id = satellite_id_from_mission(mission_from_path(mosaic))
+                    validation_pairs.append((v_mosaic, v_label, sat_id))
                 else:
                     logging.warning(f"No CDL label found in folder: {v_mosaic.parent}")
 

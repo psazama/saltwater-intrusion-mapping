@@ -3,7 +3,11 @@ from pathlib import Path
 import torch
 from torch.utils.data import DataLoader
 
-from swmaps.models.dataset import SegDataset
+from swmaps.models.dataset import (
+    SegDataset,
+    mission_from_path,
+    satellite_id_from_mission,
+)
 from swmaps.models.farseg import FarSegModel
 from swmaps.models.model_factory import MODEL_REGISTRY, get_model
 
@@ -83,7 +87,9 @@ def run_segmentation(
     model.eval()
 
     # 3. Use the existing Dataset loader
-    samples = [{"image_path": p, "mask_path": None} for p in mosaics]
+    samples = [
+        (p, None, satellite_id_from_mission(mission_from_path(p))) for p in mosaics
+    ]
     dataset = SegDataset(samples, inference_only=True)
     loader = DataLoader(dataset, batch_size=batch_size)
 

@@ -1,50 +1,144 @@
 from pathlib import Path
 
+import albumentations as A
 import numpy as np
 import rasterio
 import torch
+from albumentations.pytorch import ToTensorV2
 from torch.utils.data import Dataset
 
 from swmaps.core.missions import get_mission
 
+#########################################
+## Dataset Utilities
+#########################################
+
 
 def mission_from_path(path: str) -> str:
+    s2 = ["sentinel-2", "sentinel2"]
+    l5 = ["landsat-5", "landsat5", "lt05"]
+    l7 = ["landsat-7", "landsat7", "le07"]
+    l8 = ["landsat-8", "landsat8"]
+
     p = Path(path)
     # Check parents or stem for mission keywords
     parts = [p.parent.name.lower(), p.stem.lower()]
     for part in parts:
-        if "sentinel-2" in part:
+        if any(item in part for item in s2):
             return "sentinel-2"
-        if "landsat-5" in part:
+        if any(item in part for item in l5):
             return "landsat-5"
-        if "landsat-7" in part:
+        if any(item in part for item in l7):
             return "landsat-7"
-        if "landsat-8" in part:
+        if any(item in part for item in l8):
             return "landsat-8"
 
     # Fallback to splitting stem
     return p.stem.split("_")[0]
 
 
+def satellite_id_from_mission(mission: str) -> int:
+    missions = {
+        "landsat-5": 0,
+        "landsat-7": 1,
+        "sentinel-2": 2,
+    }
+
+    return missions[mission]
+
+
+def data_transforms(target_size):
+    transforms = A.Compose(
+        [
+            # 1. Geometric
+            A.RandomRotate90(p=0.5),
+            A.HorizontalFlip(p=0.5),
+            A.VerticalFlip(p=0.5),
+            A.ShiftScaleRotate(
+                shift_limit=0.1, scale_limit=0.15, rotate_limit=30, p=0.7
+            ),
+            # 2. Spectral/Atmospheric
+            A.OneOf(
+                [
+                    A.RandomBrightnessContrast(
+                        brightness_limit=0.2, contrast_limit=0.2
+                    ),
+                    A.RandomGamma(
+                        gamma_limit=(80, 120)
+                    ),  # Simulates atmospheric haze/clarity
+                    A.MultiplicativeNoise(
+                        multiplier=(0.9, 1.1), per_channel=True
+                    ),  # Spectral variation
+                ],
+                p=0.4,
+            ),
+            # 3. Noise/Quality
+            A.OneOf(
+                [
+                    A.GaussNoise(var_limit=(0.001, 0.01)),  # Adjusted for 0.0-1.0 range
+                    A.Blur(blur_limit=3),
+                ],
+                p=0.3,
+            ),
+            # 4. Structural
+            A.CoarseDropout(
+                max_holes=8, max_height=32, max_width=32, fill_value=0, p=0.3
+            ),
+            # 5. Final Sizing
+            # Set value=0 for image padding and mask_value=255 for the ignore index
+            A.PadIfNeeded(
+                min_height=target_size,
+                min_width=target_size,
+                border_mode=0,
+                value=0,
+                mask_value=255,
+            ),
+            A.RandomCrop(target_size, target_size),
+            ToTensorV2(),
+        ]
+    )
+    return transforms
+
+
+#########################################
+## Segmentation Dataset Base Class
+#########################################
+
+
 class SegDataset(Dataset):
-    def __init__(self, samples, crop_size=512, inference_only=False):
-        """
-        samples: list of dicts with "image_path" and possibly "mask_path"
-        crop_size: desired H and W for model input (must be multiple of 32 for FarSeg)
-        """
-        self.samples = samples
-        self.crop_size = crop_size
+    def __init__(
+        self,
+        data_pairs,
+        label_map=None,
+        target_size=512,
+        transform=None,
+        inference_only=False,
+    ):
+        self.data_pairs = data_pairs
+        self.samples = data_pairs  # TODO clean up and rermove
+        self.target_size = target_size
+        self.crop_size = target_size  # TODO clean up and remove
+        self.transform = transform
         self.inference_only = inference_only
 
+        # Pre-compute lookup table once
+        self.lookup = None
+        if label_map:
+            # Initialize with 255 (ignore index) or 0 depending on your preference
+            self.lookup = np.arange(256, dtype="int64")
+            for k, v in label_map.items():
+                if k < 256:
+                    self.lookup[k] = v
+
         # Auto-infer channel count from the first sample
-        if len(samples) > 0:
-            with rasterio.open(samples[0]["image_path"]) as src:
+        if len(self.samples) > 0:
+            with rasterio.open(self.samples[0][0]) as src:
                 self.in_channels = src.count
         else:
             self.in_channels = 3
 
     def __len__(self):
-        return len(self.samples)
+        return len(self.data_pairs)
 
     def _read_image(self, image_path):
         """
@@ -115,7 +209,7 @@ class SegDataset(Dataset):
 
     def __getitem__(self, idx):
         s = self.samples[idx]
-        image_path = s["image_path"]
+        image_path = s[0]
 
         # Read and process image
         image_arr = self._read_image(image_path)
@@ -131,7 +225,7 @@ class SegDataset(Dataset):
             return image, dummy_mask
 
         # Read and process mask
-        with rasterio.open(s["mask_path"]) as src:
+        with rasterio.open(s[1]) as src:
             mask_arr = src.read(1).astype("int64")
 
         mask_arr = self._crop_center(mask_arr)

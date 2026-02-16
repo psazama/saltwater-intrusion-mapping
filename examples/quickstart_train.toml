@@ -60,4 +60,4 @@ segmentation_model_dir = "data/outputs/quickstart_train/model"
 
 run_segmentation = true
 segmentation_out_dir = "data/outputs/quickstart_train/segmentation"
-save_png = true
+segmentation_png = true

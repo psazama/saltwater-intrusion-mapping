@@ -1,0 +1,79 @@
+# ---------------------------------------------------------------------
+# Choptank Watershed GEE Workflow Configuration
+# ---------------------------------------------------------------------
+
+# -------------------------
+# Imagery date range
+# -------------------------
+start_date = "1999-04-01"
+end_date   = "2000-04-10"
+date_step = 120
+
+# -------------------------
+# Location of interest
+# -------------------------
+# Center coordinate where imagery will be clipped.
+latitude  = [38.75, 38.93]
+longitude = [-75.95, -76.16]
+
+# -------------------------
+# CDL download options
+# -------------------------
+# If true, the runner will download the NASS CDL product before imagery.
+download_cdl = true
+cdl_year = 2019
+# Can be a path to a GeoJSON polygon, or bounds [xmin, ymin, xmax, ymax].
+# If not provided, the script falls back to latitude/longitude + cdl_buffer_km.
+# cdl_region = "config/choptank_river_region.geojson"
+cdl_buffer_km = 10.0
+
+# -------------------------
+# Mission / sensor
+# -------------------------
+mission = ["sentinel-2", "landsat-5", "landsat-7"]
+
+# -------------------------
+# Download and mosaic settings
+# -------------------------
+skip_download = false
+save_png      = true
+buffer_km     = 10.0        # size of region around lat/lon
+cloud_filter  = 30         # maximum % cloud cover allowed
+days_before   = 30          # temporal window around each date
+days_after    = 30
+samples_per_date = 1       # Will try to get the 3 cleanest images for every date step
+out_dir       = "data/choptank_cdl_finetune/mosaics"
+
+# -------------------------
+# Segmentation settings
+# -------------------------
+# training
+train_segmentation = true
+segmentation_num_classes = 256
+segmentation_model_dir = "data/choptank_cdl_finetune/models/panopticon_v1_hybrid"
+
+# hyperparameters
+model_type = "panopticon"
+loss_function = "hybrid"   # supports "ce" "focal", "dice", "hybrid"
+batch_size = 64
+lr_patience = 5
+stopping_patience = 15
+epochs = 2
+lr = 0.00001
+
+# validation
+do_val = true
+val_start_date = "1999-04-01"
+val_end_date   = "2000-04-10"
+val_date_step = 120
+val_latitude  = 38.75
+val_longitude = -75.95
+val_dir       = "data/choptank_cdl_finetune/validation"
+val_cdl_out = "data/choptank_cdl_finetune/cdl/val_cdl_2019.tif"
+
+# inference
+run_segmentation = true
+segmentation_weights_path = "data/choptank_cdl_finetune/models/panopticon_v1_hybrid/panopticon_final.pth"
+segmentation_out_dir = "data/choptank_cdl_finetune/segmentation/panopticon_v1_hybrid"
+segmentation_png = true
+

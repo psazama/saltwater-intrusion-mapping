@@ -148,7 +148,7 @@ def main():
                     logging.info(f"Clearing existing data in: {path}")
                     shutil.rmtree(path)
 
-        logging.info("Preparing CDL labels and training FarSeg")
+        logging.info("Preparing CDL labels and training")
         from swmaps.datasets.cdl import align_cdl_to_imagery
 
         model_type = cfg.get("model_type", "farseg").lower()
@@ -156,6 +156,10 @@ def main():
             from swmaps.models.farseg import FarSegModel
 
             ModelClass = FarSegModel
+        elif model_type == "panopticon":
+            from swmaps.models.panopticon import PanopticonModel
+
+            ModelClass = PanopticonModel
         # elif model_type == "unet":
         #     from swmaps.models.unet import UNetModel
         #     ModelClass = UNetModel
@@ -245,7 +249,7 @@ def main():
             run_segmentation(
                 mosaics=val_mosaics_only,
                 out_dir=val_out,
-                model_name="farseg",
+                model_name=cfg.get("segmentation_model", "farseg"),
                 weights_path=str(seg_model_dir / "best_model.pth"),
                 save_png=True,  # Helpful for visual debugging
             )

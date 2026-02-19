@@ -5,6 +5,7 @@ import torch.nn.functional as F
 from torch import nn
 from torchgeo.models import Panopticon
 
+from swmaps.core.missions import GLOBAL_BAND_IDS, get_mission_from_id
 from swmaps.models.base import BaseSegModel
 from swmaps.models.dataset import SegDataset
 
@@ -94,15 +95,15 @@ class PanopticonModel(BaseSegModel):
         # Multispectral → RGB projection
         # (ViT encoders expect 3 channels)
         # ----------------------------------------------------
-        if in_channels != 3:
-            self.input_proj = nn.Conv2d(
-                in_channels,
-                3,
-                kernel_size=1,
-                bias=False,
-            )
-        else:
-            self.input_proj = nn.Identity()
+        # if in_channels != 3:
+        #    self.input_proj = nn.Conv2d(
+        #        in_channels,
+        #        3,
+        #        kernel_size=1,
+        #        bias=False,
+        #    )
+        # else:
+        self.input_proj = nn.Identity()
 
         # ----------------------------------------------------
         # Segmentation head
@@ -135,15 +136,28 @@ class PanopticonModel(BaseSegModel):
     # --------------------------------------------------------
     # Forward
     # --------------------------------------------------------
-    def forward(self, x, sat_ids=None):
+    def forward(self, x, sat_ids):
+        device = x.device
+
+        chn_ids = self._get_channel_ids(sat_ids, device)
 
         input_size = x.shape[-2:]
 
         # Project multispectral → encoder input space
         x = self.input_proj(x)
+        print(x.shape, chn_ids.shape)
+        x_dict = {
+            "imgs": x,
+            "chn_ids": chn_ids,
+            "sat_ids": torch.tensor(
+                sat_ids,
+                dtype=torch.long,
+                device=device,
+            ),
+        }
 
         # Foundation features
-        feats = self.encoder(x)
+        feats = self.encoder(x_dict)
 
         # Segmentation logits
         logits = self.segmentation_head(feats)
@@ -223,3 +237,31 @@ class PanopticonModel(BaseSegModel):
             dataset_class,
             **kwargs,
         )
+
+    ######################################
+    # Helper Utilities
+    ######################################
+    def _get_channel_ids(self, sat_ids, device):
+        """
+        Build Panopticon channel ID tensor.
+
+        Returns:
+            chn_ids: (B, C)
+        """
+
+        chn_rows = []
+
+        for sid in sat_ids:
+            mission = get_mission_from_id(int(sid))
+
+            band_names = list(mission.bands().keys())
+
+            chn_rows.append([GLOBAL_BAND_IDS[b] for b in band_names])
+
+        chn_ids = torch.tensor(
+            chn_rows,
+            dtype=torch.long,
+            device=device,
+        )
+
+        return chn_ids

@@ -31,7 +31,13 @@
             <h2>API Documentation</h2>
                 <ul class="memberlist">
             <li>
+                    <a class="variable" href="#GLOBAL_BAND_IDS">GLOBAL_BAND_IDS</a>
+            </li>
+            <li>
                     <a class="function" href="#get_mission">get_mission</a>
+            </li>
+            <li>
+                    <a class="function" href="#get_mission_from_id">get_mission_from_id</a>
             </li>
     </ul>
 
@@ -63,25 +69,56 @@
 </span><span id="L-5"><a href="#L-5"><span class="linenos"> 5</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">.satellites.landsat7</span><span class="w"> </span><span class="kn">import</span> <span class="n">Landsat7</span>
 </span><span id="L-6"><a href="#L-6"><span class="linenos"> 6</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">.satellites.sentinel2</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sentinel2</span>
 </span><span id="L-7"><a href="#L-7"><span class="linenos"> 7</span></a>
-</span><span id="L-8"><a href="#L-8"><span class="linenos"> 8</span></a>
-</span><span id="L-9"><a href="#L-9"><span class="linenos"> 9</span></a><span class="c1"># --------------------------</span>
-</span><span id="L-10"><a href="#L-10"><span class="linenos">10</span></a><span class="c1"># Factory function</span>
-</span><span id="L-11"><a href="#L-11"><span class="linenos">11</span></a><span class="c1"># --------------------------</span>
-</span><span id="L-12"><a href="#L-12"><span class="linenos">12</span></a><span class="k">def</span><span class="w"> </span><span class="nf">get_mission</span><span class="p">(</span><span class="n">mission</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Mission</span><span class="p">:</span>
-</span><span id="L-13"><a href="#L-13"><span class="linenos">13</span></a>    <span class="n">mission_map</span> <span class="o">=</span> <span class="p">{</span>
-</span><span id="L-14"><a href="#L-14"><span class="linenos">14</span></a>        <span class="s2">&quot;sentinel-2&quot;</span><span class="p">:</span> <span class="n">Sentinel2</span><span class="p">,</span>
-</span><span id="L-15"><a href="#L-15"><span class="linenos">15</span></a>        <span class="s2">&quot;landsat-5&quot;</span><span class="p">:</span> <span class="n">Landsat5</span><span class="p">,</span>
-</span><span id="L-16"><a href="#L-16"><span class="linenos">16</span></a>        <span class="s2">&quot;landsat-7&quot;</span><span class="p">:</span> <span class="n">Landsat7</span><span class="p">,</span>
-</span><span id="L-17"><a href="#L-17"><span class="linenos">17</span></a>    <span class="p">}</span>
-</span><span id="L-18"><a href="#L-18"><span class="linenos">18</span></a>
-</span><span id="L-19"><a href="#L-19"><span class="linenos">19</span></a>    <span class="k">if</span> <span class="n">mission</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">mission_map</span><span class="p">:</span>
-</span><span id="L-20"><a href="#L-20"><span class="linenos">20</span></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unsupported mission: </span><span class="si">{</span><span class="n">mission</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-</span><span id="L-21"><a href="#L-21"><span class="linenos">21</span></a>
-</span><span id="L-22"><a href="#L-22"><span class="linenos">22</span></a>    <span class="k">return</span> <span class="n">mission_map</span><span class="p">[</span><span class="n">mission</span><span class="p">]()</span>
+</span><span id="L-8"><a href="#L-8"><span class="linenos"> 8</span></a><span class="c1"># --------------------------</span>
+</span><span id="L-9"><a href="#L-9"><span class="linenos"> 9</span></a><span class="c1"># Factory function</span>
+</span><span id="L-10"><a href="#L-10"><span class="linenos">10</span></a><span class="c1"># --------------------------</span>
+</span><span id="L-11"><a href="#L-11"><span class="linenos">11</span></a><span class="n">GLOBAL_BAND_IDS</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="L-12"><a href="#L-12"><span class="linenos">12</span></a>    <span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+</span><span id="L-13"><a href="#L-13"><span class="linenos">13</span></a>    <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+</span><span id="L-14"><a href="#L-14"><span class="linenos">14</span></a>    <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+</span><span id="L-15"><a href="#L-15"><span class="linenos">15</span></a>    <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
+</span><span id="L-16"><a href="#L-16"><span class="linenos">16</span></a>    <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span>
+</span><span id="L-17"><a href="#L-17"><span class="linenos">17</span></a>    <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span>
+</span><span id="L-18"><a href="#L-18"><span class="linenos">18</span></a><span class="p">}</span>
+</span><span id="L-19"><a href="#L-19"><span class="linenos">19</span></a>
+</span><span id="L-20"><a href="#L-20"><span class="linenos">20</span></a>
+</span><span id="L-21"><a href="#L-21"><span class="linenos">21</span></a><span class="k">def</span><span class="w"> </span><span class="nf">get_mission</span><span class="p">(</span><span class="n">mission</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Mission</span><span class="p">:</span>
+</span><span id="L-22"><a href="#L-22"><span class="linenos">22</span></a>    <span class="n">mission_map</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="L-23"><a href="#L-23"><span class="linenos">23</span></a>        <span class="s2">&quot;sentinel-2&quot;</span><span class="p">:</span> <span class="n">Sentinel2</span><span class="p">,</span>
+</span><span id="L-24"><a href="#L-24"><span class="linenos">24</span></a>        <span class="s2">&quot;landsat-5&quot;</span><span class="p">:</span> <span class="n">Landsat5</span><span class="p">,</span>
+</span><span id="L-25"><a href="#L-25"><span class="linenos">25</span></a>        <span class="s2">&quot;landsat-7&quot;</span><span class="p">:</span> <span class="n">Landsat7</span><span class="p">,</span>
+</span><span id="L-26"><a href="#L-26"><span class="linenos">26</span></a>    <span class="p">}</span>
+</span><span id="L-27"><a href="#L-27"><span class="linenos">27</span></a>
+</span><span id="L-28"><a href="#L-28"><span class="linenos">28</span></a>    <span class="k">if</span> <span class="n">mission</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">mission_map</span><span class="p">:</span>
+</span><span id="L-29"><a href="#L-29"><span class="linenos">29</span></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unsupported mission: </span><span class="si">{</span><span class="n">mission</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</span><span id="L-30"><a href="#L-30"><span class="linenos">30</span></a>
+</span><span id="L-31"><a href="#L-31"><span class="linenos">31</span></a>    <span class="k">return</span> <span class="n">mission_map</span><span class="p">[</span><span class="n">mission</span><span class="p">]()</span>
+</span><span id="L-32"><a href="#L-32"><span class="linenos">32</span></a>
+</span><span id="L-33"><a href="#L-33"><span class="linenos">33</span></a>
+</span><span id="L-34"><a href="#L-34"><span class="linenos">34</span></a><span class="k">def</span><span class="w"> </span><span class="nf">get_mission_from_id</span><span class="p">(</span><span class="n">mission</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Mission</span><span class="p">:</span>
+</span><span id="L-35"><a href="#L-35"><span class="linenos">35</span></a>    <span class="n">missions</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="L-36"><a href="#L-36"><span class="linenos">36</span></a>        <span class="mi">0</span><span class="p">:</span> <span class="n">Sentinel2</span><span class="p">(),</span>
+</span><span id="L-37"><a href="#L-37"><span class="linenos">37</span></a>        <span class="mi">1</span><span class="p">:</span> <span class="n">Landsat5</span><span class="p">(),</span>
+</span><span id="L-38"><a href="#L-38"><span class="linenos">38</span></a>        <span class="mi">2</span><span class="p">:</span> <span class="n">Landsat7</span><span class="p">(),</span>
+</span><span id="L-39"><a href="#L-39"><span class="linenos">39</span></a>    <span class="p">}</span>
+</span><span id="L-40"><a href="#L-40"><span class="linenos">40</span></a>
+</span><span id="L-41"><a href="#L-41"><span class="linenos">41</span></a>    <span class="k">return</span> <span class="n">missions</span><span class="p">[</span><span class="n">mission</span><span class="p">]</span>
 </span></pre></div>
 
 
             </section>
+                <section id="GLOBAL_BAND_IDS">
+                    <div class="attr variable">
+            <span class="name">GLOBAL_BAND_IDS</span>        =
+<span class="default_value">{&#39;blue&#39;: 0, &#39;green&#39;: 1, &#39;red&#39;: 2, &#39;nir08&#39;: 3, &#39;swir16&#39;: 4, &#39;swir22&#39;: 5}</span>
+
+        
+    </div>
+    <a class="headerlink" href="#GLOBAL_BAND_IDS"></a>
+    
+    
+
+                </section>
                 <section id="get_mission">
                             <input id="get_mission-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
 <div class="attr function">
@@ -93,17 +130,42 @@
 
     </div>
     <a class="headerlink" href="#get_mission"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="get_mission-13"><a href="#get_mission-13"><span class="linenos">13</span></a><span class="k">def</span><span class="w"> </span><span class="nf">get_mission</span><span class="p">(</span><span class="n">mission</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Mission</span><span class="p">:</span>
-</span><span id="get_mission-14"><a href="#get_mission-14"><span class="linenos">14</span></a>    <span class="n">mission_map</span> <span class="o">=</span> <span class="p">{</span>
-</span><span id="get_mission-15"><a href="#get_mission-15"><span class="linenos">15</span></a>        <span class="s2">&quot;sentinel-2&quot;</span><span class="p">:</span> <span class="n">Sentinel2</span><span class="p">,</span>
-</span><span id="get_mission-16"><a href="#get_mission-16"><span class="linenos">16</span></a>        <span class="s2">&quot;landsat-5&quot;</span><span class="p">:</span> <span class="n">Landsat5</span><span class="p">,</span>
-</span><span id="get_mission-17"><a href="#get_mission-17"><span class="linenos">17</span></a>        <span class="s2">&quot;landsat-7&quot;</span><span class="p">:</span> <span class="n">Landsat7</span><span class="p">,</span>
-</span><span id="get_mission-18"><a href="#get_mission-18"><span class="linenos">18</span></a>    <span class="p">}</span>
-</span><span id="get_mission-19"><a href="#get_mission-19"><span class="linenos">19</span></a>
-</span><span id="get_mission-20"><a href="#get_mission-20"><span class="linenos">20</span></a>    <span class="k">if</span> <span class="n">mission</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">mission_map</span><span class="p">:</span>
-</span><span id="get_mission-21"><a href="#get_mission-21"><span class="linenos">21</span></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unsupported mission: </span><span class="si">{</span><span class="n">mission</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-</span><span id="get_mission-22"><a href="#get_mission-22"><span class="linenos">22</span></a>
-</span><span id="get_mission-23"><a href="#get_mission-23"><span class="linenos">23</span></a>    <span class="k">return</span> <span class="n">mission_map</span><span class="p">[</span><span class="n">mission</span><span class="p">]()</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="get_mission-22"><a href="#get_mission-22"><span class="linenos">22</span></a><span class="k">def</span><span class="w"> </span><span class="nf">get_mission</span><span class="p">(</span><span class="n">mission</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Mission</span><span class="p">:</span>
+</span><span id="get_mission-23"><a href="#get_mission-23"><span class="linenos">23</span></a>    <span class="n">mission_map</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="get_mission-24"><a href="#get_mission-24"><span class="linenos">24</span></a>        <span class="s2">&quot;sentinel-2&quot;</span><span class="p">:</span> <span class="n">Sentinel2</span><span class="p">,</span>
+</span><span id="get_mission-25"><a href="#get_mission-25"><span class="linenos">25</span></a>        <span class="s2">&quot;landsat-5&quot;</span><span class="p">:</span> <span class="n">Landsat5</span><span class="p">,</span>
+</span><span id="get_mission-26"><a href="#get_mission-26"><span class="linenos">26</span></a>        <span class="s2">&quot;landsat-7&quot;</span><span class="p">:</span> <span class="n">Landsat7</span><span class="p">,</span>
+</span><span id="get_mission-27"><a href="#get_mission-27"><span class="linenos">27</span></a>    <span class="p">}</span>
+</span><span id="get_mission-28"><a href="#get_mission-28"><span class="linenos">28</span></a>
+</span><span id="get_mission-29"><a href="#get_mission-29"><span class="linenos">29</span></a>    <span class="k">if</span> <span class="n">mission</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">mission_map</span><span class="p">:</span>
+</span><span id="get_mission-30"><a href="#get_mission-30"><span class="linenos">30</span></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unsupported mission: </span><span class="si">{</span><span class="n">mission</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</span><span id="get_mission-31"><a href="#get_mission-31"><span class="linenos">31</span></a>
+</span><span id="get_mission-32"><a href="#get_mission-32"><span class="linenos">32</span></a>    <span class="k">return</span> <span class="n">mission_map</span><span class="p">[</span><span class="n">mission</span><span class="p">]()</span>
+</span></pre></div>
+
+
+    
+
+                </section>
+                <section id="get_mission_from_id">
+                            <input id="get_mission_from_id-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
+<div class="attr function">
+            
+        <span class="def">def</span>
+        <span class="name">get_mission_from_id</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">mission</span><span class="p">:</span> <span class="nb">int</span></span><span class="return-annotation">) -> <span class="n">swmaps</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">satellites</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">Mission</span>:</span></span>
+
+                <label class="view-source-button" for="get_mission_from_id-view-source"><span>View Source</span></label>
+
+    </div>
+    <a class="headerlink" href="#get_mission_from_id"></a>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="get_mission_from_id-35"><a href="#get_mission_from_id-35"><span class="linenos">35</span></a><span class="k">def</span><span class="w"> </span><span class="nf">get_mission_from_id</span><span class="p">(</span><span class="n">mission</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Mission</span><span class="p">:</span>
+</span><span id="get_mission_from_id-36"><a href="#get_mission_from_id-36"><span class="linenos">36</span></a>    <span class="n">missions</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="get_mission_from_id-37"><a href="#get_mission_from_id-37"><span class="linenos">37</span></a>        <span class="mi">0</span><span class="p">:</span> <span class="n">Sentinel2</span><span class="p">(),</span>
+</span><span id="get_mission_from_id-38"><a href="#get_mission_from_id-38"><span class="linenos">38</span></a>        <span class="mi">1</span><span class="p">:</span> <span class="n">Landsat5</span><span class="p">(),</span>
+</span><span id="get_mission_from_id-39"><a href="#get_mission_from_id-39"><span class="linenos">39</span></a>        <span class="mi">2</span><span class="p">:</span> <span class="n">Landsat7</span><span class="p">(),</span>
+</span><span id="get_mission_from_id-40"><a href="#get_mission_from_id-40"><span class="linenos">40</span></a>    <span class="p">}</span>
+</span><span id="get_mission_from_id-41"><a href="#get_mission_from_id-41"><span class="linenos">41</span></a>
+</span><span id="get_mission_from_id-42"><a href="#get_mission_from_id-42"><span class="linenos">42</span></a>    <span class="k">return</span> <span class="n">missions</span><span class="p">[</span><span class="n">mission</span><span class="p">]</span>
 </span></pre></div>
 
 

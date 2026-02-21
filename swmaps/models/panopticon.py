@@ -75,7 +75,7 @@ class PanopticonModel(BaseSegModel):
         in_channels=6,
         embed_dim=768,
         attn_dim=2304,
-        img_size=224,
+        img_size=512,
     ):
         super().__init__(num_classes)
 
@@ -91,18 +91,6 @@ class PanopticonModel(BaseSegModel):
             img_size=img_size,
         )
 
-        # ----------------------------------------------------
-        # Multispectral → RGB projection
-        # (ViT encoders expect 3 channels)
-        # ----------------------------------------------------
-        # if in_channels != 3:
-        #    self.input_proj = nn.Conv2d(
-        #        in_channels,
-        #        3,
-        #        kernel_size=1,
-        #        bias=False,
-        #    )
-        # else:
         self.input_proj = nn.Identity()
 
         # ----------------------------------------------------
@@ -145,7 +133,6 @@ class PanopticonModel(BaseSegModel):
 
         # Project multispectral → encoder input space
         x = self.input_proj(x)
-        print(x.shape, chn_ids.shape)
         x_dict = {
             "imgs": x,
             "chn_ids": chn_ids,
@@ -157,7 +144,12 @@ class PanopticonModel(BaseSegModel):
         }
 
         # Foundation features
-        feats = self.encoder(x_dict)
+
+        feats = self.encoder.model.forward_features(x_dict)
+        feats = feats[:, 1:, :]
+        B, N, D = feats.shape
+        H = W = int(N**0.5)
+        feats = feats.transpose(1, 2).reshape(B, D, H, W)
 
         # Segmentation logits
         logits = self.segmentation_head(feats)

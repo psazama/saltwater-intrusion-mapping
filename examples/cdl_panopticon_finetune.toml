@@ -35,7 +35,8 @@ mission = ["sentinel-2", "landsat-5", "landsat-7"]
 # -------------------------
 # Download and mosaic settings
 # -------------------------
-skip_download = false
+wipe_data_dir = false
+skip_download = true
 save_png      = true
 buffer_km     = 10.0        # size of region around lat/lon
 cloud_filter  = 30         # maximum % cloud cover allowed
@@ -48,14 +49,14 @@ out_dir       = "data/choptank_cdl_finetune/mosaics"
 # Segmentation settings
 # -------------------------
 # training
-train_segmentation = true
+train_segmentation = false
 segmentation_num_classes = 256
 segmentation_model_dir = "data/choptank_cdl_finetune/models/panopticon_v1_hybrid"
 
 # hyperparameters
 model_type = "panopticon"
 loss_function = "hybrid"   # supports "ce" "focal", "dice", "hybrid"
-batch_size = 4
+batch_size = 1
 lr_patience = 5
 stopping_patience = 15
 epochs = 2
@@ -73,7 +74,7 @@ val_cdl_out = "data/choptank_cdl_finetune/cdl/val_cdl_2019.tif"
 
 # inference
 run_segmentation = true
-segmentation_weights_path = "data/choptank_cdl_finetune/models/panopticon_v1_hybrid/panopticon_final.pth"
+segmentation_weights_path = "data/choptank_cdl_finetune/models/panopticon_v1_hybrid/final.pth"
 segmentation_out_dir = "data/choptank_cdl_finetune/segmentation/panopticon_v1_hybrid"
 segmentation_png = true
 

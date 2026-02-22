@@ -311,7 +311,7 @@ class BaseSegModel(nn.Module):
             history[f"train_miou_{name.lower()}"] = []
             history[f"val_miou_{name.lower()}"] = []
 
-        print(f"Starting FarSeg training on {device} with {num_classes} classes...")
+        print(f"Starting Model training on {device} with {num_classes} classes...")
 
         for epoch in range(epochs):
             # --- TRAINING PHASE ---
@@ -455,7 +455,7 @@ class BaseSegModel(nn.Module):
                 print(f"Early stopping at epoch {epoch+1}")
                 break
 
-        self._save_checkpoint(out_dir, "farseg_final.pth", extra_meta=self.meta)
+        self._save_checkpoint(out_dir, "final.pth", extra_meta=self.meta)
         self._save_logs(out_dir, history)
         return out_dir
 

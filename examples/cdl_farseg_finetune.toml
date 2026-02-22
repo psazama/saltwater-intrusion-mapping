@@ -74,7 +74,7 @@ val_cdl_out = "data/choptank_cdl_finetune/cdl/val_cdl_2019.tif"
 
 # inference
 run_segmentation = true
-segmentation_weights_path = "data/choptank_cdl_finetune/models/farseg_v1_hybrid/farseg_final.pth"
+segmentation_weights_path = "data/choptank_cdl_finetune/models/farseg_v1_hybrid/final.pth"
 segmentation_out_dir = "data/choptank_cdl_finetune/segmentation/farseg_v1_hybrid"
 segmentation_png = true
 

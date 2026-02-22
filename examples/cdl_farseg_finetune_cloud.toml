@@ -74,7 +74,7 @@ val_cdl_out = "/gcs/eo-ml-data/choptank_cdl_finetune_binary/cdl/val_cdl_2019.tif
 
 # inference
 run_segmentation = true
-segmentation_weights_path = "/gcs/eo-ml-data/choptank_cdl_finetune_binary/models/farseg_v1/farseg_final.pth"
+segmentation_weights_path = "/gcs/eo-ml-data/choptank_cdl_finetune_binary/models/farseg_v1/final.pth"
 segmentation_out_dir = "/gcs/eo-ml-data/choptank_cdl_finetune_binary/segmentation/farseg_v1"
 segmentation_png = true
 

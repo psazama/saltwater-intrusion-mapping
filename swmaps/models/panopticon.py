@@ -244,9 +244,6 @@ class PanopticonModel(BaseSegModel):
         chn_rows = []
 
         for sid in sat_ids:
-            print(sid)
-            print(type(sid))
-            print(sid.shape)
             mission = get_mission_from_id(int(sid))
 
             band_names = list(mission.bands().keys())

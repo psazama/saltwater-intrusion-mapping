@@ -56,7 +56,7 @@ segmentation_model_dir = "data/choptank_cdl_finetune/models/farseg_v1_hybrid"
 # hyperparameters
 model_type = "farseg"
 loss_function = "hybrid"   # supports "ce" "focal", "dice", "hybrid"
-batch_size = 64
+batch_size = 4
 lr_patience = 5
 stopping_patience = 15
 epochs = 2

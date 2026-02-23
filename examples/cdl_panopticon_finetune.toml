@@ -35,8 +35,8 @@ mission = ["sentinel-2", "landsat-5", "landsat-7"]
 # -------------------------
 # Download and mosaic settings
 # -------------------------
-wipe_data_dir = false
-skip_download = true
+wipe_data_dir = true
+skip_download = false
 save_png      = true
 buffer_km     = 10.0        # size of region around lat/lon
 cloud_filter  = 30         # maximum % cloud cover allowed
@@ -49,7 +49,7 @@ out_dir       = "data/choptank_cdl_finetune/mosaics"
 # Segmentation settings
 # -------------------------
 # training
-train_segmentation = false
+train_segmentation = true
 segmentation_num_classes = 256
 segmentation_model_dir = "data/choptank_cdl_finetune/models/panopticon_v1_hybrid"
 

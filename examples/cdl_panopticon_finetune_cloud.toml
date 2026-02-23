@@ -1,0 +1,80 @@
+# ---------------------------------------------------------------------
+# Choptank Watershed GEE Workflow Configuration
+# ---------------------------------------------------------------------
+
+# -------------------------
+# Imagery date range
+# -------------------------
+start_date = "1999-04-01"
+end_date   = "2000-04-10"
+date_step = 120
+
+# -------------------------
+# Location of interest
+# -------------------------
+# Center coordinate where imagery will be clipped.
+latitude  = [38.93, 38.05, 39.38, 39.22, 39.14, 39.18, 39.05, 38.98, 38.71, 38.65, 38.56, 38.53, 38.42, 38.40, 38.18, 38.12, 38.15, 38.32]
+longitude = [-76.16, -75.74, -75.85, -75.95, -76.15, -75.82, -76.05, -75.80, -75.90, -76.05, -75.72, -75.92, -75.70, -75.40, -75.80, -75.68, -75.48, -75.85]
+
+# -------------------------
+# CDL download options
+# -------------------------
+# If true, the runner will download the NASS CDL product before imagery.
+download_cdl = true
+cdl_year = 2019
+# Can be a path to a GeoJSON polygon, or bounds [xmin, ymin, xmax, ymax].
+# If not provided, the script falls back to latitude/longitude + cdl_buffer_km.
+# cdl_region = "config/choptank_river_region.geojson"
+cdl_buffer_km = 10.0
+
+# -------------------------
+# Mission / sensor
+# -------------------------
+mission = ["sentinel-2", "landsat-5", "landsat-7"]
+
+# -------------------------
+# Download and mosaic settings
+# -------------------------
+wipe_data_dir = true
+skip_download = false
+save_png      = true
+buffer_km     = 10.0        # size of region around lat/lon
+cloud_filter  = 30         # maximum % cloud cover allowed
+days_before   = 30          # temporal window around each date
+days_after    = 30
+samples_per_date = 3       # Will try to get the 3 cleanest images for every date step
+out_dir       = "/gcs/eo-ml-data/choptank_cdl_finetune_binary/mosaics"
+
+# -------------------------
+# Segmentation settings
+# -------------------------
+# training
+train_segmentation = true
+segmentation_num_classes = 256
+segmentation_model_dir = "/gcs/eo-ml-data/choptank_cdl_finetune_binary/models/panopticon_v1"
+
+# hyperparameters
+model_type = "panopticon"
+loss_function = "hybrid"   # supports "ce" "focal", "dice", "hybrid"
+batch_size = 32
+lr_patience = 5
+stopping_patience = 15
+epochs = 500
+lr = 0.00001
+
+# validation
+do_val = true
+val_start_date = "1999-04-01"
+val_end_date   = "2000-04-10"
+val_date_step = 120
+val_latitude  = 38.75
+val_longitude = -75.95
+val_dir       = "/gcs/eo-ml-data/choptank_cdl_finetune_binary/validation"
+val_cdl_out = "/gcs/eo-ml-data/choptank_cdl_finetune_binary/cdl/val_cdl_2019.tif"
+
+# inference
+run_segmentation = true
+segmentation_weights_path = "/gcs/eo-ml-data/choptank_cdl_finetune_binary/models/panopticon_v1/final.pth"
+segmentation_out_dir = "/gcs/eo-ml-data/choptank_cdl_finetune_binary/segmentation/panopticon_v1"
+segmentation_png = true
+

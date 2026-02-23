@@ -3,11 +3,12 @@ set -e
 
 # --- Argument Parsing ---
 EE_PROJECT=""
-usage() { echo "Usage: $0 -p <earthengine_project_id>"; exit 1; }
+usage() { echo "Usage: $0 -m <model> -p <earthengine_project_id>"; exit 1; }
 
-while getopts "p:" opt; do
+while getopts "p:m:" opt; do
     case "$opt" in
         p) EE_PROJECT=$OPTARG ;;
+        m) MODEL_NAME="$OPTARG" ;;
         *) usage ;;
     esac
 done
@@ -21,7 +22,7 @@ PROJECT_ID=$(gcloud config get-value project)
 PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format='get(projectNumber)')
 REGION="us-central1"
 REPO_NAME="swmaps-repo"
-IMAGE_NAME="farseg-train"
+IMAGE_NAME="${MODEL_NAME}-train"
 TAG="v1"
 IMAGE_URI="$REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/$IMAGE_NAME:$TAG"
 
@@ -55,7 +56,7 @@ workerPoolSpecs:
       - /opt/conda/envs/swmaps_env
       - python
       - examples/workflow_runner.py
-      - --config=examples/cdl_farseg_finetune_cloud.toml
+      - --config=examples/cdl_${MODEL_NAME}_finetune_cloud.toml
     env:
       - name: EARTHENGINE_PROJECT
         value: $EE_PROJECT
@@ -68,6 +69,6 @@ EOF
 echo "Step 4: Submitting Job to Vertex AI..."
 gcloud ai custom-jobs create \
     --region=$REGION \
-    --display-name="farseg-$(date +%Y%m%d-%H%M%S)" \
+    --display-name="${MODEL_NAME}-$(date +%Y%m%d-%H%M%S)" \
     --config="$CONFIG_FILE" \
     --service-account="$SVC_ACCOUNT"

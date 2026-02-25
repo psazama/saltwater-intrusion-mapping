@@ -96,9 +96,10 @@ def run_segmentation(
     # 4. Run Inference using the model's internal predict()
     preds = []
     with torch.no_grad():
-        for imgs, _ in loader:
+        for imgs, _, sat_ids in loader:
             imgs = imgs.to(device)
-            pred = model.predict(imgs)  # Using the new base method
+            sat_ids = sat_ids.to(device)
+            pred = model.predict(imgs, sat_ids)
             preds.extend(pred.cpu())
 
     # 5. Output management (Geotiff/PNG)

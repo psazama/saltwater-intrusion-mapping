@@ -210,6 +210,7 @@ class SegDataset(Dataset):
     def __getitem__(self, idx):
         s = self.samples[idx]
         image_path = s[0]
+        sat_id = s[2]
 
         # Read and process image
         image_arr = self._read_image(image_path)
@@ -222,7 +223,7 @@ class SegDataset(Dataset):
             dummy_mask = torch.zeros(
                 (self.crop_size, self.crop_size), dtype=torch.int64
             )
-            return image, dummy_mask
+            return image, dummy_mask, sat_id
 
         # Read and process mask
         with rasterio.open(s[1]) as src:
@@ -230,4 +231,4 @@ class SegDataset(Dataset):
 
         mask_arr = self._crop_center(mask_arr)
 
-        return image, torch.from_numpy(mask_arr)
+        return image, torch.from_numpy(mask_arr), sat_id

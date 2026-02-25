@@ -59,18 +59,18 @@ def main():
 
     if args.loss_function:
         cfg["loss_function"] = args.loss_function
-        # Highly recommended: update the output dir so they don't overwrite each other
         cfg["segmentation_model_dir"] = (
             f"{cfg['segmentation_model_dir']}_{args.loss_function}"
         )
 
-    for dir_str in ["out_dir", "val_dir", "val_cdl_out"]:
-        path = cfg.get(dir_str, None)
-        if path:
-            path = Path(path)
-            if path.exists() and path.is_dir():
-                logging.info(f"Clearing existing data in: {path}")
-                shutil.rmtree(path)
+    if cfg.get("wipe_data_dir", True):
+        for dir_str in ["out_dir", "val_dir", "val_cdl_out"]:
+            path = cfg.get(dir_str, None)
+            if path:
+                path = Path(path)
+                if path.exists() and path.is_dir():
+                    logging.info(f"Clearing existing data in: {path}")
+                    shutil.rmtree(path)
 
     base_out_dir = Path(cfg.get("out_dir", data_path("mosaics")))
     base_out_dir.mkdir(parents=True, exist_ok=True)
@@ -136,6 +136,7 @@ def main():
     # Step 2.5 — Segmentation (Training & Label Alignment)
     # -----------------------------------------------------------
     if cfg.get("train_segmentation", False):
+        logging.info("Beginning segmentation model training prep")
         for dir_str in [
             "segmentation_model_dir",
             "segmentation_weights_path",
@@ -148,14 +149,18 @@ def main():
                     logging.info(f"Clearing existing data in: {path}")
                     shutil.rmtree(path)
 
-        logging.info("Preparing CDL labels and training FarSeg")
+        logging.info("Preparing CDL labels and training")
         from swmaps.datasets.cdl import align_cdl_to_imagery
 
-        model_type = cfg.get("model_type", "farseg").lower()
+        model_type = cfg.get("model_type", "model").lower()
         if model_type == "farseg":
             from swmaps.models.farseg import FarSegModel
 
             ModelClass = FarSegModel
+        elif model_type == "panopticon":
+            from swmaps.models.panopticon import PanopticonModel
+
+            ModelClass = PanopticonModel
         # elif model_type == "unet":
         #     from swmaps.models.unet import UNetModel
         #     ModelClass = UNetModel
@@ -245,9 +250,9 @@ def main():
             run_segmentation(
                 mosaics=val_mosaics_only,
                 out_dir=val_out,
-                model_name="farseg",
+                model_name=cfg.get("model_type", "model"),
                 weights_path=str(seg_model_dir / "best_model.pth"),
-                save_png=True,  # Helpful for visual debugging
+                save_png=True,  # for visual debugging
             )
 
     # -----------------------------------------------------------
@@ -266,7 +271,7 @@ def main():
             run_segmentation(
                 mosaics=mosaics,
                 out_dir=seg_out,
-                model_name=cfg.get("segmentation_model", "farseg"),
+                model_name=cfg.get("model_type", "model"),
                 weights_path=cfg.get("segmentation_weights_path"),
                 save_png=bool(cfg.get("segmentation_png", False)),
             )

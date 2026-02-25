@@ -31,11 +31,11 @@ cdl_buffer_km = 10.0
 # Mission / sensor
 # -------------------------
 mission = ["sentinel-2", "landsat-5", "landsat-7"]
-# mission = ["landsat-5", "landsat-7"]
 
 # -------------------------
 # Download and mosaic settings
 # -------------------------
+wipe_data_dir = true
 skip_download = false
 save_png      = true
 buffer_km     = 10.0        # size of region around lat/lon
@@ -51,12 +51,12 @@ out_dir       = "data/choptank_cdl_finetune/mosaics"
 # training
 train_segmentation = true
 segmentation_num_classes = 256
-segmentation_model_dir = "data/choptank_cdl_finetune/models/farseg_v1_hybrid"
+segmentation_model_dir = "data/choptank_cdl_finetune/models/panopticon_v1_hybrid"
 
 # hyperparameters
-model_type = "farseg"
+model_type = "panopticon"
 loss_function = "hybrid"   # supports "ce" "focal", "dice", "hybrid"
-batch_size = 4
+batch_size = 1
 lr_patience = 5
 stopping_patience = 15
 epochs = 2
@@ -74,7 +74,7 @@ val_cdl_out = "data/choptank_cdl_finetune/cdl/val_cdl_2019.tif"
 
 # inference
 run_segmentation = true
-segmentation_weights_path = "data/choptank_cdl_finetune/models/farseg_v1_hybrid/final.pth"
-segmentation_out_dir = "data/choptank_cdl_finetune/segmentation/farseg_v1_hybrid"
+segmentation_weights_path = "data/choptank_cdl_finetune/models/panopticon_v1_hybrid/final.pth"
+segmentation_out_dir = "data/choptank_cdl_finetune/segmentation/panopticon_v1_hybrid"
 segmentation_png = true
 

@@ -1,41 +1,40 @@
 import streamlit as st
-import toml
-import subprocess
 import os
-temp_dir = "./temp"
+import subprocess
 
-# Ensure temp directory exists
-if not os.path.exists(temp_dir):
-    os.makedirs(temp_dir)
+# Function to get TOML files from the examples directory
+def get_toml_files(directory):
+    return [f for f in os.listdir(directory) if f.endswith('.toml')]
 
-if "file_upload" in st.file_uploader("Upload Config File", type="toml"):
-    uploaded_file = st.file_uploader("Select a TOML config file", type=["toml"])
-    if uploaded_file is not None:
-        # Read the uploaded file as bytes
-        file_bytes = uploaded_file.getvalue()
-        saved_path = os.path.join(temp_dir, uploaded_file.name)
+st.title('Saltwater Intrusion Mapping')
 
-        # Save the uploaded file to a temporary path
-        with open(saved_path, "wb") as f:
-            f.write(file_bytes)
+# Get list of .toml files
+examples_directory = 'examples/'
+if os.path.exists(examples_directory):
+    toml_files = get_toml_files(examples_directory)
+else:
+    toml_files = []
 
-        # Load the config using toml.loads
-        try:
-            config = toml.loads(file_bytes.decode())
-            st.success("Configuration loaded successfully.")
-        except Exception as e:
-            st.error(f"Failed to load configuration: {e}")
+# Selectbox for existing TOML files
+selected_toml = st.selectbox('Select a TOML file:', toml_files)
 
-        # Run the workflow script using subprocess
-        try:
-            process = subprocess.Popen(["python", "examples/workflow_runner.py", "--config", saved_path],
-                                       stdout=subprocess.PIPE,
-                                       stderr=subprocess.PIPE)
-            for line in iter(process.stdout.readline, b''):
-                st.text(line.decode())
-            process.stdout.close()
-            return_code = process.wait()
-            if return_code != 0:
-                st.error(f"Workflow failed with return code: {return_code}")
-        except Exception as e:
-            st.error(f"An error occurred while running the workflow: {e}")
+# File uploader for custom TOML
+uploaded_file = st.file_uploader('Or upload your own TOML file', type='toml', key='custom_toml')
+
+# Check if a custom file is uploaded
+if uploaded_file is not None:
+    config_path = uploaded_file.name  # Note: you may want to save this in a specific location
+    # Optionally: save the uploaded file for later use
+else:
+    config_path = os.path.join(examples_directory, selected_toml) if selected_toml else None
+
+# Button to run the workflow
+if st.button('Run Workflow'):
+    if config_path:
+        with st.spinner('Running the workflow...'):
+            # Update the command to point to the right script
+            command = ['python', 'examples/workflow_runner.py', '--config', config_path]
+            subprocess.run(command)
+            st.success('Workflow executed successfully!')
+    else:
+        st.error('Please select or upload a TOML file first!')

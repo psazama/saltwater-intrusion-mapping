@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 
 import streamlit as st
+from view_outputs import render_outputs_viewer
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 EXAMPLES_DIR = REPO_ROOT / "examples"
@@ -92,3 +93,6 @@ if st.button("Run Workflow", type="primary", disabled=(config_path is None)):
         st.success("Workflow executed successfully!")
     else:
         st.error(f"Workflow failed (exit code {rc}).")
+
+st.divider()
+render_outputs_viewer(REPO_ROOT)

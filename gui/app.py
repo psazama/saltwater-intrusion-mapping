@@ -1,27 +1,41 @@
 import streamlit as st
-import os
 import toml
+import subprocess
+import os
+temp_dir = "./temp"
 
-# Load TOML configurations
-@st.cache
-def load_configs(config_path):
-    return toml.load(config_path)
+# Ensure temp directory exists
+if not os.path.exists(temp_dir):
+    os.makedirs(temp_dir)
 
-# Function to run the workflow
-def run_workflow(config):
-    os.system(f'python examples/workflow_runner.py {config}')
+if "file_upload" in st.file_uploader("Upload Config File", type="toml"):
+    uploaded_file = st.file_uploader("Select a TOML config file", type=["toml"])
+    if uploaded_file is not None:
+        # Read the uploaded file as bytes
+        file_bytes = uploaded_file.getvalue()
+        saved_path = os.path.join(temp_dir, uploaded_file.name)
 
-st.title('Saltwater Intrusion Mapping GUI')
+        # Save the uploaded file to a temporary path
+        with open(saved_path, "wb") as f:
+            f.write(file_bytes)
 
-# File uploader for TOML config
-config_file = st.file_uploader('Select a TOML configuration file', type='toml')
-if config_file:
-    configs = load_configs(config_file)
-    st.write('Configurations loaded:', configs)
-    if st.button('Run Workflow'):
-        run_workflow(config_file.name)
-        st.success('Workflow executed successfully!')
+        # Load the config using toml.loads
+        try:
+            config = toml.loads(file_bytes.decode())
+            st.success("Configuration loaded successfully.")
+        except Exception as e:
+            st.error(f"Failed to load configuration: {e}")
 
-st.sidebar.title('Data Index')
-# Functionality for data indexing goes here
-
+        # Run the workflow script using subprocess
+        try:
+            process = subprocess.Popen(["python", "examples/workflow_runner.py", "--config", saved_path],
+                                       stdout=subprocess.PIPE,
+                                       stderr=subprocess.PIPE)
+            for line in iter(process.stdout.readline, b''):
+                st.text(line.decode())
+            process.stdout.close()
+            return_code = process.wait()
+            if return_code != 0:
+                st.error(f"Workflow failed with return code: {return_code}")
+        except Exception as e:
+            st.error(f"An error occurred while running the workflow: {e}")

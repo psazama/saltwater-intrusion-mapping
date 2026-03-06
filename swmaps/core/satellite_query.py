@@ -20,6 +20,7 @@ from rasterio.merge import merge
 from tqdm import tqdm
 
 from swmaps.config import data_path
+from swmaps.infra.db import get_connection, register_scene
 
 from .missions import get_mission
 
@@ -262,6 +263,25 @@ def download_gee_multiband(
 
         print(f"[GEE] Stitching complete: {out_path.name}")
 
+        timestamp_ms = image.get("system:time_start").getInfo()
+        acquisition_date = (
+            datetime.utcfromtimestamp(timestamp_ms / 1000).date().isoformat()
+        )
+
+        try:
+            with get_connection() as conn:
+                register_scene(
+                    conn=conn,
+                    image_id=image_id,
+                    mission=mission,
+                    bbox=bbox,
+                    out_path=str(out_path),
+                    crs=ANALYSIS_CRS,
+                    acquisition_date=acquisition_date,
+                )
+        except Exception as e:
+            print(f"[DB] Warning: Failed to register scene {image_id}: {e}")
+
         return str(out_path)
 
     # -------------------------------------------------
@@ -281,6 +301,23 @@ def download_gee_multiband(
     with open(out_path, "wb") as f:
         for chunk in r.iter_content(chunk_size=8192):
             f.write(chunk)
+
+    timestamp_ms = image.get("system:time_start").getInfo()
+    acquisition_date = datetime.utcfromtimestamp(timestamp_ms / 1000).date().isoformat()
+
+    try:
+        with get_connection() as conn:
+            register_scene(
+                conn=conn,
+                image_id=image_id,
+                mission=mission,
+                bbox=bbox,
+                out_path=str(out_path),
+                crs=ANALYSIS_CRS,
+                acquisition_date=acquisition_date,
+            )
+    except Exception as e:
+        print(f"[DB] Warning: Failed to register scene {image_id}: {e}")
 
     return str(out_path)
 

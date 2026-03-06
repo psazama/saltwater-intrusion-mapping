@@ -137,6 +137,7 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/
+tests/db_insert_test.py
 
 # Translations
 *.mo

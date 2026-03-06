@@ -1,0 +1,6 @@
+[validation]
+min_lon = -77.5
+max_lon = -74.5
+min_lat = 37.5
+max_lat = 40.0
+known_sensors = ["landsat-5", "landsat-7", "landsat-8", "landsat-9", "sentinel-2"]

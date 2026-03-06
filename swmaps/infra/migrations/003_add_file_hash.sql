@@ -1,0 +1,1 @@
+ALTER TABLE imagery ADD COLUMN IF NOT EXISTS file_hash TEXT;

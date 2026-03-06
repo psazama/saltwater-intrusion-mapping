@@ -1,0 +1,14 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: swmaps
+      POSTGRES_USER: swmaps
+      POSTGRES_PASSWORD: swmaps
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib.postgresql/data
+    
+volumes:
+  pgdata:

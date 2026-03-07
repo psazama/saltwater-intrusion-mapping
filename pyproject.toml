@@ -6,6 +6,7 @@ dependencies = [
     "earthengine-api",
     "numpy",
     "pandas",
+    "psycopg2",
     "rasterio",
     "geopandas",
     "shapely",

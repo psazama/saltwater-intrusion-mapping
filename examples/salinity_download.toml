@@ -1,0 +1,68 @@
+# ---------------------------------------------------------------------
+# Salinity Download + Pipeline Example Workflow Configuration
+# ---------------------------------------------------------------------
+
+# -------------------------
+# Imagery date range
+# -------------------------
+start_date = "2018-04-01"
+end_date   = "2020-04-10"
+date_step  = 120
+
+# -------------------------
+# Location(s) of interest
+# -------------------------
+latitude  = [38.75, 38.93]
+longitude = [-75.95, -76.16]
+
+# -------------------------
+# CDL download options
+# -------------------------
+download_cdl  = false
+cdl_year      = 2019
+cdl_buffer_km = 10.0
+
+# -------------------------
+# Mission / sensor
+# -------------------------
+mission = ["sentinel-2", "landsat-5", "landsat-7"]
+
+# -------------------------
+# Download and mosaic settings
+# -------------------------
+skip_download    = true        # Skip imagery download, just run salinity
+save_png         = false
+buffer_km        = 10.0
+cloud_filter     = 30
+days_before      = 30
+days_after       = 30
+samples_per_date = 3
+out_dir          = "data/outputs/salinity_pipeline"
+
+# -------------------------
+# Pipeline step flags
+# -------------------------
+train_segmentation       = false
+run_segmentation         = false
+run_water_trend          = false
+run_salinity_pipeline    = true
+run_salinity_classification = false
+wipe_data_dir            = false
+
+# -------------------------
+# Salinity ground truth
+# -------------------------
+# Text file listing CODC NetCDF filenames to download, one per line.
+# Lines starting with '#' and blank lines are ignored.
+# Example contents:
+#   CAS_T_S_2020_7.nc
+#   CAS_T_S_2020_8.nc
+# Leave truth_download_list unset to skip downloading and use existing files.
+truth_download_list = "config/codc_files.txt"
+
+# Directory where downloaded NetCDF files will be saved
+truth_dir  = "salinity_labels/codc"
+
+# Output path for the combined flat CSV produced by build_salinity_truth()
+# If this file already exists and is non-empty, the rebuild is skipped.
+truth_file = "salinity_labels/codc_salinity_profiles.csv"

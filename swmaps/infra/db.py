@@ -166,3 +166,124 @@ def register_scene(
         file_locations=[out_path],
         crs=crs,
     )
+
+
+def scene_exists(conn, scene_id: str) -> bool:
+    """
+    Returns True if a scene with the given scene_id already exists
+    in the catalog with status 'active'.
+    """
+    sql = """
+        SELECT 1 FROM imagery
+        WHERE scene_id = %s
+        AND status = 'active'
+        LIMIT 1;
+    """
+    with conn.cursor() as cursor:
+        cursor.execute(sql, (scene_id,))
+        return cursor.fetchone() is not None
+
+
+############################
+# Salinity Table Functions #
+############################
+
+
+def insert_salinity_profile(
+    conn,
+    cast_id: str,
+    longitude: float,
+    latitude: float,
+    sample_date: str,
+    surface_salinity: float,
+    max_depth: float,
+    source_file: str,
+) -> dict:
+    """
+    Inserts a single salinity cast into salinity_profiles
+    Returns the inserted row.
+    """
+    sql = """
+        INSERT INTO salinity_profiles
+            (cast_id, location, sample_date, surface_salinity,
+            max_depth, source_file)
+        VALUES
+            (%s, ST_SetSRID(ST_MakePoint(%s, %s), 4326), %s, %s, %s, %s)
+        ON CONFLICT (cast_id) DO NOTHING
+        RETURNING *;
+    """
+    with conn.cursor() as cursor:
+        cursor.execute(
+            sql,
+            (
+                cast_id,
+                longitude,
+                latitude,
+                sample_date,
+                surface_salinity,
+                max_depth,
+                source_file,
+            ),
+        )
+        conn.commit()
+        return cursor.fetchone()
+
+
+def insert_depth_profile(
+    conn, cast_id: str, depths: list, salinities: list, temperatures: list = None
+) -> None:
+    """
+    Inserts all depth levels for a single cast into salinity_depth_profiles.
+    depths, salinities, and temperatures should be parallel lists.
+    """
+    if temperatures is None:
+        temperatures = [None] * len(depths)
+
+    sql = """
+        INSERT INTO salinity_depth_profiles
+            (cast_id, depth_m, salinity, temperature)
+        VALUES (%s, %s, %s, %s)
+        ON CONFLICT DO NOTHING;
+    """
+    with conn.cursor() as cursor:
+        cursor.executemany(
+            sql,
+            [(cast_id, d, s, t) for d, s, t in zip(depths, salinities, temperatures)],
+        )
+        conn.commit()
+
+
+def fetch_imagery_near_sample(
+    conn, cast_id: str, radius_km: float = 50, days_window: int = 30
+) -> list:
+    """
+    Returns imagery records that spatially and temporally overlap a given
+    salinity cast.
+    radius_km: search radius around sample location
+    days_window: number of days before and after sample date to search
+    """
+    sql = """
+        SELECT
+            i.scene_id,
+            i.sensor,
+            i.acquisition_date,
+            ST_Distance(
+                i.location::geography,
+                s.location::geography
+            ) / 1000 as distance_km
+        FROM imagery i
+        JOIN salinity_profiles s ON ST_DWithin(
+            i.location::geography,
+            s.location::geography,
+            %s
+        )
+        WHERE s.cast_id = %s
+        AND i.acquisition_date BETWEEN
+            s.sample_date - (%s * INTERVAL '1 day')
+            AND s.sample_date + (%s * INTERVAL '1 day')
+        AND i.status = 'active'
+        ORDER BY i.acquisition_date;
+    """
+    with conn.cursor() as cursor:
+        cursor.execute(sql, (radius_km * 1000, cast_id, days_window, days_window))
+        return cursor.fetchall()

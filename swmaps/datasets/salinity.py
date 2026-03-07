@@ -2,7 +2,6 @@
 
 import logging
 import os
-import shutil
 from pathlib import Path
 from typing import Sequence
 from urllib.request import urlopen
@@ -32,6 +31,8 @@ def download_salinity_datasets(
     listing_file,
     destination="salinity_labels/codc",
     base_url="http://www.ocean.iap.ac.cn/ftp/cheng/CODCv2.1_Insitu_T_S_database/nc/",
+    chunk_size: int = 1024 * 1024,  # 1 MB chunks
+    max_retries: int = 3,
 ):
     """Download CODC salinity NetCDF files listed in a text file.
 
@@ -40,10 +41,14 @@ def download_salinity_datasets(
             Lines starting with '#' or blank lines are ignored.
         destination (str | Path): Directory to save downloaded files.
         base_url (str): Base URL hosting the CODC NetCDF files.
+        chunk_size (int): Download chunk size in bytes (default 1 MB).
+        max_retries (int): Number of retry attempts per file on failure.
 
     Returns:
         list[Path]: Paths to the downloaded (or existing) files.
     """
+    import time
+    from urllib.request import Request
 
     listing_path = Path(listing_file)
     if not listing_path.exists():
@@ -58,21 +63,83 @@ def download_salinity_datasets(
         ]
 
     downloaded_paths = []
-    for fname in tqdm(filenames, desc="Downloading salinity datasets"):
+
+    for fname in tqdm(filenames, desc="Overall progress", unit="file"):
         dest = target_dir / fname
+        tmp_dest = target_dir / (fname + ".part")
+        url = base_url + fname
+
+        # Already fully downloaded
         if dest.exists():
             downloaded_paths.append(dest)
+            tqdm.write(f"  [skip] {fname} already exists")
             continue
 
-        url = base_url + fname
-        try:
-            with urlopen(url) as r, open(dest, "wb") as out:
-                shutil.copyfileobj(r, out)
-        except Exception as e:
-            print(f"Failed to download {url}: {e}")
-            continue
+        success = False
+        for attempt in range(1, max_retries + 1):
+            try:
+                # Resume support: check how much we already have
+                existing_bytes = tmp_dest.stat().st_size if tmp_dest.exists() else 0
 
-        downloaded_paths.append(dest)
+                headers = {}
+                if existing_bytes > 0:
+                    headers["Range"] = f"bytes={existing_bytes}-"
+                    tqdm.write(
+                        f"  [resume] {fname} from {existing_bytes / 1e6:.1f} MB (attempt {attempt})"
+                    )
+                else:
+                    tqdm.write(f"  [download] {fname} (attempt {attempt})")
+
+                req = Request(url, headers=headers)
+                with urlopen(req) as r:
+                    # Get total size from headers
+                    content_range = r.headers.get("Content-Range")
+                    content_length = r.headers.get("Content-Length")
+
+                    if content_range:
+                        # e.g. "bytes 500-1000/1500"
+                        total = int(content_range.split("/")[-1])
+                    elif content_length:
+                        total = existing_bytes + int(content_length)
+                    else:
+                        total = None
+
+                    mode = "ab" if existing_bytes > 0 else "wb"
+                    with open(tmp_dest, mode) as out:
+                        with tqdm(
+                            total=total,
+                            initial=existing_bytes,
+                            unit="B",
+                            unit_scale=True,
+                            unit_divisor=1024,
+                            desc=f"  {fname}",
+                            leave=False,
+                        ) as pbar:
+                            while True:
+                                chunk = r.read(chunk_size)
+                                if not chunk:
+                                    break
+                                out.write(chunk)
+                                pbar.update(len(chunk))
+
+                # Rename .part -> final only on clean completion
+                tmp_dest.rename(dest)
+                downloaded_paths.append(dest)
+                tqdm.write(f"  [done] {fname}")
+                success = True
+                break
+
+            except Exception as e:
+                tqdm.write(f"  [error] {fname} attempt {attempt}/{max_retries}: {e}")
+                if attempt < max_retries:
+                    wait = 5 * attempt
+                    tqdm.write(f"  [retry] waiting {wait}s before retry...")
+                    time.sleep(wait)
+
+        if not success:
+            tqdm.write(
+                f"  [failed] {fname} after {max_retries} attempts — partial file kept at {tmp_dest}"
+            )
 
     return downloaded_paths
 
@@ -82,8 +149,10 @@ def build_salinity_truth(
     output_csv: str | Path | None = None,
     depth: float = 1.0,
     prof_limit: int | None = None,
+    register_db: bool = True,  # opt-out flag for testing
 ) -> None:
-    """Extract near-surface salinity observations into a flat CSV dataset.
+    """Extract near-surface salinity observations into a flat CSV dataset
+    and register profiles in the database.
     Data source:
     Zhang, B., Cheng, L., Tan, Z. et al.
     CODC-v1: a quality-controlled and bias-corrected ocean temperature profile database from 1940–2023.
@@ -117,6 +186,22 @@ def build_salinity_truth(
         return
     output_csv.parent.mkdir(parents=True, exist_ok=True)
 
+    # add to database
+    conn = None
+    if register_db:
+        try:
+            from swmaps.infra.db import (
+                get_connection,
+                insert_depth_profile,
+                insert_salinity_profile,
+            )
+
+            conn = get_connection()
+        except Exception as e:
+            logging.warning(
+                f"Could not connect to database, skipping registration: {e}"
+            )
+
     lat_idx = 4
     lon_idx = 5
     year_idx = 1
@@ -143,6 +228,11 @@ def build_salinity_truth(
         # Extract salinity and depth for those profiles
         sal = ds["Salinity_origin"].isel(N_PROF=prof_slice)
         dep = ds["Depth_origin"].isel(N_PROF=prof_slice)
+
+        temp = ds.get("Temperature_origin")
+        if temp is not None:
+            temp = temp.isel(N_PROF=prof_slice)
+
         lats = (
             ds["Profile_info_record_all"]
             .isel(STRINGS18=lat_idx, N_PROF=prof_slice)
@@ -180,6 +270,7 @@ def build_salinity_truth(
 
         print("....")
         records = []
+        source_name = os.path.basename(dataset_file)
 
         for i in tqdm(valid_indices):
             try:
@@ -204,6 +295,47 @@ def build_salinity_truth(
                     }
                 )
 
+                # Register in database
+                if conn is not None and times[i] is not None:
+                    try:
+                        # Build a stable cast_id from source file and profile index
+                        cast_id = f"{Path(dataset_file).stem}_{i:06d}"
+
+                        # Get full depth profile
+                        all_depths = dep_i.tolist()
+                        all_sals = sal_i.tolist()
+                        all_temps = (
+                            temp.isel(N_PROF=i).values.tolist()
+                            if temp is not None
+                            else None
+                        )
+                        max_depth = float(np.nanmax(dep_i))
+
+                        insert_salinity_profile(
+                            conn=conn,
+                            cast_id=cast_id,
+                            longitude=float(lons[i]),
+                            latitude=float(lats[i]),
+                            sample_date=times[i],
+                            surface_salinity=float(surface_val),
+                            max_depth=max_depth,
+                            source_file=source_name,
+                        )
+
+                        insert_depth_profile(
+                            conn=conn,
+                            cast_id=cast_id,
+                            depths=all_depths,
+                            salinities=all_sals,
+                            temperatures=all_temps,
+                        )
+
+                    except Exception as e:
+                        logging.warning(
+                            f"Failed to register profile {i} "
+                            f"from {source_name}: {e}"
+                        )
+
             except Exception as e:
                 print(f"Profile {i} in {dataset_file} failed: {e}")
                 continue
@@ -218,6 +350,9 @@ def build_salinity_truth(
             df.to_csv(output_csv, mode="a", header=False, index=False)
 
         print("......")
+
+    if conn is not None:
+        conn.close()
 
 
 def load_salinity_truth(truth_file: str | Path | None = None) -> pd.DataFrame:

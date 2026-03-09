@@ -1,0 +1,9 @@
+[tasks]
+[tasks.segmentation]
+description = "FarSeg or Panopticon land cover segmentation"
+
+[tasks.salinity]
+description = "Salinity heuristic estimation"
+
+[tasks.trend]
+description = "Water trend analysis"

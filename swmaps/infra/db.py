@@ -1,5 +1,7 @@
 import hashlib
+import json
 import os
+import tomllib
 
 import psycopg2
 from dotenv import load_dotenv
@@ -286,4 +288,112 @@ def fetch_imagery_near_sample(
     """
     with conn.cursor() as cursor:
         cursor.execute(sql, (radius_km * 1000, cast_id, days_window, days_window))
+        return cursor.fetchall()
+
+
+############################
+# Processing Table Functions #
+############################
+
+
+def seed_task_types(conn) -> None:
+    """
+    Seeds task_types table from processing_tasks config.
+    Safe to run multiple times -- uses ON CONFLICT DO NOTHING.
+    """
+    with open("config/processing_tasks.toml", "rb") as f:
+        config = tomllib.load(f)
+
+    sql = """
+        INSERT INTO task_types (task, description)
+        VALUES (%s, %s)
+        ON CONFLICT DO NOTHING;
+    """
+    with conn.cursor() as cursor:
+        for task, details in config["tasks"].items():
+            cursor.execute(sql, (task, details["description"]))
+    conn.commit()
+
+
+def generate_product_id(scene_id: str, task: str, parameters: dict) -> str:
+    """
+    Generates a stable unique product ID from scene_id, task, and parameters
+    sort_keys=True ensures parameter order doesn't affect the hash
+    """
+    content = f"{scene_id}:{task}:{json.dumps(parameters, sort_keys=True)}"
+    return hashlib.md5(content.encode()).hexdigest()
+
+
+def register_processing_run(
+    conn, scene_id: str, task: str, parameters: dict = None
+) -> dict:
+    """
+    Creates a new processing run record with status 'not_started'
+    Returns the inserted row including the generated product_id
+    """
+    parameters = parameters or {}
+    product_id = generate_product_id(scene_id, task, parameters)
+
+    sql = """
+        INSERT INTO processed_products
+            (product_id, base_scene_id, task, parameters)
+        VALUES
+        (%s, %s, %s, %s)
+        ON CONFLICT (product_id) DO NOTHING
+        RETURNING *;
+    """
+    with conn.cursor() as cursor:
+        cursor.execute(sql, (product_id, scene_id, task, json.dumps(parameters)))
+        conn.commit()
+        return cursor.fetchone()
+
+
+def update_processing_run(
+    conn,
+    product_id: str,
+    status: str,
+    output_paths: list = None,
+    error_message: str = None,
+) -> dict:
+    """
+    Updates a processing run's status, output paths, and error message.
+    Sets completed_at automatically when status is 'complete' or 'failed'
+    """
+    sql = """
+        UPDATE processed_products SET
+            status = %s,
+            output_paths = %s,
+            error_message = %s,
+            completed_at = CASE
+                WHEN %s IN ('complete', 'failed') THEN NOW()
+                ELSE NULL
+        END
+        WHERE product_id = %s
+        RETURNING *;   
+    """
+    with conn.cursor() as cursor:
+        cursor.execute(sql, (status, output_paths, error_message, status, product_id))
+        conn.commit()
+        return cursor.fetchone()
+
+
+def fetch_unprocessed_scenes(conn, task: str, parameters: dict = None) -> list:
+    """
+    Returns all active imagery scenes that have no completed process runs
+    for a giving task and parameter set.
+    """
+    parameters = parameters or {}
+    sql = """
+        SELECT i.* FROM imagery i
+        WHERE i.status = 'active'
+        AND NOT EXISTS (
+            SELECT 1 FROM processed_products p
+            WHERE p.base_scene_id = i.scene_id
+            AND p.task = %s
+            AND p.status = 'complete'
+            AND p.parameters @> %s
+        );
+    """
+    with conn.cursor() as cursor:
+        cursor.execute(sql, (task, json.dumps(parameters)))
         return cursor.fetchall()

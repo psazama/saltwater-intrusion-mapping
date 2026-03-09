@@ -203,6 +203,215 @@ class TestDbFunctions:
 
 
 # ------------------------------------------------------------------
+# Processing run tests
+# ------------------------------------------------------------------
+
+
+class TestProcessingRuns:
+    def test_generate_product_id_stable(self):
+        """Same inputs always produce the same hash."""
+        from swmaps.infra.db import generate_product_id
+
+        id1 = generate_product_id(
+            "LE07_014033_19990806",
+            "segmentation",
+            {"model_type": "farseg", "num_classes": 256},
+        )
+        id2 = generate_product_id(
+            "LE07_014033_19990806",
+            "segmentation",
+            {"model_type": "farseg", "num_classes": 256},
+        )
+        assert id1 == id2
+
+    def test_generate_product_id_parameter_order_invariant(self):
+        """Parameter order should not affect the hash."""
+        from swmaps.infra.db import generate_product_id
+
+        id1 = generate_product_id(
+            "LE07_014033_19990806",
+            "segmentation",
+            {"model_type": "farseg", "num_classes": 256},
+        )
+        id2 = generate_product_id(
+            "LE07_014033_19990806",
+            "segmentation",
+            {"num_classes": 256, "model_type": "farseg"},
+        )
+        assert id1 == id2
+
+    def test_generate_product_id_different_params_differ(self):
+        """Different parameters should produce different hashes."""
+        from swmaps.infra.db import generate_product_id
+
+        id1 = generate_product_id(
+            "LE07_014033_19990806", "segmentation", {"model_type": "farseg"}
+        )
+        id2 = generate_product_id(
+            "LE07_014033_19990806", "segmentation", {"model_type": "panopticon"}
+        )
+        assert id1 != id2
+
+    def test_generate_product_id_different_tasks_differ(self):
+        """Different tasks should produce different hashes."""
+        from swmaps.infra.db import generate_product_id
+
+        id1 = generate_product_id("LE07_014033_19990806", "segmentation", {})
+        id2 = generate_product_id("LE07_014033_19990806", "salinity", {})
+        assert id1 != id2
+
+    def test_register_processing_run_calls_execute(self, mock_conn):
+        from swmaps.infra.db import register_processing_run
+
+        conn, cursor = mock_conn
+        cursor.fetchone.return_value = {
+            "id": 1,
+            "product_id": "abc123",
+            "base_scene_id": "LE07_014033_19990806",
+            "task": "segmentation",
+            "status": "not_started",
+            "parameters": {"model_type": "farseg"},
+        }
+        result = register_processing_run(
+            conn=conn,
+            scene_id="LE07_014033_19990806",
+            task="segmentation",
+            parameters={"model_type": "farseg"},
+        )
+        cursor.execute.assert_called_once()
+        assert result is not None
+
+    def test_update_processing_run_complete(self, mock_conn):
+        from swmaps.infra.db import update_processing_run
+
+        conn, cursor = mock_conn
+        cursor.fetchone.return_value = {
+            "product_id": "abc123",
+            "status": "complete",
+            "completed_at": "2026-01-01T00:00:00Z",
+            "output_paths": ["data/outputs/segmentation/test.tif"],
+        }
+        result = update_processing_run(
+            conn=conn,
+            product_id="abc123",
+            status="complete",
+            output_paths=["data/outputs/segmentation/test.tif"],
+        )
+        cursor.execute.assert_called_once()
+        assert result["status"] == "complete"
+
+    def test_update_processing_run_failed(self, mock_conn):
+        from swmaps.infra.db import update_processing_run
+
+        conn, cursor = mock_conn
+        cursor.fetchone.return_value = {
+            "product_id": "abc123",
+            "status": "failed",
+            "error_message": "CUDA out of memory",
+            "completed_at": "2026-01-01T00:00:00Z",
+        }
+        result = update_processing_run(
+            conn=conn,
+            product_id="abc123",
+            status="failed",
+            error_message="CUDA out of memory",
+        )
+        assert result["status"] == "failed"
+        assert result["error_message"] == "CUDA out of memory"
+
+    def test_fetch_unprocessed_scenes_returns_list(self, mock_conn):
+        from swmaps.infra.db import fetch_unprocessed_scenes
+
+        conn, cursor = mock_conn
+        result = fetch_unprocessed_scenes(conn, task="segmentation")
+        assert isinstance(result, list)
+        cursor.execute.assert_called_once()
+
+    def test_fetch_unprocessed_scenes_with_parameters(self, mock_conn):
+        from swmaps.infra.db import fetch_unprocessed_scenes
+
+        conn, cursor = mock_conn
+        result = fetch_unprocessed_scenes(
+            conn, task="segmentation", parameters={"model_type": "farseg"}
+        )
+        assert isinstance(result, list)
+        # Verify parameters were passed to the query
+        call_args = cursor.execute.call_args[0][1]
+        assert "segmentation" in call_args
+
+
+# ------------------------------------------------------------------
+# Salinity db function tests
+# ------------------------------------------------------------------
+
+
+class TestSalinityFunctions:
+    def test_insert_salinity_profile_calls_execute(self, mock_conn):
+        from swmaps.infra.db import insert_salinity_profile
+
+        conn, cursor = mock_conn
+        cursor.fetchone.return_value = {
+            "id": 1,
+            "cast_id": "WOD_CAS_T_S_2018_2_000042",
+            "sample_date": date(2018, 6, 15),
+            "surface_salinity": 28.5,
+            "sensor": "WOD",
+        }
+        result = insert_salinity_profile(
+            conn=conn,
+            cast_id="WOD_CAS_T_S_2018_2_000042",
+            longitude=-76.0,
+            latitude=38.5,
+            sample_date="2018-06-15",
+            surface_salinity=28.5,
+            max_depth=1.0,
+            source_file="WOD_CAS_T_S_2018_2.nc",
+        )
+        cursor.execute.assert_called_once()
+        assert result is not None
+
+    def test_insert_depth_profile_calls_executemany(self, mock_conn):
+        from swmaps.infra.db import insert_depth_profile
+
+        conn, cursor = mock_conn
+        insert_depth_profile(
+            conn=conn,
+            cast_id="WOD_CAS_T_S_2018_2_000042",
+            depths=[0.5, 1.0, 2.0, 5.0],
+            salinities=[28.5, 28.6, 28.8, 29.1],
+            temperatures=[22.1, 21.9, 21.5, 20.8],
+        )
+        cursor.executemany.assert_called_once()
+
+    def test_insert_depth_profile_none_temperatures(self, mock_conn):
+        from swmaps.infra.db import insert_depth_profile
+
+        conn, cursor = mock_conn
+        # Should not raise even without temperatures
+        insert_depth_profile(
+            conn=conn,
+            cast_id="WOD_CAS_T_S_2018_2_000042",
+            depths=[0.5, 1.0],
+            salinities=[28.5, 28.6],
+            temperatures=None,
+        )
+        cursor.executemany.assert_called_once()
+        # Verify None temperatures were filled in
+        call_args = cursor.executemany.call_args[0][1]
+        assert all(row[3] is None for row in call_args)
+
+    def test_fetch_imagery_near_sample_returns_list(self, mock_conn):
+        from swmaps.infra.db import fetch_imagery_near_sample
+
+        conn, cursor = mock_conn
+        result = fetch_imagery_near_sample(
+            conn=conn, cast_id="WOD_CAS_T_S_2018_2_000042", radius_km=50, days_window=30
+        )
+        assert isinstance(result, list)
+        cursor.execute.assert_called_once()
+
+
+# ------------------------------------------------------------------
 # Backfill helpers
 # ------------------------------------------------------------------
 

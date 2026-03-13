@@ -201,6 +201,28 @@ class TestDbFunctions:
         result = scene_exists(conn, "nonexistent_scene")
         assert result is False
 
+    def test_insert_record_publishes_on_success(self, mock_conn, valid_scene):
+        from swmaps.infra.db import insert_record
+
+        conn, cursor = mock_conn
+        with patch("swmaps.infra.db.compute_file_hash", return_value="abc123"):
+            with patch("swmaps.infra.db.publish_scene_message") as mock_publish:
+                insert_record(conn=conn, publish=True, **valid_scene)
+                mock_publish.assert_called_once_with(
+                    scene_id=valid_scene["scene_id"],
+                    sensor=valid_scene["sensor"],
+                    acquisition_date=str(valid_scene["acquisition_date"]),
+                )
+
+    def test_insert_record_skips_publish_when_opted_out(self, mock_conn, valid_scene):
+        from swmaps.infra.db import insert_record
+
+        conn, cursor = mock_conn
+        with patch("swmaps.infra.db.compute_file_hash", return_value="abc123"):
+            with patch("swmaps.infra.db.publish_scene_message") as mock_publish:
+                insert_record(conn=conn, publish=False, **valid_scene)
+                mock_publish.assert_not_called()
+
 
 # ------------------------------------------------------------------
 # Processing run tests
@@ -434,27 +456,27 @@ class TestBackfillHelpers:
     def test_parse_mission_landsat7(self):
         from pathlib import Path
 
-        from swmaps.infra.backfill import parse_mission_from_path
+        from swmaps.core.missions import get_mission_from_path
 
-        result = parse_mission_from_path(
+        result = get_mission_from_path(
             Path("data/landsat-7_LE07_014033_19990806_multiband.tif")
-        )
+        ).slug
         assert result == "landsat-7"
 
     def test_parse_mission_sentinel2(self):
         from pathlib import Path
 
-        from swmaps.infra.backfill import parse_mission_from_path
+        from swmaps.core.missions import get_mission_from_path
 
-        result = parse_mission_from_path(
+        result = get_mission_from_path(
             Path("data/sentinel-2_20190730T154819_multiband.tif")
-        )
+        ).slug
         assert result == "sentinel-2"
 
     def test_parse_mission_unknown_raises(self):
         from pathlib import Path
 
-        from swmaps.infra.backfill import parse_mission_from_path
+        from swmaps.core.missions import get_mission_from_path
 
         with pytest.raises(ValueError):
-            parse_mission_from_path(Path("data/unknown_sensor_multiband.tif"))
+            get_mission_from_path(Path("data/unknown_sensor_multiband.tif")).slug

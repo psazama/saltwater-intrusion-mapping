@@ -1,0 +1,22 @@
+name: swmaps_pipeline
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.13.2
+  - numpy
+  - numba
+  - rasterio
+  - shapely
+  - geopandas
+  - pillow
+  - tqdm
+  - pydantic
+  - psutil
+  - netcdf4
+  - pyproj
+  - rioxarray
+  - pip:
+      - psycopg2-binary
+      - google-cloud-pubsub
+      - pydantic-settings

@@ -5,6 +5,7 @@ import tomllib
 
 import psycopg2
 from dotenv import load_dotenv
+from google.cloud import pubsub_v1
 from psycopg2.extras import RealDictCursor
 
 load_dotenv()
@@ -48,6 +49,33 @@ def run_migration(sql_file: str) -> None:
         conn.commit()
 
 
+def publish_scene_message(
+    scene_id: str,
+    sensor: str,
+    acquisition_date: str,
+    topic_id: str = "swmaps-new-scenes",
+) -> None:
+    """
+    Publishes a new scene notification to Pub/Sub.
+    Requires GOOGLE_CLOUD_PROJECT environment variable to be set.
+    """
+    project_id = os.environ.get("GOOGLE_CLOUD_PROJECT")
+    if not project_id:
+        raise ValueError("GOOGLE_CLOUD_PROJECT environment variable not set.")
+
+    publisher = pubsub_v1.PublisherClient()
+    topic_path = publisher.topic_path(project_id, topic_id)
+
+    message = {
+        "scene_id": scene_id,
+        "sensor": sensor,
+        "aquisition_date": acquisition_date,
+    }
+
+    future = publisher.publish(topic_path, json.dumps(message).encode("utf-8"))
+    future.result()
+
+
 def insert_record(
     conn,
     scene_id: str,
@@ -57,6 +85,7 @@ def insert_record(
     sensor: str,
     file_locations: list,
     crs: str = None,
+    publish: bool = True,
 ) -> dict:
     """
     Inserts a single imagery record into the database.
@@ -110,7 +139,19 @@ def insert_record(
             ),
         )
         conn.commit()
-        return cursor.fetchone()
+        result = cursor.fetchone()
+
+    if publish and result is not None:
+        try:
+            publish_scene_message(
+                scene_id=scene_id, sensor=sensor, acquisition_date=acquisition_date
+            )
+        except Exception as e:
+            print(
+                f"[Pub/Sub] Warning: Failed to publish message " f"for {scene_id}: {e}"
+            )
+
+    return result
 
 
 def fetch_scenes_intersecting(conn, bbox: tuple) -> list:
@@ -342,10 +383,17 @@ def register_processing_run(
         ON CONFLICT (product_id) DO NOTHING
         RETURNING *;
     """
+    sql_fetch = """
+        SELECT * FROM processed_products WHERE product_id = %s
+    """
     with conn.cursor() as cursor:
         cursor.execute(sql, (product_id, scene_id, task, json.dumps(parameters)))
         conn.commit()
-        return cursor.fetchone()
+        result = cursor.fetchone()
+        if result is None:
+            cursor.execute(sql_fetch, (product_id,))
+            result = cursor.fetchone()
+        return result
 
 
 def update_processing_run(

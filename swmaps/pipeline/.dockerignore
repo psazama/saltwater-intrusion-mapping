@@ -1,0 +1,32 @@
+# Large data directories
+data/
+salinity_labels/
+downloads/
+temp/
+coastline/
+
+# Development artifacts
+.git/
+.github/
+.pytest_cache/
+.ruff_cache/
+notebooks/
+docs/
+gui/
+examples/
+
+# Python artifacts
+*.pyc
+__pycache__/
+*.egg-info/
+swmaps.egg-info/
+
+# Environment and secrets
+.env
+.env.prod
+.env.local
+credentials/
+
+# Docker
+docker-compose*.yml
+Dockerfile*

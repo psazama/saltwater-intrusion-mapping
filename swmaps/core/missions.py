@@ -1,5 +1,7 @@
 """Mission configuration using subclass methods for satellite-specific logic."""
 
+from pathlib import Path
+
 from .satellites.base import Mission
 from .satellites.landsat5 import Landsat5
 from .satellites.landsat7 import Landsat7
@@ -39,3 +41,20 @@ def get_mission_from_id(mission: int) -> Mission:
     }
 
     return missions[mission]
+
+
+def get_mission_from_path(path) -> Mission:
+    """
+    Derives the Mission object from a file path.
+    Matches against known mission slugs in the mission map.
+    """
+    name = Path(path).name.lower()
+    mission_map = {
+        "sentinel-2": Sentinel2,
+        "landsat-5": Landsat5,
+        "landsat-7": Landsat7,
+    }
+    for slug, cls in mission_map.items():
+        if slug in name:
+            return cls()
+    raise ValueError(f"Cannot derive mission from path: {path}")

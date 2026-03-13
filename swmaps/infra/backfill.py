@@ -3,18 +3,8 @@ from pathlib import Path
 import rasterio
 from rasterio.warp import transform_bounds
 
+from swmaps.core.missions import get_mission_from_path
 from swmaps.infra.db import get_connection, register_scene
-
-
-def parse_mission_from_path(path: Path) -> str:
-    name = path.name.lower()
-    if "landsat-5" in name:
-        return "landsat-5"
-    if "landsat-7" in name:
-        return "landsat-7"
-    if "sentinel-2" in name:
-        return "sentinel-2"
-    raise ValueError(f"Cannot parse mission from {name}")
 
 
 def _parse_date_from_filename(stem: str) -> str:
@@ -50,7 +40,7 @@ def backfill_directory(data_dir: str):
                     )
                     bbox = list(bounds)  # [minx, miny, maxx, maxy] in degrees
 
-                mission = parse_mission_from_path(tif)
+                mission = get_mission_from_path(tif).slug
                 # Use filenmae stem as scene_id since we don't have GEE metadata
                 scene_id = tif.stem.replace("_multiband", "")
                 # Strip mission prefix if present e.g. "landsat-7_" or "sentinel-2_"

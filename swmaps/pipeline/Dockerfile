@@ -1,10 +1,10 @@
-FROM nvidia/cuda:11.8.0-runtime-ubuntu22.04
+FROM ubuntu:22.04
 
 # 1. Install system dependencies
 RUN apt-get update && apt-get install -y \
     tini \
     wget \
-    git \
+    ca-certificates \
     libgdal-dev \
     libgeos-dev \
     g++ \
@@ -21,18 +21,18 @@ ENV PATH="/opt/conda/bin:${PATH}"
 WORKDIR /app
 
 # 3. Create the Conda environment
-COPY environment.yml .
+COPY swmaps/pipeline/environment.pipeline.yml .
 
 RUN conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main && \
     conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r && \
-    conda env create -p /opt/conda/envs/swmaps_env -f environment.yml && \
+    conda env create -p /opt/conda/envs/swmaps_pipeline_env -f environment.pipeline.yml && \
     conda clean -afy
 
 # 4. Copy project files
 COPY . .
 
 # 5. Install the package in non-editable mode
-RUN /opt/conda/envs/swmaps_env/bin/pip install .
+RUN /opt/conda/envs/swmaps_pipeline_env/bin/pip install .
 
 # 6. Set the Entrypoint
-ENTRYPOINT ["/usr/bin/tini", "--", "/opt/conda/envs/swmaps_env/bin/python", "examples/workflow_runner.py"]
+ENTRYPOINT ["/usr/bin/tini", "--", "/opt/conda/envs/swmaps_pipeline_env/bin/python", "swmaps/pipeline/run_pipeline.py"]

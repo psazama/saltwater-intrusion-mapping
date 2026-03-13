@@ -9,7 +9,32 @@ from PIL import Image
 from tqdm import tqdm
 
 from swmaps.core.indices import compute_ndwi
+from swmaps.core.missions import get_mission_from_path
 from swmaps.core.trend import check_image_for_nans, check_image_for_valid_signal
+
+
+def generate_water_mask(mosaic: str | Path):
+    """Generate NDWI water masks for a mosaic.
+
+    Args:
+        mosaic (str | Path ): input mosaic location.
+
+    Returns:
+        Path: generated mask location.
+    """
+    mosaic = Path(mosaic)
+
+    mission = get_mission_from_path(mosaic.name).slug
+
+    if check_image_for_nans(str(mosaic)) or not check_image_for_valid_signal(
+        str(mosaic)
+    ):
+        raise ValueError("invalid mosaic")
+
+    out_mask = mosaic.with_name(f"{mosaic.stem}_mask.tif")
+    compute_ndwi(str(mosaic), mission, str(out_mask), display=False)
+
+    return out_mask
 
 
 def generate_masks(center_size=None, input_dir=None):
@@ -34,13 +59,9 @@ def generate_masks(center_size=None, input_dir=None):
         if check_image_for_nans(str(tif)) or not check_image_for_valid_signal(str(tif)):
             continue
 
-        if "sentinel" in tif.name:
-            mission = "sentinel-2"
-        elif "landsat-5" in tif.name:
-            mission = "landsat-5"
-        elif "landsat-7" in tif.name:
-            mission = "landsat-7"
-        else:
+        try:
+            mission = get_mission_from_path(tif).slug
+        except ValueError:
             continue
 
         out_mask = tif.with_name(f"{tif.stem}_mask.tif")

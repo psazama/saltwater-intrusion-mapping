@@ -7,3 +7,6 @@ description = "Salinity heuristic estimation"
 
 [tasks.trend]
 description = "Water trend analysis"
+
+[tasks.water_mask]
+description = "Generates a water mask"

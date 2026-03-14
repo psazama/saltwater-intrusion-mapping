@@ -3,46 +3,107 @@ set -e
 
 # --- Argument Parsing ---
 EE_PROJECT=""
-TASK=""
-SCENE_IDS_FILE=""
+usage() { echo "Usage: $0 -p <earthengine_project_id>"; exit 1; }
 
-usage() { echo "Usage: $0 -p <earthengine_project_id> -t <task> -s <scene_ids_json>"; exit 1; }
-
-while getopts "p:t:s:" opt; do
+while getopts "p:" opt; do
     case "$opt" in
         p) EE_PROJECT=$OPTARG ;;
-        t) TASK=$OPTARG ;;
-        s) SCENE_IDS_FILE=$OPTARG ;;
         *) usage ;;
     esac
 done
 
-if [ -z "$EE_PROJECT" ] || [ -z "$TASK" ]; then usage; fi
+if [ -z "$EE_PROJECT" ]; then usage; fi
 
 # --- Main Script ---
 cd "$(dirname "$0")/.."
 
 PROJECT_ID=$(gcloud config get-value project)
+PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID --format='get(projectNumber)')
 REGION="us-central1"
 REPO_NAME="swmaps-repo"
-IMAGE_NAME="swmaps-pipeline"
-TAG="v1"
-IMAGE_URI="$REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/$IMAGE_NAME:$TAG"
 
-echo "Step 1: Ensuring Artifact Registry exists..."
+echo "Step 0: Authorizing Service Account..."
+SVC_ACCOUNT="$PROJECT_NUMBER-compute@developer.gserviceaccount.com"
+
+echo "Step 1: Enabling required GCP APIs..."
+gcloud services enable \
+    run.googleapis.com \
+    pubsub.googleapis.com \
+    secretmanager.googleapis.com \
+    artifactregistry.googleapis.com \
+    cloudbuild.googleapis.com
+
+echo "Step 2: Ensuring Artifact Registry exists..."
 gcloud artifacts repositories create $REPO_NAME \
     --repository-format=docker --location=$REGION || true
 
-echo "Step 2: Building and pushing image..."
-gcloud builds submit --tag $IMAGE_URI .
+PIPELINE_IMAGE_NAME="swmaps-pipeline"
+PIPELINE_TAG="v1"
+PIPELINE_IMAGE_URI="$REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/$PIPELINE_IMAGE_NAME:$PIPELINE_TAG"
 
-echo "Step 3: Deploying to Cloud Run..."
-gcloud run jobs create swmaps-${TASK}-$(date +%Y%m%d-%H%M%S) \
-    --image=$IMAGE_URI \
+TRIGGER_IMAGE_NAME="swmaps-trigger"
+TRIGGER_TAG="v1"
+TRIGGER_IMAGE_URI="$REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/$TRIGGER_IMAGE_NAME:$TRIGGER_TAG"
+
+TRIGGER_SERVICE="swmaps-trigger"
+PIPELINE_JOB="swmaps-pipeline"
+
+echo "Step 3: Building Image..."
+gcloud builds submit -f swmaps/pipeline/Dockerfile --tag $PIPELINE_IMAGE_URI .
+gcloud builds submit -f swmaps/infra/Dockerfile --tag $TRIGGER_IMAGE_URI .
+
+echo "Step 4: Deploying to Cloud Run..."
+if gcloud run jobs describe $PIPELINE_JOB --region=$REGION &>/dev/null; then
+    gcloud run jobs update $PIPELINE_JOB \
+        --image=$PIPELINE_IMAGE_URI \
+        --region=$REGION 
+else
+    gcloud run jobs create $PIPELINE_JOB \
+        --image=$PIPELINE_IMAGE_URI \
+        --region=$REGION \
+        --set-env-vars="EARTHENGINE_PROJECT=$EE_PROJECT" \
+        --set-secrets="DB_PASSWORD=swmaps-db-password:latest,DB_USER=swmaps-db-user:latest" \
+        --memory=4Gi \
+        --cpu=2 \
+        --max-retries=1 
+fi
+
+gcloud run deploy $TRIGGER_SERVICE \
+    --image=$TRIGGER_IMAGE_URI \
     --region=$REGION \
-    --set-env-vars="EARTHENGINE_PROJECT=$EE_PROJECT,TASK=$TASK" \
-    --set-secrets="DB_PASSWORD=swmaps-db-password:latest" \
-    --memory=4Gi \
-    --cpu=2 \
-    --max-retries=1 \
-    --execute-now
+    --no-allow-unauthenticated \
+    --set-env-vars="PIPELINE_JOB=swmaps-pipeline,REGION=$REGION,GOOGLE_CLOUD_PROJECT=$PROJECT_ID" \
+    --service-account=$SVC_ACCOUNT
+
+
+echo "Step 5: Setting up Pub/Sub topic"
+gcloud pubsub topics create swmaps-new-scenes || true
+
+echo "Step 6: Wiring Pub/Sub to trigger service"
+TRIGGER_URL=$(gcloud run services describe $TRIGGER_SERVICE \
+    --region=$REGION \
+    --format='get(status.url)')
+
+PUBSUB_SA="swmaps-pubsub-invoker@$PROJECT_ID.iam.gserviceaccount.com"
+gcloud iam service-accounts create swmaps-pubsub-invoker \
+    --display-name="SwMaps Pub/Sub Invoker" || true
+
+gcloud run services add-iam-policy-binding $TRIGGER_SERVICE \
+    --region=$REGION \
+    --member="serviceAccount:$PUBSUB_SA" \
+    --role="roles/run.invoker"
+
+gcloud pubsub subscriptions delete swmaps-new-scenes-sub || true
+gcloud pubsub subscriptions create swmaps-new-scenes-sub \
+    --topic=swmaps-new-scenes \
+    --push-endpoint="$TRIGGER_URL/trigger" \
+    --push-auth-service-account=$PUBSUB_SA
+
+echo "---------------------------------------------------"
+echo "Deployment complete."
+echo "Pipeline job: $PIPELINE_JOB"
+echo "Trigger service: $TRIGGER_URL"
+echo "Pub/Sub topic: swmaps-new-scenes"
+echo "---------------------------------------------------"
+echo "To test manually:"
+echo "gcloud pubsub topics publish swmaps-new-scenes --message='{\"scene_id\":\"test\",\"sensor\":\"landsat-7\",\"acquisition_date\":\"1999-08-06\"}'"

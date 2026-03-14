@@ -10,3 +10,6 @@ description = "Water trend analysis"
 
 [tasks.water_mask]
 description = "Generates a water mask"
+
+[pipeline]
+tasks_on_ingest = ["water_mask"]

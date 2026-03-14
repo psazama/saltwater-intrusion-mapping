@@ -3,12 +3,14 @@ name = "swmaps"
 version = "0.1.0"
 dependencies = [
     "dask",
+    "flask",
     "earthengine-api",
     "numpy",
     "pandas",
     "psycopg2",
     "rasterio",
     "geopandas",
+    "google-cloud-run",
     "shapely",
     "xarray",
     "scikit-learn",

@@ -1,7 +1,11 @@
 import base64
 import json
 import os
-import tomllib
+
+try:
+    import tomllib
+except ImportError:
+    import tomli as tomllib
 
 from flask import Flask, request
 from google.cloud import run_v2
@@ -82,7 +86,3 @@ def sub_message():
         return "OK", 200
     except Exception as e:
         return f"Failed to trigger job: {e}", 500
-
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080)

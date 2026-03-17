@@ -9,6 +9,7 @@ dependencies:
   - rasterio
   - shapely
   - geopandas
+  - google-cloud-storage
   - pillow
   - tqdm
   - pydantic

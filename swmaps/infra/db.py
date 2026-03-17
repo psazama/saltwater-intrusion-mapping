@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 import tomllib
+from pathlib import Path
 
 import psycopg2
 from dotenv import load_dotenv
@@ -192,9 +193,26 @@ def register_scene(
     from shapely.geometry import box
     from shapely.wkt import dumps
 
+    from swmaps.infra.storage import raw_blob_path, upload_file
+
     # Get band count from file
     with rasterio.open(out_path) as src:
         band_count = src.count
+
+    # Upload to GCS if bucket is configured, else fall back to local path
+    bucket = os.environ.get("GCS_BUCKET")
+    if bucket:
+        try:
+            file_path = upload_file(
+                local_path=out_path,
+                blob_path=raw_blob_path(image_id, mission, Path(out_path).name),
+            )
+            print(f"[GCS] Uploaded to {file_path}")
+        except Exception as e:
+            print(f"[GCS] Warning: upload failed, falling back to local path: {e}")
+            file_path = out_path
+    else:
+        file_path = out_path
 
     # Convert bbox list to WKT polygon
     location_wkt = dumps(box(*bbox))

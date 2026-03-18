@@ -87,6 +87,7 @@ def insert_record(
     file_locations: list,
     crs: str = None,
     publish: bool = True,
+    file_hash: str = None,
 ) -> dict:
     """
     Inserts a single imagery record into the database.
@@ -124,7 +125,7 @@ def insert_record(
         RETURNING *;
     """
     with conn.cursor() as cursor:
-        file_hash = compute_file_hash(file_locations[0])
+        file_hash = file_hash or compute_file_hash(file_locations[0])
 
         cursor.execute(
             sql,
@@ -198,6 +199,7 @@ def register_scene(
     # Get band count from file
     with rasterio.open(out_path) as src:
         band_count = src.count
+    local_file_hash = compute_file_hash(out_path)
 
     # Upload to GCS if bucket is configured, else fall back to local path
     bucket = os.environ.get("GCS_BUCKET")
@@ -224,8 +226,9 @@ def register_scene(
         band_count=band_count,
         acquisition_date=acquisition_date,
         sensor=mission,
-        file_locations=[out_path],
+        file_locations=[file_path],
         crs=crs,
+        file_hash=local_file_hash,
     )
 
 

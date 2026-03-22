@@ -1,3 +1,15 @@
+"""FarSeg semantic segmentation model for coastal land cover classification.
+
+This module provides:
+
+- :class:`FarSegDataset` - a :class:`~swmaps.models.dataset.SegDataset`
+  subclass with FarSeg-specific image and mask loading.
+- :class:`FarSegModel` - a wrapper around TorchGeo's FarSeg architecture
+  with support for multi-spectral input and dynamic class adjustment.
+
+Reference: https://arxiv.org/pdf/2011.09766
+"""
+
 import numpy as np
 import rasterio
 import torch
@@ -8,6 +20,21 @@ from swmaps.models.dataset import SegDataset
 
 
 class FarSegDataset(SegDataset):
+    """Dataset class for FarSeg training and inference.
+
+    Extends :class:`~swmaps.models.dataset.SegDataset` with FarSeg-specific
+    image normalisation - uint16 images are divided by 65535, uint8 by 255.
+    NoData pixels (all-zero across bands) are masked out in the label with
+    the ignore index ``255``.
+
+    Args:
+        data_pairs: List of ``(image_path, mask_path, sat_id)`` tuples.
+        label_map: Optional dict mapping raw mask values to class indices.
+        target_size: Square crop size in pixels.
+        transform: Optional Albumentations transform.
+        inference_only: When ``True`` returns a dummy mask instead of
+            reading a mask file.
+    """
     def __init__(
         self,
         data_pairs,
@@ -19,6 +46,15 @@ class FarSegDataset(SegDataset):
         super().__init__(data_pairs, label_map, target_size, transform, inference_only)
 
     def __getitem__(self, idx):
+        """Return the ``idx``-th sample as ``(image_tensor, mask_tensor, sat_id)``.
+
+        Args:
+            idx: Sample index.
+
+        Returns:
+            tuple: Float32 image tensor ``(C, H, W)``, int64 mask tensor
+            ``(H, W)``, and integer satellite ID.
+        """
         img_path, mask_path, sat_id = self.data_pairs[idx]
 
         # Load Image
@@ -53,11 +89,27 @@ class FarSegDataset(SegDataset):
 
 
 class FarSegModel(BaseSegModel):
-    """
-    Wrapper around TorchGeo's FarSeg for semantic segmentation.
-    https://arxiv.org/pdf/2011.09766
-    """
+    """FarSeg (Foreground-Aware Relation Network) segmentation model.
 
+    Wraps TorchGeo's FarSeg implementation with:
+
+    - Support for arbitrary input channel counts via first-layer replacement.
+    - Dynamic class adjustment when a ``label_map`` remaps the number of
+      output classes at training time.
+    - Delegation to :meth:`~swmaps.models.base.BaseSegModel.train_core` for
+      the shared training loop.
+
+    Reference: https://arxiv.org/pdf/2011.09766
+
+    Args:
+        backbone: ResNet backbone variant. Defaults to ``"resnet50"``.
+        num_classes: Number of output segmentation classes. Defaults to ``16``.
+        backbone_pretrained: Whether to load ImageNet-pretrained backbone
+            weights. Defaults to ``True``.
+        in_channels: Number of input spectral bands. When not ``3``, the
+            first convolution layer is replaced to accept the correct number
+            of channels. Defaults to ``6``.
+    """
     def __init__(
         self,
         backbone="resnet50",
@@ -88,6 +140,16 @@ class FarSegModel(BaseSegModel):
             )
 
     def forward(self, x, sat_ids=None):
+        """Run a forward pass through the FarSeg model.
+
+        Args:
+            x: Input tensor of shape ``(B, C, H, W)``.
+            sat_ids: Satellite ID tensor - accepted for API consistency with
+                Panopticon but not used by FarSeg.
+
+        Returns:
+            torch.Tensor: Logit tensor of shape ``(B, num_classes, H, W)``.
+        """
         return self.model(x)
 
     def train_model(
@@ -105,6 +167,27 @@ class FarSegModel(BaseSegModel):
         target_size=512,
         **kwargs,
     ):
+        """Configure and launch FarSeg training.
+
+        Dynamically adjusts the number of output classes based on *label_map*
+        before delegating to :meth:`~swmaps.models.base.BaseSegModel.train_core`.
+
+        Args:
+            data_pairs: List of ``(image_path, mask_path, sat_id)`` tuples.
+            out_dir: Directory for checkpoints and training logs.
+            label_map: Optional dict mapping raw mask values to class indices.
+                When provided the model head is rebuilt to match the number
+                of unique output classes.
+            val_pairs: Optional validation pairs.
+            epochs: Maximum training epochs. Defaults to ``10``.
+            batch_size: Samples per mini-batch. Defaults to ``64``.
+            loss_type: One of ``"ce"``, ``"focal"``, ``"dice"``, ``"hybrid"``.
+            lr: Initial Adam learning rate. Defaults to ``5e-5``.
+            lr_patience: Epochs without improvement before LR reduction.
+            stopping_patience: Epochs without improvement before early stop.
+            target_size: Square crop size in pixels. Defaults to ``512``.
+            **kwargs: Forwarded to :meth:`~swmaps.models.base.BaseSegModel.train_core`.
+        """
 
         # 1. DYNAMIC CLASS ADJUSTMENT
         if label_map:

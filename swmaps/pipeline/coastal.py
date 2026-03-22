@@ -1,4 +1,13 @@
-"""Pipeline helpers for preparing coastal region geometry inputs."""
+"""Pipeline helpers for preparing coastal region geometry inputs.
+
+Provides two functions for building the coastal AOI polygon used as the
+spatial boundary for imagery downloads and analysis:
+
+- :func:`create_coastal` - quick helper using hardcoded config paths,
+  used by the original workflow scripts.
+- :func:`build_coastal_polygon` - fully parameterised pipeline wrapper
+  suitable for programmatic use and the workflow runner.
+"""
 
 from pathlib import Path
 

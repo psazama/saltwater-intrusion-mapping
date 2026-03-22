@@ -1,11 +1,15 @@
-"""
-GEE-based raster mosaicking utilities.
+"""GEE-based raster mosaicking utilities.
 
-This replaces the old STAC-based per-band downloading and stacking
-logic with Earth Engine imagery retrieval and export.
+Replaces the old STAC-based per-band downloading and stacking logic with
+Earth Engine imagery retrieval and export. Outputs are local multiband
+GeoTIFFs so the rest of the pipeline (salinity, NDWI, model features)
+continues to work unchanged.
 
-Outputs are still local multiband GeoTIFFs so the rest of the pipeline
-( salinity extraction, NDWI, model features ) continues to work.
+Public functions
+----------------
+:func:`compute_bbox` - build a bounding box around a lat/lon point.
+:func:`process_date` - download a single mosaic for a location and date.
+:func:`process_multiple` - apply :func:`process_date` to every row of a DataFrame.
 """
 
 from datetime import datetime, timedelta
@@ -27,7 +31,17 @@ from swmaps.core.satellite_query import (
 
 
 def compute_bbox(lat, lon, buffer_km=1.0):
-    """Return a bounding box around (lat, lon) with buffer_km distance."""
+    """Return a bounding box around a centre point with a buffer distance.
+
+    Args:
+        lat: Centre latitude in decimal degrees.
+        lon: Centre longitude in decimal degrees.
+        buffer_km: Half-width of the bounding box in kilometres.
+            Defaults to ``1.0``.
+
+    Returns:
+        list[float]: ``[min_lon, min_lat, max_lon, max_lat]`` in EPSG:4326.
+    """
     deg = buffer_km / 111.0
     return [lon - deg, lat - deg, lon + deg, lat + deg]
 
@@ -38,14 +52,18 @@ def _write_rgb_png_from_tif(
     rgb_bands: tuple[int, int, int],
     stretch: bool = True,
 ):
-    """
-    Save an RGB PNG from a multiband GeoTIFF.
+    """Save an RGB PNG preview from a multiband GeoTIFF.
 
     Args:
-        tif_path: path to multiband GeoTIFF
-        png_path: output PNG path
-        rgb_bands: 1-based band indices, e.g. (4, 3, 2) for Sentinel-2
-        stretch: apply min-max stretch for visualization
+        tif_path: Path to the source multiband GeoTIFF.
+        png_path: Destination path for the output PNG.
+        rgb_bands: 1-based band indices for red, green, blue channels
+            respectively, e.g. ``(4, 3, 2)`` for Sentinel-2.
+        stretch: When ``True``, applies a 2–98 percentile min-max stretch
+            for improved visual contrast. Defaults to ``True``.
+
+    Returns:
+        None
     """
     import numpy as np
     import rasterio
@@ -93,24 +111,35 @@ def process_date(
     samples: int = 1,
     save_png: bool = False,
 ):
-    """
-    Build a local multiband GeoTIFF for the given location & date.
+    """Download a multiband GeoTIFF mosaic for a location and date.
 
-    This is the GEE-native replacement for the old STAC-based mosaic
-    that used `_stack_bands()`.
+    Queries GEE for imagery within the temporal window, selects the
+    best available scene(s), and exports a clipped multiband GeoTIFF.
+    Optionally writes an RGB PNG preview alongside the raster.
 
     Args:
-        lat, lon: center coordinates
-        date: datetime object for target date
-        buffer_km: bounding-box size
-        mission: sentinel-2, landsat-5, landsat-7
-        out_dir: where to write output raster
-        days_before/days_after: temporal window
-        cloud_filter: max cloud percentage allowed
-        samples: number of samples to return
+        lat: Centre latitude in decimal degrees.
+        lon: Centre longitude in decimal degrees.
+        date: Target acquisition date.
+        buffer_km: Bounding-box half-width in kilometres. Defaults to ``1.0``.
+        mission: Mission slug - ``"sentinel-2"``, ``"landsat-5"``, or
+            ``"landsat-7"``. Defaults to ``"sentinel-2"``.
+        out_dir: Directory where output files will be written. Defaults to
+            ``<data_root>/mosaics``.
+        days_before: Days before *date* to include in the search window.
+            Defaults to ``7``.
+        days_after: Days after *date* to include in the search window.
+            Defaults to ``7``.
+        cloud_filter: Maximum allowed cloud cover percentage. Defaults to
+            ``30``.
+        samples: Maximum number of scenes to return per date. Defaults to
+            ``1``.
+        save_png: Whether to write an RGB PNG preview. Defaults to
+            ``False``.
 
     Returns:
-        path to the downloaded multiband TIFF
+        list[str] | None: Paths to the downloaded GeoTIFF(s), or ``None``
+        if no suitable imagery was found.
     """
     if out_dir is None:
         out_dir = data_path("mosaics")
@@ -202,10 +231,30 @@ def process_multiple(
     samples=1,
     save_png=False,
 ):
-    """
-    Apply GEE mosaic building to every row of a DataFrame.
+    """Apply :func:`process_date` to every row of a DataFrame.
 
-    Returns a list of file paths.
+    Args:
+        df: DataFrame with at minimum *lat_col*, *lon_col*, and *date_col*
+            columns.
+        lat_col: Name of the latitude column. Defaults to ``"latitude"``.
+        lon_col: Name of the longitude column. Defaults to ``"longitude"``.
+        date_col: Name of the date column. Defaults to ``"date"``.
+        mission: Mission slug. Defaults to ``"sentinel-2"``.
+        buffer_km: Bounding-box half-width in kilometres. Defaults to
+            ``1.0``.
+        out_dir: Output directory for downloaded mosaics.
+        days_before: Temporal window before each date in days. Defaults to
+            ``7``.
+        days_after: Temporal window after each date in days. Defaults to
+            ``7``.
+        cloud_filter: Maximum allowed cloud cover percentage. Defaults to
+            ``30``.
+        samples: Maximum scenes per date. Defaults to ``1``.
+        save_png: Whether to write RGB PNG previews. Defaults to ``False``.
+
+    Returns:
+        list: List of output paths (one per row), with ``None`` entries
+        where no imagery was found.
     """
     results = []
     for _, row in tqdm(df.iterrows(), total=len(df)):

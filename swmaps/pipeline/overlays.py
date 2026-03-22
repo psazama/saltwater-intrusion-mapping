@@ -1,5 +1,12 @@
-"""
-Pipeline utilities for overlay datasets (NLCD and CDL).
+"""Pipeline utilities for fetching land-cover overlay datasets.
+
+Provides typed wrappers around the NLCD and CDL dataset downloaders
+that handle output path resolution and return the downloaded file path.
+
+Public functions
+----------------
+:func:`fetch_nlcd_overlay` - download an NLCD land-cover raster for a region.
+:func:`fetch_cdl_overlay` - download a USDA CDL cropland raster for a region.
 """
 
 from pathlib import Path

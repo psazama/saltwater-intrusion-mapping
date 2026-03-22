@@ -1,3 +1,15 @@
+"""Segmentation model inference utilities.
+
+This module provides :func:`run_segmentation`, the primary entry point for
+running batch inference with a trained segmentation model. It handles model
+loading, checkpoint restoration, dataset construction, and output writing.
+
+Output formats
+--------------
+- GeoTIFF - georeferenced prediction raster aligned to the source mosaic.
+- PNG (optional) - RGB visualisation with a random but reproducible colour
+  per class, useful for quick visual inspection.
+"""
 from pathlib import Path
 
 import torch
@@ -13,6 +25,21 @@ from swmaps.models.model_factory import MODEL_REGISTRY, get_model
 
 
 def _write_mask_like(ref_raster, mask_tensor, out_path):
+    """Write a predicted mask as a GeoTIFF matching a reference raster.
+
+    Copies the CRS, transform, and spatial extent from *ref_raster* so the
+    output is correctly georeferenced.
+
+    Args:
+        ref_raster: Path to the source mosaic GeoTIFF used as a spatial
+            reference.
+        mask_tensor: 2-D integer tensor of shape ``(H, W)`` containing
+            predicted class indices.
+        out_path: Destination path for the output GeoTIFF.
+
+    Returns:
+        None
+    """
     import rasterio
 
     with rasterio.open(ref_raster) as src:
@@ -24,6 +51,19 @@ def _write_mask_like(ref_raster, mask_tensor, out_path):
 
 
 def _write_png(mask_tensor, out_path):
+    """Write a predicted mask as an RGB PNG with per-class colours.
+
+    Each unique class value is assigned a random colour using a fixed seed
+    (42) for reproducibility across runs.
+
+    Args:
+        mask_tensor: 2-D integer tensor of shape ``(H, W)`` containing
+            predicted class indices.
+        out_path: Destination path for the output PNG.
+
+    Returns:
+        None
+    """
     import numpy as np
     from PIL import Image
 
@@ -57,6 +97,29 @@ def run_segmentation(
     save_png=False,
     weights_path=None,
 ):
+    """Run batch segmentation inference on a list of mosaic GeoTIFFs.
+
+    Loads a model from the registry, optionally restores weights from a
+    checkpoint, runs inference on each mosaic, and writes georeferenced
+    prediction rasters alongside the source files.
+
+    Args:
+        mosaics: List of paths to multiband GeoTIFF mosaics.
+        out_dir: Directory where prediction rasters will be written.
+        model_name: Model architecture name - must be a key in
+            :data:`~swmaps.models.model_factory.MODEL_REGISTRY`.
+            Defaults to ``"farseg"``.
+        batch_size: Number of mosaics to process per forward pass.
+            Defaults to ``4``.
+        save_png: Whether to write an RGB PNG preview alongside each
+            GeoTIFF prediction. Defaults to ``False``.
+        weights_path: Optional path to a ``.pth`` checkpoint file. When
+            provided the model type and kwargs are read from the checkpoint
+            metadata and the model is rebuilt before loading weights.
+
+    Returns:
+        Path: The *out_dir* path after inference completes.
+    """
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 

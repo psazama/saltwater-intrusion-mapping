@@ -23,6 +23,7 @@ six keys, each mapping to a float32 NumPy array of the same ``(H, W)`` shape::
 from __future__ import annotations
 
 from typing import Dict
+
 import numpy as np
 
 from swmaps.models.base import BaseSalinityModel
@@ -36,6 +37,7 @@ SALINITY_CLASS_CODES: dict[str, int] = {
     "brackish": 2,
     "saline": 3,
 }
+
 
 class SalinityHeuristicModel(BaseSalinityModel):
     """Heuristic (rule-based) salinity classifier.
@@ -113,41 +115,34 @@ class SalinityHeuristicModel(BaseSalinityModel):
                 f"Required: {sorted(REQUIRED_BANDS)}."
             )
 
-        b = {
-            k: np.asarray(v, dtype=np.float32, order="C")
-            for k, v in bands.items()
-        }
+        b = {k: np.asarray(v, dtype=np.float32, order="C") for k, v in bands.items()}
 
-        ndwi  = self._safe_normalized_difference(b["green"], b["nir"])
+        ndwi = self._safe_normalized_difference(b["green"], b["nir"])
         mndwi = self._safe_normalized_difference(b["green"], b["swir1"])
-        ndvi  = self._safe_normalized_difference(b["nir"],   b["red"])
-        ndti  = self._safe_normalized_difference(b["green"], b["blue"])
+        ndvi = self._safe_normalized_difference(b["nir"], b["red"])
+        ndti = self._safe_normalized_difference(b["green"], b["blue"])
 
         turbidity_ratio = np.divide(
-            b["red"], b["green"],
+            b["red"],
+            b["green"],
             out=np.zeros_like(b["red"], dtype=np.float32),
             where=b["green"] != 0,
         ).astype(np.float32)
 
         chlorophyll_ratio = np.divide(
-            b["green"], b["blue"],
+            b["green"],
+            b["blue"],
             out=np.zeros_like(b["green"], dtype=np.float32),
             where=b["blue"] != 0,
         ).astype(np.float32)
 
-        salinity_proxy = np.clip(
-            b["swir1"] + b["swir2"], 0.0, None
-        ).astype(np.float32)
-        salinity_proxy_norm = np.clip(
-            salinity_proxy / salinity_proxy_scale, 0.0, 1.0
-        )
+        salinity_proxy = np.clip(b["swir1"] + b["swir2"], 0.0, None).astype(np.float32)
+        salinity_proxy_norm = np.clip(salinity_proxy / salinity_proxy_scale, 0.0, 1.0)
 
-        chlorophyll_norm = np.clip(
-            chlorophyll_ratio / chlorophyll_reference, 0.0, 1.0
-        )
+        chlorophyll_norm = np.clip(chlorophyll_ratio / chlorophyll_reference, 0.0, 1.0)
         turbidity_norm = np.clip(turbidity_ratio / 2.0, 0.0, 1.0)
 
-        ndwi_scaled  = np.clip((ndwi  + 1.0) / 2.0, 0.0, 1.0)
+        ndwi_scaled = np.clip((ndwi + 1.0) / 2.0, 0.0, 1.0)
         mndwi_scaled = np.clip((mndwi + 1.0) / 2.0, 0.0, 1.0)
 
         water_mask = (ndwi > water_threshold) | (mndwi > water_threshold)
@@ -198,7 +193,7 @@ class SalinityHeuristicModel(BaseSalinityModel):
                 "salinity_proxy_norm": salinity_proxy_norm,
             },
         }
-    
+
     def forward(self, bands: Dict[str, np.ndarray], **kwargs) -> Dict[str, np.ndarray]:
         """Alias of :meth:`predict` for PyTorch-style compatibility.
 

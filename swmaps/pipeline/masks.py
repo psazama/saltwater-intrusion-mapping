@@ -52,9 +52,7 @@ def generate_water_mask(mosaic: str | Path) -> PipelineResult:
         )
 
     if check_image_for_nans(str(mosaic)):
-        return PipelineResult.failure(
-            f"Mosaic {mosaic.name} contains NaNs - skipping."
-        )
+        return PipelineResult.failure(f"Mosaic {mosaic.name} contains NaNs - skipping.")
     if not check_image_for_valid_signal(str(mosaic)):
         return PipelineResult.failure(
             f"Mosaic {mosaic.name} has no valid signal - skipping."
@@ -94,7 +92,8 @@ def run_water_masks(
         mosaic_list = mosaics
     elif mosaics.is_dir():
         mosaic_list = [
-            p for p in sorted(mosaics.rglob("*_multiband.tif"))
+            p
+            for p in sorted(mosaics.rglob("*_multiband.tif"))
             if not p.name.endswith(("_mask.tif", "_features.tif"))
         ]
     else:
@@ -122,8 +121,11 @@ def run_water_masks(
 
         out_mask = tif.with_name(f"{tif.stem}_mask.tif")
         compute_ndwi(
-            str(tif), mission, str(out_mask),
-            display=False, center_size=center_size,
+            str(tif),
+            mission,
+            str(out_mask),
+            display=False,
+            center_size=center_size,
         )
         output_paths.append(out_mask)
 
@@ -137,7 +139,8 @@ def run_water_masks(
 
     logger.info(
         "Water masks: %d generated, %d skipped.",
-        len(mosaic_list) - skipped, skipped,
+        len(mosaic_list) - skipped,
+        skipped,
     )
 
     return PipelineResult.ok(

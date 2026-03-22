@@ -9,6 +9,7 @@ Usage::
 
     python -m swmaps.infra.backfill data/downloads/
 """
+
 from pathlib import Path
 
 import rasterio

@@ -6,6 +6,7 @@ GEE collection: ``LANDSAT/LT05/C02/T1_L2`` (Collection 2 Level-2 SR).
 """
 
 import numpy as np
+
 from .base import Mission
 
 
@@ -70,7 +71,7 @@ class Landsat5(Mission):
     @property
     def valid_date_range(self):
         return ("1984-03-01", "2013-01-01")
-    
+
     def read_bands(self, src):
         """Read and scale Landsat-5 Collection 2 DN values to surface reflectance.
 
@@ -88,15 +89,13 @@ class Landsat5(Mission):
             ValueError: If *src* has fewer than 6 bands.
         """
         if src.count < 6:
-            raise ValueError(
-                f"Expected ≥6 bands for Landsat-5, got {src.count}."
-            )
+            raise ValueError(f"Expected ≥6 bands for Landsat-5, got {src.count}.")
         scale, offset = 0.0000275, -0.2
         return {
-            "blue":  src.read(1).astype(np.float32) * scale + offset,
+            "blue": src.read(1).astype(np.float32) * scale + offset,
             "green": src.read(2).astype(np.float32) * scale + offset,
-            "red":   src.read(3).astype(np.float32) * scale + offset,
-            "nir":   src.read(4).astype(np.float32) * scale + offset,
+            "red": src.read(3).astype(np.float32) * scale + offset,
+            "nir": src.read(4).astype(np.float32) * scale + offset,
             "swir1": src.read(5).astype(np.float32) * scale + offset,
             "swir2": src.read(6).astype(np.float32) * scale + offset,
         }

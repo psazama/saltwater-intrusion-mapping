@@ -107,6 +107,7 @@ def test_run_download_with_explicit_latlon():
         assert call_args.kwargs["lon"] == -75.0
         assert result.is_ok
 
+
 def test_run_download_geojson_not_found():
     """Test that download_data() raises FileNotFoundError when GeoJSON doesn't exist."""
     cfg = DownloadConfig(
@@ -118,6 +119,7 @@ def test_run_download_geojson_not_found():
     result = run_download(cfg)
     assert result.status == "error"
     assert "GeoJSON file not found" in result.error
+
 
 def test_run_download_skip():
     """Test that run_download() skips when skip_download is True."""

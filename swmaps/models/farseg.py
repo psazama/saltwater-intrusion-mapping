@@ -35,6 +35,7 @@ class FarSegDataset(SegDataset):
         inference_only: When ``True`` returns a dummy mask instead of
             reading a mask file.
     """
+
     def __init__(
         self,
         data_pairs,
@@ -110,6 +111,7 @@ class FarSegModel(BaseSegModel):
             first convolution layer is replaced to accept the correct number
             of channels. Defaults to ``6``.
     """
+
     def __init__(
         self,
         backbone="resnet50",

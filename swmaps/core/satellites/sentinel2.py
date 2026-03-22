@@ -6,8 +6,9 @@ spatial detail of the three missions currently supported by this pipeline.
 GEE collection: ``COPERNICUS/S2_SR_HARMONIZED`` (harmonised Level-2A SR).
 """
 
-from .base import Mission
 import numpy as np
+
+from .base import Mission
 
 
 class Sentinel2(Mission):
@@ -72,7 +73,7 @@ class Sentinel2(Mission):
     @property
     def valid_date_range(self):
         return ("2015-06-23", None)
-    
+
     def read_bands(self, src):
         """Read and scale Sentinel-2 SR values to surface reflectance.
 
@@ -90,15 +91,13 @@ class Sentinel2(Mission):
             ValueError: If *src* has fewer than 6 bands.
         """
         if src.count < 6:
-            raise ValueError(
-                f"Expected ≥6 bands for Sentinel-2, got {src.count}."
-            )
+            raise ValueError(f"Expected ≥6 bands for Sentinel-2, got {src.count}.")
         scale = 10_000.0
         return {
-            "blue":  src.read(1).astype(np.float32) / scale,
+            "blue": src.read(1).astype(np.float32) / scale,
             "green": src.read(2).astype(np.float32) / scale,
-            "red":   src.read(3).astype(np.float32) / scale,
-            "nir":   src.read(4).astype(np.float32) / scale,
+            "red": src.read(3).astype(np.float32) / scale,
+            "nir": src.read(4).astype(np.float32) / scale,
             "swir1": src.read(5).astype(np.float32) / scale,
             "swir2": src.read(6).astype(np.float32) / scale,
         }

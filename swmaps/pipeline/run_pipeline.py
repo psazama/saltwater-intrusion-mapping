@@ -129,9 +129,7 @@ def run_pipeline() -> None:
                         break
 
                     for out_path in result.output_paths:
-                        gcs_uri = _upload_output(
-                            out_path, scene["scene_id"], task_id
-                        )
+                        gcs_uri = _upload_output(out_path, scene["scene_id"], task_id)
                         processed_locations.append(gcs_uri)
 
                 except Exception as exc:

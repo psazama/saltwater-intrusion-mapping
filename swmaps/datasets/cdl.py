@@ -1,8 +1,8 @@
 """Utilities for downloading CDL land-cover products."""
 
+import logging
 from pathlib import Path
 from typing import Sequence, Union
-import logging
 
 import ee
 import geemap
@@ -253,6 +253,7 @@ def download_cdl_and_imagery(
 
     return {"cdl_aligned": aligned_cdl_paths, "imagery": imagery_paths}
 
+
 def run_cdl_download(cfg: DownloadConfig) -> PipelineResult:
     """Download the USDA NASS Cropland Data Layer for the configured region.
 
@@ -278,7 +279,8 @@ def run_cdl_download(cfg: DownloadConfig) -> PipelineResult:
     from swmaps.core.mosaic import compute_bbox
 
     cdl_out = (
-        Path(cfg.cdl_out) if cfg.cdl_out
+        Path(cfg.cdl_out)
+        if cfg.cdl_out
         else data_path("downloads", f"cdl_{cfg.cdl_year}.tif")
     )
     cdl_out.parent.mkdir(parents=True, exist_ok=True)

@@ -48,8 +48,7 @@ def discover_masks(
         else [k.lower() for k in name_contains]
     )
     return sorted(
-        p for p in root.rglob("*.tif")
-        if any(k in p.name.lower() for k in keys)
+        p for p in root.rglob("*.tif") if any(k in p.name.lower() for k in keys)
     )
 
 
@@ -96,12 +95,15 @@ def run_trend_heatmap(
             bin_data = (data == cfg.trend_class_value).astype(np.uint8)
             tmp_path = f.parent / f"{f.stem}_binary.tif"
             with rasterio.open(
-                tmp_path, "w",
+                tmp_path,
+                "w",
                 driver="GTiff",
                 height=bin_data.shape[0],
                 width=bin_data.shape[1],
-                count=1, dtype=bin_data.dtype,
-                crs=src.crs, transform=src.transform,
+                count=1,
+                dtype=bin_data.dtype,
+                crs=src.crs,
+                transform=src.transform,
             ) as dst:
                 dst.write(bin_data, 1)
         binary_paths.append(str(tmp_path))
@@ -119,11 +121,11 @@ def run_trend_heatmap(
 
     # Plot heatmap
     ax = plot_trend_heatmap(
-        slope, signif,
+        slope,
+        signif,
         title=f"Trend in {cfg.trend_class_name} "
-              f"(value={cfg.trend_class_value}) per year",
+        f"(value={cfg.trend_class_value}) per year",
     )
-
 
     heatmap_path = search_dir / f"{cfg.trend_class_name}_trend_heatmap.png"
     ax.figure.savefig(heatmap_path, bbox_inches="tight")

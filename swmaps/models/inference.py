@@ -10,6 +10,7 @@ Output formats
 - PNG (optional) - RGB visualisation with a random but reproducible colour
   per class, useful for quick visual inspection.
 """
+
 from pathlib import Path
 
 import torch

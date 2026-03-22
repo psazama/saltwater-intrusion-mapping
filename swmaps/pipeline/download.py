@@ -16,7 +16,7 @@ from pathlib import Path
 from tqdm import tqdm
 
 from swmaps.config import data_path
-from swmaps.core.mosaic import compute_bbox, process_date
+from swmaps.core.mosaic import process_date
 from swmaps.schema import DownloadConfig, PipelineResult
 
 logger = logging.getLogger(__name__)
@@ -86,9 +86,7 @@ def run_download(cfg: DownloadConfig) -> PipelineResult:
     if cfg.geometry:
         geojson_file = Path(cfg.geometry)
         if not geojson_file.exists():
-            return PipelineResult.failure(
-                f"GeoJSON file not found: {cfg.geometry}"
-            )
+            return PipelineResult.failure(f"GeoJSON file not found: {cfg.geometry}")
         lat, lon = _extract_coords_from_geojson(cfg.geometry)
         lats = [lat]
         lons = [lon]
@@ -103,7 +101,10 @@ def run_download(cfg: DownloadConfig) -> PipelineResult:
 
     logger.info(
         "[GEE] Downloading %s - %s | missions: %s | out: %s",
-        cfg.start_date, cfg.end_date, cfg.mission, out_dir,
+        cfg.start_date,
+        cfg.end_date,
+        cfg.mission,
+        out_dir,
     )
 
     results: list[Path] = []
@@ -122,7 +123,9 @@ def run_download(cfg: DownloadConfig) -> PipelineResult:
                 desc=f"[GEE] {mission} | lat={lat:.2f}, lon={lon:.2f}",
             ):
                 output_path = process_date(
-                    lat=lat, lon=lon, date=date,
+                    lat=lat,
+                    lon=lon,
+                    date=date,
                     buffer_km=cfg.buffer_km,
                     mission=mission,
                     out_dir=mission_out_dir,
@@ -139,7 +142,8 @@ def run_download(cfg: DownloadConfig) -> PipelineResult:
 
     logger.info(
         "[GEE] Done. %d mosaics across %d mission(s).",
-        len(results), len(cfg.mission),
+        len(results),
+        len(cfg.mission),
     )
     return PipelineResult.ok(
         results,

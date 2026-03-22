@@ -37,8 +37,8 @@ from swmaps.config import data_path
 from swmaps.core.missions import get_mission_from_path
 from swmaps.core.satellite_query import (
     download_matching_gee_images as _download_matching,
-    find_gee_coverage as _find_coverage,
 )
+from swmaps.core.satellite_query import find_gee_coverage as _find_coverage
 from swmaps.core.trend import check_image_for_nans, check_image_for_valid_signal
 from swmaps.datasets.salinity import (
     build_salinity_truth,
@@ -46,7 +46,6 @@ from swmaps.datasets.salinity import (
     load_salinity_truth,
 )
 from swmaps.models.salinity_heuristic import (
-    SALINITY_CLASS_CODES,
     SalinityHeuristicModel,
 )
 from swmaps.schema import PipelineResult, SalinityConfig
@@ -116,8 +115,11 @@ def run_salinity_classification(
         mosaic_list = mosaics
     elif mosaics.is_dir():
         mosaic_list = [
-            p for p in sorted(mosaics.rglob("*_multiband.tif"))
-            if not any(x in p.name for x in ["_score", "_class", "_mask", "aligned_cdl"])
+            p
+            for p in sorted(mosaics.rglob("*_multiband.tif"))
+            if not any(
+                x in p.name for x in ["_score", "_class", "_mask", "aligned_cdl"]
+            )
         ]
     else:
         mosaic_list = [mosaics]
@@ -151,7 +153,8 @@ def run_salinity_classification(
                 if src.count < 6:
                     logger.warning(
                         "Expected ≥6 bands, found %d in %s - skipping.",
-                        src.count, mosaic_path.name,
+                        src.count,
+                        mosaic_path.name,
                     )
                     skipped += 1
                     continue
@@ -175,9 +178,12 @@ def run_salinity_classification(
         water_path = base.with_name(f"{base.stem}_salinity_water_mask.tif")
 
         _write_band(score_path, profile, result["score"], dtype="float32")
-        _write_band(class_path, profile, result["class_codes"], dtype="uint8", nodata=255)
         _write_band(
-            water_path, profile,
+            class_path, profile, result["class_codes"], dtype="uint8", nodata=255
+        )
+        _write_band(
+            water_path,
+            profile,
             result["water_mask"].astype(np.float32),
             dtype="float32",
         )

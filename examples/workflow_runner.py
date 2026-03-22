@@ -20,7 +20,7 @@ import shutil
 import tomllib
 from pathlib import Path
 
-from swmaps.datasets.cdl import align_cdl_to_imagery, run_cdl_download
+from swmaps.datasets.cdl import run_cdl_download
 from swmaps.models.dataset import mission_from_path, satellite_id_from_mission
 from swmaps.models.inference import run_segmentation
 from swmaps.models.model_factory import get_model
@@ -66,9 +66,9 @@ def main() -> None:
         raw["loss"] = args.loss_function
 
     cfg = WorkflowConfig.from_dict(raw)
-    dl    = cfg.download
-    seg   = cfg.segmentation
-    sal   = cfg.salinity
+    dl = cfg.download
+    seg = cfg.segmentation
+    sal = cfg.salinity
     trend = cfg.trend
 
     base_out_dir = Path(dl.out_dir) if dl.out_dir else Path("data/outputs")
@@ -136,7 +136,9 @@ def main() -> None:
 
         for mosaic in all_mosaics:
             mosaic_str = str(mosaic)
-            if any(x in mosaic_str for x in ["validation", "val", "aligned_cdl", "mask"]):
+            if any(
+                x in mosaic_str for x in ["validation", "val", "aligned_cdl", "mask"]
+            ):
                 continue
             label_path = mosaic.with_name(f"aligned_cdl_{mosaic.name}")
             if not label_path.exists():
@@ -177,7 +179,8 @@ def main() -> None:
     # ------------------------------------------------------------------
     if seg.run_segmentation:
         mosaics = [
-            m for m in sorted(base_out_dir.rglob("*_multiband.tif"))
+            m
+            for m in sorted(base_out_dir.rglob("*_multiband.tif"))
             if "aligned_cdl" not in str(m)
         ]
         if mosaics:

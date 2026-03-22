@@ -20,6 +20,7 @@ from swmaps.core.missions import GLOBAL_BAND_IDS, get_mission_from_id
 from swmaps.models.base import BaseSegModel
 from swmaps.models.dataset import SegDataset
 
+
 class PanopticonDataset(SegDataset):
     """Dataset class for Panopticon training and inference.
 
@@ -35,6 +36,7 @@ class PanopticonDataset(SegDataset):
         inference_only: When ``True`` returns a dummy mask instead of
             reading a mask file.
     """
+
     def __init__(
         self,
         data_pairs,

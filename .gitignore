@@ -58,7 +58,7 @@ tmp*/
 
 ############################################################
 # 8.  Generated rasters, masks, patch downloads            #
-#     — KEEP sample_data for demos                         #
+#     - KEEP sample_data for demos                         #
 ############################################################
 #   Large mosaics & masks
 s*/data/*_eastern_shore_*.tif

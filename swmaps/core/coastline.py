@@ -50,7 +50,7 @@ def create_coastal_poly(
     out_file : str | Path | None
         Destination for the generated band. Defaults to ``config/coastal_band.gpkg``.
     buffer_km, offshore_km : float
-        Width of inland and offshore buffers in kilometres—mirroring the inline
+        Width of inland and offshore buffers in kilometres-mirroring the inline
         comments that explain why we widen the coastline before clipping.
 
     Returns

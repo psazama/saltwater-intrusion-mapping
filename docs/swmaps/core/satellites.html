@@ -161,56 +161,85 @@
 
     </div>
     <a class="headerlink" href="#Landsat5"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="Landsat5-8"><a href="#Landsat5-8"><span class="linenos"> 8</span></a><span class="k">class</span><span class="w"> </span><span class="nc">Landsat5</span><span class="p">(</span><span class="n">Mission</span><span class="p">):</span>
-</span><span id="Landsat5-9"><a href="#Landsat5-9"><span class="linenos"> 9</span></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Landsat5-10"><a href="#Landsat5-10"><span class="linenos">10</span></a>        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="s2">&quot;landsat-5&quot;</span><span class="p">)</span>
-</span><span id="Landsat5-11"><a href="#Landsat5-11"><span class="linenos">11</span></a>
-</span><span id="Landsat5-12"><a href="#Landsat5-12"><span class="linenos">12</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">reflectance_stack</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">src</span><span class="p">):</span>
-</span><span id="Landsat5-13"><a href="#Landsat5-13"><span class="linenos">13</span></a>        <span class="k">return</span> <span class="p">{</span>
-</span><span id="Landsat5-14"><a href="#Landsat5-14"><span class="linenos">14</span></a>            <span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B1&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-</span><span id="Landsat5-15"><a href="#Landsat5-15"><span class="linenos">15</span></a>            <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B2&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-</span><span id="Landsat5-16"><a href="#Landsat5-16"><span class="linenos">16</span></a>            <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B3&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-</span><span id="Landsat5-17"><a href="#Landsat5-17"><span class="linenos">17</span></a>            <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B4&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-</span><span id="Landsat5-18"><a href="#Landsat5-18"><span class="linenos">18</span></a>            <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B5&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-</span><span id="Landsat5-19"><a href="#Landsat5-19"><span class="linenos">19</span></a>            <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B7&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-</span><span id="Landsat5-20"><a href="#Landsat5-20"><span class="linenos">20</span></a>        <span class="p">}</span>
-</span><span id="Landsat5-21"><a href="#Landsat5-21"><span class="linenos">21</span></a>
-</span><span id="Landsat5-22"><a href="#Landsat5-22"><span class="linenos">22</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">band_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Landsat5-23"><a href="#Landsat5-23"><span class="linenos">23</span></a>        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span> <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="mi">6</span><span class="p">}</span>
-</span><span id="Landsat5-24"><a href="#Landsat5-24"><span class="linenos">24</span></a>
-</span><span id="Landsat5-25"><a href="#Landsat5-25"><span class="linenos">25</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">bands</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Landsat5-26"><a href="#Landsat5-26"><span class="linenos">26</span></a>        <span class="k">return</span> <span class="p">{</span>
-</span><span id="Landsat5-27"><a href="#Landsat5-27"><span class="linenos">27</span></a>            <span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B1&quot;</span><span class="p">,</span>
-</span><span id="Landsat5-28"><a href="#Landsat5-28"><span class="linenos">28</span></a>            <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B2&quot;</span><span class="p">,</span>
-</span><span id="Landsat5-29"><a href="#Landsat5-29"><span class="linenos">29</span></a>            <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B3&quot;</span><span class="p">,</span>
-</span><span id="Landsat5-30"><a href="#Landsat5-30"><span class="linenos">30</span></a>            <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B4&quot;</span><span class="p">,</span>
-</span><span id="Landsat5-31"><a href="#Landsat5-31"><span class="linenos">31</span></a>            <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B5&quot;</span><span class="p">,</span>
-</span><span id="Landsat5-32"><a href="#Landsat5-32"><span class="linenos">32</span></a>            <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B7&quot;</span><span class="p">,</span>
-</span><span id="Landsat5-33"><a href="#Landsat5-33"><span class="linenos">33</span></a>        <span class="p">}</span>
-</span><span id="Landsat5-34"><a href="#Landsat5-34"><span class="linenos">34</span></a>
-</span><span id="Landsat5-35"><a href="#Landsat5-35"><span class="linenos">35</span></a>    <span class="nd">@property</span>
-</span><span id="Landsat5-36"><a href="#Landsat5-36"><span class="linenos">36</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">gee_collection</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Landsat5-37"><a href="#Landsat5-37"><span class="linenos">37</span></a>        <span class="k">return</span> <span class="s2">&quot;LANDSAT/LT05/C02/T1_L2&quot;</span>
-</span><span id="Landsat5-38"><a href="#Landsat5-38"><span class="linenos">38</span></a>
-</span><span id="Landsat5-39"><a href="#Landsat5-39"><span class="linenos">39</span></a>    <span class="nd">@property</span>
-</span><span id="Landsat5-40"><a href="#Landsat5-40"><span class="linenos">40</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">gee_scale</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Landsat5-41"><a href="#Landsat5-41"><span class="linenos">41</span></a>        <span class="k">return</span> <span class="mi">30</span>
-</span><span id="Landsat5-42"><a href="#Landsat5-42"><span class="linenos">42</span></a>
-</span><span id="Landsat5-43"><a href="#Landsat5-43"><span class="linenos">43</span></a>    <span class="nd">@property</span>
-</span><span id="Landsat5-44"><a href="#Landsat5-44"><span class="linenos">44</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">collection</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Landsat5-45"><a href="#Landsat5-45"><span class="linenos">45</span></a>        <span class="k">return</span> <span class="s2">&quot;landsat-c2-l2&quot;</span>
-</span><span id="Landsat5-46"><a href="#Landsat5-46"><span class="linenos">46</span></a>
-</span><span id="Landsat5-47"><a href="#Landsat5-47"><span class="linenos">47</span></a>    <span class="nd">@property</span>
-</span><span id="Landsat5-48"><a href="#Landsat5-48"><span class="linenos">48</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">resolution</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Landsat5-49"><a href="#Landsat5-49"><span class="linenos">49</span></a>        <span class="k">return</span> <span class="mi">30</span>
-</span><span id="Landsat5-50"><a href="#Landsat5-50"><span class="linenos">50</span></a>
-</span><span id="Landsat5-51"><a href="#Landsat5-51"><span class="linenos">51</span></a>    <span class="nd">@property</span>
-</span><span id="Landsat5-52"><a href="#Landsat5-52"><span class="linenos">52</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">valid_date_range</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Landsat5-53"><a href="#Landsat5-53"><span class="linenos">53</span></a>        <span class="k">return</span> <span class="p">(</span><span class="s2">&quot;1984-03-01&quot;</span><span class="p">,</span> <span class="s2">&quot;2013-01-01&quot;</span><span class="p">)</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="Landsat5-12"><a href="#Landsat5-12"><span class="linenos">12</span></a><span class="k">class</span><span class="w"> </span><span class="nc">Landsat5</span><span class="p">(</span><span class="n">Mission</span><span class="p">):</span>
+</span><span id="Landsat5-13"><a href="#Landsat5-13"><span class="linenos">13</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Landsat-5 Thematic Mapper (TM) mission.</span>
+</span><span id="Landsat5-14"><a href="#Landsat5-14"><span class="linenos">14</span></a>
+</span><span id="Landsat5-15"><a href="#Landsat5-15"><span class="linenos">15</span></a><span class="sd">    Band mapping (Collection 2 Level-2 surface reflectance):</span>
+</span><span id="Landsat5-16"><a href="#Landsat5-16"><span class="linenos">16</span></a>
+</span><span id="Landsat5-17"><a href="#Landsat5-17"><span class="linenos">17</span></a><span class="sd">    - blue   -&gt; SR_B1 (band index 1)</span>
+</span><span id="Landsat5-18"><a href="#Landsat5-18"><span class="linenos">18</span></a><span class="sd">    - green  -&gt; SR_B2 (band index 2)</span>
+</span><span id="Landsat5-19"><a href="#Landsat5-19"><span class="linenos">19</span></a><span class="sd">    - red    -&gt; SR_B3 (band index 3)</span>
+</span><span id="Landsat5-20"><a href="#Landsat5-20"><span class="linenos">20</span></a><span class="sd">    - nir08  -&gt; SR_B4 (band index 4)</span>
+</span><span id="Landsat5-21"><a href="#Landsat5-21"><span class="linenos">21</span></a><span class="sd">    - swir16 -&gt; SR_B5 (band index 5)</span>
+</span><span id="Landsat5-22"><a href="#Landsat5-22"><span class="linenos">22</span></a><span class="sd">    - swir22 -&gt; SR_B7 (band index 6)</span>
+</span><span id="Landsat5-23"><a href="#Landsat5-23"><span class="linenos">23</span></a>
+</span><span id="Landsat5-24"><a href="#Landsat5-24"><span class="linenos">24</span></a><span class="sd">    DN-to-reflectance scale factor: ``0.0000275 * DN - 0.2``</span>
+</span><span id="Landsat5-25"><a href="#Landsat5-25"><span class="linenos">25</span></a><span class="sd">    (Landsat Collection 2 standard).</span>
+</span><span id="Landsat5-26"><a href="#Landsat5-26"><span class="linenos">26</span></a><span class="sd">    &quot;&quot;&quot;</span>
+</span><span id="Landsat5-27"><a href="#Landsat5-27"><span class="linenos">27</span></a>
+</span><span id="Landsat5-28"><a href="#Landsat5-28"><span class="linenos">28</span></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="Landsat5-29"><a href="#Landsat5-29"><span class="linenos">29</span></a>        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="s2">&quot;landsat-5&quot;</span><span class="p">)</span>
+</span><span id="Landsat5-30"><a href="#Landsat5-30"><span class="linenos">30</span></a>
+</span><span id="Landsat5-31"><a href="#Landsat5-31"><span class="linenos">31</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">reflectance_stack</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">src</span><span class="p">):</span>
+</span><span id="Landsat5-32"><a href="#Landsat5-32"><span class="linenos">32</span></a>        <span class="k">return</span> <span class="p">{</span>
+</span><span id="Landsat5-33"><a href="#Landsat5-33"><span class="linenos">33</span></a>            <span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B1&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+</span><span id="Landsat5-34"><a href="#Landsat5-34"><span class="linenos">34</span></a>            <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B2&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+</span><span id="Landsat5-35"><a href="#Landsat5-35"><span class="linenos">35</span></a>            <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B3&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+</span><span id="Landsat5-36"><a href="#Landsat5-36"><span class="linenos">36</span></a>            <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B4&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+</span><span id="Landsat5-37"><a href="#Landsat5-37"><span class="linenos">37</span></a>            <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B5&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+</span><span id="Landsat5-38"><a href="#Landsat5-38"><span class="linenos">38</span></a>            <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B7&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+</span><span id="Landsat5-39"><a href="#Landsat5-39"><span class="linenos">39</span></a>        <span class="p">}</span>
+</span><span id="Landsat5-40"><a href="#Landsat5-40"><span class="linenos">40</span></a>
+</span><span id="Landsat5-41"><a href="#Landsat5-41"><span class="linenos">41</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">band_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Landsat5-42"><a href="#Landsat5-42"><span class="linenos">42</span></a>        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span> <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="mi">6</span><span class="p">}</span>
+</span><span id="Landsat5-43"><a href="#Landsat5-43"><span class="linenos">43</span></a>
+</span><span id="Landsat5-44"><a href="#Landsat5-44"><span class="linenos">44</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">bands</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Landsat5-45"><a href="#Landsat5-45"><span class="linenos">45</span></a>        <span class="k">return</span> <span class="p">{</span>
+</span><span id="Landsat5-46"><a href="#Landsat5-46"><span class="linenos">46</span></a>            <span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B1&quot;</span><span class="p">,</span>
+</span><span id="Landsat5-47"><a href="#Landsat5-47"><span class="linenos">47</span></a>            <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B2&quot;</span><span class="p">,</span>
+</span><span id="Landsat5-48"><a href="#Landsat5-48"><span class="linenos">48</span></a>            <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B3&quot;</span><span class="p">,</span>
+</span><span id="Landsat5-49"><a href="#Landsat5-49"><span class="linenos">49</span></a>            <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B4&quot;</span><span class="p">,</span>
+</span><span id="Landsat5-50"><a href="#Landsat5-50"><span class="linenos">50</span></a>            <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B5&quot;</span><span class="p">,</span>
+</span><span id="Landsat5-51"><a href="#Landsat5-51"><span class="linenos">51</span></a>            <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B7&quot;</span><span class="p">,</span>
+</span><span id="Landsat5-52"><a href="#Landsat5-52"><span class="linenos">52</span></a>        <span class="p">}</span>
+</span><span id="Landsat5-53"><a href="#Landsat5-53"><span class="linenos">53</span></a>
+</span><span id="Landsat5-54"><a href="#Landsat5-54"><span class="linenos">54</span></a>    <span class="nd">@property</span>
+</span><span id="Landsat5-55"><a href="#Landsat5-55"><span class="linenos">55</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">gee_collection</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Landsat5-56"><a href="#Landsat5-56"><span class="linenos">56</span></a>        <span class="k">return</span> <span class="s2">&quot;LANDSAT/LT05/C02/T1_L2&quot;</span>
+</span><span id="Landsat5-57"><a href="#Landsat5-57"><span class="linenos">57</span></a>
+</span><span id="Landsat5-58"><a href="#Landsat5-58"><span class="linenos">58</span></a>    <span class="nd">@property</span>
+</span><span id="Landsat5-59"><a href="#Landsat5-59"><span class="linenos">59</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">gee_scale</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Landsat5-60"><a href="#Landsat5-60"><span class="linenos">60</span></a>        <span class="k">return</span> <span class="mi">30</span>
+</span><span id="Landsat5-61"><a href="#Landsat5-61"><span class="linenos">61</span></a>
+</span><span id="Landsat5-62"><a href="#Landsat5-62"><span class="linenos">62</span></a>    <span class="nd">@property</span>
+</span><span id="Landsat5-63"><a href="#Landsat5-63"><span class="linenos">63</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">collection</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Landsat5-64"><a href="#Landsat5-64"><span class="linenos">64</span></a>        <span class="k">return</span> <span class="s2">&quot;landsat-c2-l2&quot;</span>
+</span><span id="Landsat5-65"><a href="#Landsat5-65"><span class="linenos">65</span></a>
+</span><span id="Landsat5-66"><a href="#Landsat5-66"><span class="linenos">66</span></a>    <span class="nd">@property</span>
+</span><span id="Landsat5-67"><a href="#Landsat5-67"><span class="linenos">67</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">resolution</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Landsat5-68"><a href="#Landsat5-68"><span class="linenos">68</span></a>        <span class="k">return</span> <span class="mi">30</span>
+</span><span id="Landsat5-69"><a href="#Landsat5-69"><span class="linenos">69</span></a>
+</span><span id="Landsat5-70"><a href="#Landsat5-70"><span class="linenos">70</span></a>    <span class="nd">@property</span>
+</span><span id="Landsat5-71"><a href="#Landsat5-71"><span class="linenos">71</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">valid_date_range</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Landsat5-72"><a href="#Landsat5-72"><span class="linenos">72</span></a>        <span class="k">return</span> <span class="p">(</span><span class="s2">&quot;1984-03-01&quot;</span><span class="p">,</span> <span class="s2">&quot;2013-01-01&quot;</span><span class="p">)</span>
 </span></pre></div>
 
 
-            <div class="docstring"><p>Base class for satellite missions.</p>
+            <div class="docstring"><p>Landsat-5 Thematic Mapper (TM) mission.</p>
+
+<p>Band mapping (Collection 2 Level-2 surface reflectance):</p>
+
+<ul>
+<li>blue   -> SR_B1 (band index 1)</li>
+<li>green  -> SR_B2 (band index 2)</li>
+<li>red    -> SR_B3 (band index 3)</li>
+<li>nir08  -> SR_B4 (band index 4)</li>
+<li>swir16 -> SR_B5 (band index 5)</li>
+<li>swir22 -> SR_B7 (band index 6)</li>
+</ul>
+
+<p>DN-to-reflectance scale factor: <code>0.0000275 * DN - 0.2</code>
+(Landsat Collection 2 standard).</p>
 </div>
 
 
@@ -225,19 +254,30 @@
 
     </div>
     <a class="headerlink" href="#Landsat5.reflectance_stack"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="Landsat5.reflectance_stack-12"><a href="#Landsat5.reflectance_stack-12"><span class="linenos">12</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">reflectance_stack</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">src</span><span class="p">):</span>
-</span><span id="Landsat5.reflectance_stack-13"><a href="#Landsat5.reflectance_stack-13"><span class="linenos">13</span></a>        <span class="k">return</span> <span class="p">{</span>
-</span><span id="Landsat5.reflectance_stack-14"><a href="#Landsat5.reflectance_stack-14"><span class="linenos">14</span></a>            <span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B1&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-</span><span id="Landsat5.reflectance_stack-15"><a href="#Landsat5.reflectance_stack-15"><span class="linenos">15</span></a>            <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B2&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-</span><span id="Landsat5.reflectance_stack-16"><a href="#Landsat5.reflectance_stack-16"><span class="linenos">16</span></a>            <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B3&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-</span><span id="Landsat5.reflectance_stack-17"><a href="#Landsat5.reflectance_stack-17"><span class="linenos">17</span></a>            <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B4&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-</span><span id="Landsat5.reflectance_stack-18"><a href="#Landsat5.reflectance_stack-18"><span class="linenos">18</span></a>            <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B5&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-</span><span id="Landsat5.reflectance_stack-19"><a href="#Landsat5.reflectance_stack-19"><span class="linenos">19</span></a>            <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B7&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-</span><span id="Landsat5.reflectance_stack-20"><a href="#Landsat5.reflectance_stack-20"><span class="linenos">20</span></a>        <span class="p">}</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="Landsat5.reflectance_stack-31"><a href="#Landsat5.reflectance_stack-31"><span class="linenos">31</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">reflectance_stack</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">src</span><span class="p">):</span>
+</span><span id="Landsat5.reflectance_stack-32"><a href="#Landsat5.reflectance_stack-32"><span class="linenos">32</span></a>        <span class="k">return</span> <span class="p">{</span>
+</span><span id="Landsat5.reflectance_stack-33"><a href="#Landsat5.reflectance_stack-33"><span class="linenos">33</span></a>            <span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B1&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+</span><span id="Landsat5.reflectance_stack-34"><a href="#Landsat5.reflectance_stack-34"><span class="linenos">34</span></a>            <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B2&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+</span><span id="Landsat5.reflectance_stack-35"><a href="#Landsat5.reflectance_stack-35"><span class="linenos">35</span></a>            <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B3&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+</span><span id="Landsat5.reflectance_stack-36"><a href="#Landsat5.reflectance_stack-36"><span class="linenos">36</span></a>            <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B4&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+</span><span id="Landsat5.reflectance_stack-37"><a href="#Landsat5.reflectance_stack-37"><span class="linenos">37</span></a>            <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B5&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+</span><span id="Landsat5.reflectance_stack-38"><a href="#Landsat5.reflectance_stack-38"><span class="linenos">38</span></a>            <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B7&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+</span><span id="Landsat5.reflectance_stack-39"><a href="#Landsat5.reflectance_stack-39"><span class="linenos">39</span></a>        <span class="p">}</span>
 </span></pre></div>
 
 
-    
+            <div class="docstring"><p>Extract surface-reflectance arrays from an open rasterio dataset.</p>
+
+<p>Args:
+    src: An open rasterio DatasetReader for a multiband GeoTIFF.</p>
+
+<p>Returns:
+    Dict[str, np.ndarray]: Logical band name to float32 array.</p>
+
+<p>Raises:
+    NotImplementedError: Always - must be overridden by subclasses.</p>
+</div>
+
 
                             </div>
                             <div id="Landsat5.band_indices" class="classattr">
@@ -251,12 +291,20 @@
 
     </div>
     <a class="headerlink" href="#Landsat5.band_indices"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="Landsat5.band_indices-22"><a href="#Landsat5.band_indices-22"><span class="linenos">22</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">band_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Landsat5.band_indices-23"><a href="#Landsat5.band_indices-23"><span class="linenos">23</span></a>        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span> <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="mi">6</span><span class="p">}</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="Landsat5.band_indices-41"><a href="#Landsat5.band_indices-41"><span class="linenos">41</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">band_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Landsat5.band_indices-42"><a href="#Landsat5.band_indices-42"><span class="linenos">42</span></a>        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span> <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="mi">6</span><span class="p">}</span>
 </span></pre></div>
 
 
-    
+            <div class="docstring"><p>Return a mapping from logical band names to 1-based rasterio band indices.</p>
+
+<p>Returns:
+    Dict[str, int]: e.g. <code>{"blue": 1, "green": 2, "red": 3, ...}</code>.</p>
+
+<p>Raises:
+    NotImplementedError: Always - must be overridden by subclasses.</p>
+</div>
+
 
                             </div>
                             <div id="Landsat5.bands" class="classattr">
@@ -270,19 +318,27 @@
 
     </div>
     <a class="headerlink" href="#Landsat5.bands"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="Landsat5.bands-25"><a href="#Landsat5.bands-25"><span class="linenos">25</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">bands</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Landsat5.bands-26"><a href="#Landsat5.bands-26"><span class="linenos">26</span></a>        <span class="k">return</span> <span class="p">{</span>
-</span><span id="Landsat5.bands-27"><a href="#Landsat5.bands-27"><span class="linenos">27</span></a>            <span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B1&quot;</span><span class="p">,</span>
-</span><span id="Landsat5.bands-28"><a href="#Landsat5.bands-28"><span class="linenos">28</span></a>            <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B2&quot;</span><span class="p">,</span>
-</span><span id="Landsat5.bands-29"><a href="#Landsat5.bands-29"><span class="linenos">29</span></a>            <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B3&quot;</span><span class="p">,</span>
-</span><span id="Landsat5.bands-30"><a href="#Landsat5.bands-30"><span class="linenos">30</span></a>            <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B4&quot;</span><span class="p">,</span>
-</span><span id="Landsat5.bands-31"><a href="#Landsat5.bands-31"><span class="linenos">31</span></a>            <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B5&quot;</span><span class="p">,</span>
-</span><span id="Landsat5.bands-32"><a href="#Landsat5.bands-32"><span class="linenos">32</span></a>            <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B7&quot;</span><span class="p">,</span>
-</span><span id="Landsat5.bands-33"><a href="#Landsat5.bands-33"><span class="linenos">33</span></a>        <span class="p">}</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="Landsat5.bands-44"><a href="#Landsat5.bands-44"><span class="linenos">44</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">bands</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Landsat5.bands-45"><a href="#Landsat5.bands-45"><span class="linenos">45</span></a>        <span class="k">return</span> <span class="p">{</span>
+</span><span id="Landsat5.bands-46"><a href="#Landsat5.bands-46"><span class="linenos">46</span></a>            <span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B1&quot;</span><span class="p">,</span>
+</span><span id="Landsat5.bands-47"><a href="#Landsat5.bands-47"><span class="linenos">47</span></a>            <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B2&quot;</span><span class="p">,</span>
+</span><span id="Landsat5.bands-48"><a href="#Landsat5.bands-48"><span class="linenos">48</span></a>            <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B3&quot;</span><span class="p">,</span>
+</span><span id="Landsat5.bands-49"><a href="#Landsat5.bands-49"><span class="linenos">49</span></a>            <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B4&quot;</span><span class="p">,</span>
+</span><span id="Landsat5.bands-50"><a href="#Landsat5.bands-50"><span class="linenos">50</span></a>            <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B5&quot;</span><span class="p">,</span>
+</span><span id="Landsat5.bands-51"><a href="#Landsat5.bands-51"><span class="linenos">51</span></a>            <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B7&quot;</span><span class="p">,</span>
+</span><span id="Landsat5.bands-52"><a href="#Landsat5.bands-52"><span class="linenos">52</span></a>        <span class="p">}</span>
 </span></pre></div>
 
 
-    
+            <div class="docstring"><p>Return a mapping from logical band names to native GEE band names.</p>
+
+<p>Returns:
+    Dict[str, str]: e.g. <code>{"blue": "B2", "green": "B3", ...}</code>.</p>
+
+<p>Raises:
+    NotImplementedError: Always - must be overridden by subclasses.</p>
+</div>
+
 
                             </div>
                             <div id="Landsat5.gee_collection" class="classattr">
@@ -294,13 +350,18 @@
 
     </div>
     <a class="headerlink" href="#Landsat5.gee_collection"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="Landsat5.gee_collection-35"><a href="#Landsat5.gee_collection-35"><span class="linenos">35</span></a>    <span class="nd">@property</span>
-</span><span id="Landsat5.gee_collection-36"><a href="#Landsat5.gee_collection-36"><span class="linenos">36</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">gee_collection</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Landsat5.gee_collection-37"><a href="#Landsat5.gee_collection-37"><span class="linenos">37</span></a>        <span class="k">return</span> <span class="s2">&quot;LANDSAT/LT05/C02/T1_L2&quot;</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="Landsat5.gee_collection-54"><a href="#Landsat5.gee_collection-54"><span class="linenos">54</span></a>    <span class="nd">@property</span>
+</span><span id="Landsat5.gee_collection-55"><a href="#Landsat5.gee_collection-55"><span class="linenos">55</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">gee_collection</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Landsat5.gee_collection-56"><a href="#Landsat5.gee_collection-56"><span class="linenos">56</span></a>        <span class="k">return</span> <span class="s2">&quot;LANDSAT/LT05/C02/T1_L2&quot;</span>
 </span></pre></div>
 
 
-    
+            <div class="docstring"><p>GEE ImageCollection asset ID for this mission.</p>
+
+<p>Raises:
+    NotImplementedError: Always - must be overridden by subclasses.</p>
+</div>
+
 
                             </div>
                             <div id="Landsat5.gee_scale" class="classattr">
@@ -312,13 +373,18 @@
 
     </div>
     <a class="headerlink" href="#Landsat5.gee_scale"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="Landsat5.gee_scale-39"><a href="#Landsat5.gee_scale-39"><span class="linenos">39</span></a>    <span class="nd">@property</span>
-</span><span id="Landsat5.gee_scale-40"><a href="#Landsat5.gee_scale-40"><span class="linenos">40</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">gee_scale</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Landsat5.gee_scale-41"><a href="#Landsat5.gee_scale-41"><span class="linenos">41</span></a>        <span class="k">return</span> <span class="mi">30</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="Landsat5.gee_scale-58"><a href="#Landsat5.gee_scale-58"><span class="linenos">58</span></a>    <span class="nd">@property</span>
+</span><span id="Landsat5.gee_scale-59"><a href="#Landsat5.gee_scale-59"><span class="linenos">59</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">gee_scale</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Landsat5.gee_scale-60"><a href="#Landsat5.gee_scale-60"><span class="linenos">60</span></a>        <span class="k">return</span> <span class="mi">30</span>
 </span></pre></div>
 
 
-    
+            <div class="docstring"><p>Native pixel resolution in metres used when exporting from GEE.</p>
+
+<p>Raises:
+    NotImplementedError: Always - must be overridden by subclasses.</p>
+</div>
+
 
                             </div>
                             <div id="Landsat5.collection" class="classattr">
@@ -330,13 +396,18 @@
 
     </div>
     <a class="headerlink" href="#Landsat5.collection"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="Landsat5.collection-43"><a href="#Landsat5.collection-43"><span class="linenos">43</span></a>    <span class="nd">@property</span>
-</span><span id="Landsat5.collection-44"><a href="#Landsat5.collection-44"><span class="linenos">44</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">collection</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Landsat5.collection-45"><a href="#Landsat5.collection-45"><span class="linenos">45</span></a>        <span class="k">return</span> <span class="s2">&quot;landsat-c2-l2&quot;</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="Landsat5.collection-62"><a href="#Landsat5.collection-62"><span class="linenos">62</span></a>    <span class="nd">@property</span>
+</span><span id="Landsat5.collection-63"><a href="#Landsat5.collection-63"><span class="linenos">63</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">collection</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Landsat5.collection-64"><a href="#Landsat5.collection-64"><span class="linenos">64</span></a>        <span class="k">return</span> <span class="s2">&quot;landsat-c2-l2&quot;</span>
 </span></pre></div>
 
 
-    
+            <div class="docstring"><p>STAC collection identifier (retained for legacy compatibility).</p>
+
+<p>Raises:
+    NotImplementedError: Always - must be overridden by subclasses.</p>
+</div>
+
 
                             </div>
                             <div id="Landsat5.resolution" class="classattr">
@@ -348,13 +419,18 @@
 
     </div>
     <a class="headerlink" href="#Landsat5.resolution"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="Landsat5.resolution-47"><a href="#Landsat5.resolution-47"><span class="linenos">47</span></a>    <span class="nd">@property</span>
-</span><span id="Landsat5.resolution-48"><a href="#Landsat5.resolution-48"><span class="linenos">48</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">resolution</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Landsat5.resolution-49"><a href="#Landsat5.resolution-49"><span class="linenos">49</span></a>        <span class="k">return</span> <span class="mi">30</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="Landsat5.resolution-66"><a href="#Landsat5.resolution-66"><span class="linenos">66</span></a>    <span class="nd">@property</span>
+</span><span id="Landsat5.resolution-67"><a href="#Landsat5.resolution-67"><span class="linenos">67</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">resolution</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Landsat5.resolution-68"><a href="#Landsat5.resolution-68"><span class="linenos">68</span></a>        <span class="k">return</span> <span class="mi">30</span>
 </span></pre></div>
 
 
-    
+            <div class="docstring"><p>Native sensor resolution in metres.</p>
+
+<p>Raises:
+    NotImplementedError: Always - must be overridden by subclasses.</p>
+</div>
+
 
                             </div>
                             <div id="Landsat5.valid_date_range" class="classattr">
@@ -366,13 +442,20 @@
 
     </div>
     <a class="headerlink" href="#Landsat5.valid_date_range"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="Landsat5.valid_date_range-51"><a href="#Landsat5.valid_date_range-51"><span class="linenos">51</span></a>    <span class="nd">@property</span>
-</span><span id="Landsat5.valid_date_range-52"><a href="#Landsat5.valid_date_range-52"><span class="linenos">52</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">valid_date_range</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Landsat5.valid_date_range-53"><a href="#Landsat5.valid_date_range-53"><span class="linenos">53</span></a>        <span class="k">return</span> <span class="p">(</span><span class="s2">&quot;1984-03-01&quot;</span><span class="p">,</span> <span class="s2">&quot;2013-01-01&quot;</span><span class="p">)</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="Landsat5.valid_date_range-70"><a href="#Landsat5.valid_date_range-70"><span class="linenos">70</span></a>    <span class="nd">@property</span>
+</span><span id="Landsat5.valid_date_range-71"><a href="#Landsat5.valid_date_range-71"><span class="linenos">71</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">valid_date_range</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Landsat5.valid_date_range-72"><a href="#Landsat5.valid_date_range-72"><span class="linenos">72</span></a>        <span class="k">return</span> <span class="p">(</span><span class="s2">&quot;1984-03-01&quot;</span><span class="p">,</span> <span class="s2">&quot;2013-01-01&quot;</span><span class="p">)</span>
 </span></pre></div>
 
 
-    
+            <div class="docstring"><p>Operational date range as <code>(start_date, end_date)</code> ISO-8601 strings.</p>
+
+<p><code>None</code> indicates an open bound (mission still active or no cutoff).</p>
+
+<p>Raises:
+    NotImplementedError: Always - must be overridden by subclasses.</p>
+</div>
+
 
                             </div>
                 </section>
@@ -387,56 +470,84 @@
 
     </div>
     <a class="headerlink" href="#Landsat7"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="Landsat7-8"><a href="#Landsat7-8"><span class="linenos"> 8</span></a><span class="k">class</span><span class="w"> </span><span class="nc">Landsat7</span><span class="p">(</span><span class="n">Mission</span><span class="p">):</span>
-</span><span id="Landsat7-9"><a href="#Landsat7-9"><span class="linenos"> 9</span></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Landsat7-10"><a href="#Landsat7-10"><span class="linenos">10</span></a>        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="s2">&quot;landsat-7&quot;</span><span class="p">)</span>
-</span><span id="Landsat7-11"><a href="#Landsat7-11"><span class="linenos">11</span></a>
-</span><span id="Landsat7-12"><a href="#Landsat7-12"><span class="linenos">12</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">reflectance_stack</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">src</span><span class="p">):</span>
-</span><span id="Landsat7-13"><a href="#Landsat7-13"><span class="linenos">13</span></a>        <span class="k">return</span> <span class="p">{</span>
-</span><span id="Landsat7-14"><a href="#Landsat7-14"><span class="linenos">14</span></a>            <span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B1&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-</span><span id="Landsat7-15"><a href="#Landsat7-15"><span class="linenos">15</span></a>            <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B2&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-</span><span id="Landsat7-16"><a href="#Landsat7-16"><span class="linenos">16</span></a>            <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B3&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-</span><span id="Landsat7-17"><a href="#Landsat7-17"><span class="linenos">17</span></a>            <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B4&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-</span><span id="Landsat7-18"><a href="#Landsat7-18"><span class="linenos">18</span></a>            <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B5&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-</span><span id="Landsat7-19"><a href="#Landsat7-19"><span class="linenos">19</span></a>            <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B7&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-</span><span id="Landsat7-20"><a href="#Landsat7-20"><span class="linenos">20</span></a>        <span class="p">}</span>
-</span><span id="Landsat7-21"><a href="#Landsat7-21"><span class="linenos">21</span></a>
-</span><span id="Landsat7-22"><a href="#Landsat7-22"><span class="linenos">22</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">band_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Landsat7-23"><a href="#Landsat7-23"><span class="linenos">23</span></a>        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span> <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="mi">6</span><span class="p">}</span>
-</span><span id="Landsat7-24"><a href="#Landsat7-24"><span class="linenos">24</span></a>
-</span><span id="Landsat7-25"><a href="#Landsat7-25"><span class="linenos">25</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">bands</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Landsat7-26"><a href="#Landsat7-26"><span class="linenos">26</span></a>        <span class="k">return</span> <span class="p">{</span>
-</span><span id="Landsat7-27"><a href="#Landsat7-27"><span class="linenos">27</span></a>            <span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B1&quot;</span><span class="p">,</span>
-</span><span id="Landsat7-28"><a href="#Landsat7-28"><span class="linenos">28</span></a>            <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B2&quot;</span><span class="p">,</span>
-</span><span id="Landsat7-29"><a href="#Landsat7-29"><span class="linenos">29</span></a>            <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B3&quot;</span><span class="p">,</span>
-</span><span id="Landsat7-30"><a href="#Landsat7-30"><span class="linenos">30</span></a>            <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B4&quot;</span><span class="p">,</span>
-</span><span id="Landsat7-31"><a href="#Landsat7-31"><span class="linenos">31</span></a>            <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B5&quot;</span><span class="p">,</span>
-</span><span id="Landsat7-32"><a href="#Landsat7-32"><span class="linenos">32</span></a>            <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B7&quot;</span><span class="p">,</span>
-</span><span id="Landsat7-33"><a href="#Landsat7-33"><span class="linenos">33</span></a>        <span class="p">}</span>
-</span><span id="Landsat7-34"><a href="#Landsat7-34"><span class="linenos">34</span></a>
-</span><span id="Landsat7-35"><a href="#Landsat7-35"><span class="linenos">35</span></a>    <span class="nd">@property</span>
-</span><span id="Landsat7-36"><a href="#Landsat7-36"><span class="linenos">36</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">gee_collection</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Landsat7-37"><a href="#Landsat7-37"><span class="linenos">37</span></a>        <span class="k">return</span> <span class="s2">&quot;LANDSAT/LE07/C02/T1_L2&quot;</span>
-</span><span id="Landsat7-38"><a href="#Landsat7-38"><span class="linenos">38</span></a>
-</span><span id="Landsat7-39"><a href="#Landsat7-39"><span class="linenos">39</span></a>    <span class="nd">@property</span>
-</span><span id="Landsat7-40"><a href="#Landsat7-40"><span class="linenos">40</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">gee_scale</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Landsat7-41"><a href="#Landsat7-41"><span class="linenos">41</span></a>        <span class="k">return</span> <span class="mi">30</span>
-</span><span id="Landsat7-42"><a href="#Landsat7-42"><span class="linenos">42</span></a>
-</span><span id="Landsat7-43"><a href="#Landsat7-43"><span class="linenos">43</span></a>    <span class="nd">@property</span>
-</span><span id="Landsat7-44"><a href="#Landsat7-44"><span class="linenos">44</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">collection</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Landsat7-45"><a href="#Landsat7-45"><span class="linenos">45</span></a>        <span class="k">return</span> <span class="s2">&quot;landsat-c2-l2&quot;</span>
-</span><span id="Landsat7-46"><a href="#Landsat7-46"><span class="linenos">46</span></a>
-</span><span id="Landsat7-47"><a href="#Landsat7-47"><span class="linenos">47</span></a>    <span class="nd">@property</span>
-</span><span id="Landsat7-48"><a href="#Landsat7-48"><span class="linenos">48</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">resolution</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Landsat7-49"><a href="#Landsat7-49"><span class="linenos">49</span></a>        <span class="k">return</span> <span class="mi">30</span>
-</span><span id="Landsat7-50"><a href="#Landsat7-50"><span class="linenos">50</span></a>
-</span><span id="Landsat7-51"><a href="#Landsat7-51"><span class="linenos">51</span></a>    <span class="nd">@property</span>
-</span><span id="Landsat7-52"><a href="#Landsat7-52"><span class="linenos">52</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">valid_date_range</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Landsat7-53"><a href="#Landsat7-53"><span class="linenos">53</span></a>        <span class="k">return</span> <span class="p">(</span><span class="s2">&quot;1999-04-15&quot;</span><span class="p">,</span> <span class="s2">&quot;2022-03-31&quot;</span><span class="p">)</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="Landsat7-13"><a href="#Landsat7-13"><span class="linenos">13</span></a><span class="k">class</span><span class="w"> </span><span class="nc">Landsat7</span><span class="p">(</span><span class="n">Mission</span><span class="p">):</span>
+</span><span id="Landsat7-14"><a href="#Landsat7-14"><span class="linenos">14</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Landsat-7 Enhanced Thematic Mapper Plus (ETM+) mission.</span>
+</span><span id="Landsat7-15"><a href="#Landsat7-15"><span class="linenos">15</span></a>
+</span><span id="Landsat7-16"><a href="#Landsat7-16"><span class="linenos">16</span></a><span class="sd">    Band layout is identical to Landsat-5 - the difference lies in the</span>
+</span><span id="Landsat7-17"><a href="#Landsat7-17"><span class="linenos">17</span></a><span class="sd">    GEE collection ID and valid date range.</span>
+</span><span id="Landsat7-18"><a href="#Landsat7-18"><span class="linenos">18</span></a>
+</span><span id="Landsat7-19"><a href="#Landsat7-19"><span class="linenos">19</span></a><span class="sd">    .. warning::</span>
+</span><span id="Landsat7-20"><a href="#Landsat7-20"><span class="linenos">20</span></a><span class="sd">        Imagery acquired after 2003-05-31 contains SLC-off scan gaps.</span>
+</span><span id="Landsat7-21"><a href="#Landsat7-21"><span class="linenos">21</span></a><span class="sd">        Downstream masking steps should account for this when processing</span>
+</span><span id="Landsat7-22"><a href="#Landsat7-22"><span class="linenos">22</span></a><span class="sd">        post-2003 Landsat-7 tiles.</span>
+</span><span id="Landsat7-23"><a href="#Landsat7-23"><span class="linenos">23</span></a>
+</span><span id="Landsat7-24"><a href="#Landsat7-24"><span class="linenos">24</span></a><span class="sd">    DN-to-reflectance scale factor: ``0.0000275 * DN - 0.2``</span>
+</span><span id="Landsat7-25"><a href="#Landsat7-25"><span class="linenos">25</span></a><span class="sd">    (Landsat Collection 2 standard).</span>
+</span><span id="Landsat7-26"><a href="#Landsat7-26"><span class="linenos">26</span></a><span class="sd">    &quot;&quot;&quot;</span>
+</span><span id="Landsat7-27"><a href="#Landsat7-27"><span class="linenos">27</span></a>
+</span><span id="Landsat7-28"><a href="#Landsat7-28"><span class="linenos">28</span></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="Landsat7-29"><a href="#Landsat7-29"><span class="linenos">29</span></a>        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="s2">&quot;landsat-7&quot;</span><span class="p">)</span>
+</span><span id="Landsat7-30"><a href="#Landsat7-30"><span class="linenos">30</span></a>
+</span><span id="Landsat7-31"><a href="#Landsat7-31"><span class="linenos">31</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">reflectance_stack</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">src</span><span class="p">):</span>
+</span><span id="Landsat7-32"><a href="#Landsat7-32"><span class="linenos">32</span></a>        <span class="k">return</span> <span class="p">{</span>
+</span><span id="Landsat7-33"><a href="#Landsat7-33"><span class="linenos">33</span></a>            <span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B1&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+</span><span id="Landsat7-34"><a href="#Landsat7-34"><span class="linenos">34</span></a>            <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B2&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+</span><span id="Landsat7-35"><a href="#Landsat7-35"><span class="linenos">35</span></a>            <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B3&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+</span><span id="Landsat7-36"><a href="#Landsat7-36"><span class="linenos">36</span></a>            <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B4&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+</span><span id="Landsat7-37"><a href="#Landsat7-37"><span class="linenos">37</span></a>            <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B5&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+</span><span id="Landsat7-38"><a href="#Landsat7-38"><span class="linenos">38</span></a>            <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B7&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+</span><span id="Landsat7-39"><a href="#Landsat7-39"><span class="linenos">39</span></a>        <span class="p">}</span>
+</span><span id="Landsat7-40"><a href="#Landsat7-40"><span class="linenos">40</span></a>
+</span><span id="Landsat7-41"><a href="#Landsat7-41"><span class="linenos">41</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">band_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Landsat7-42"><a href="#Landsat7-42"><span class="linenos">42</span></a>        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span> <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="mi">6</span><span class="p">}</span>
+</span><span id="Landsat7-43"><a href="#Landsat7-43"><span class="linenos">43</span></a>
+</span><span id="Landsat7-44"><a href="#Landsat7-44"><span class="linenos">44</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">bands</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Landsat7-45"><a href="#Landsat7-45"><span class="linenos">45</span></a>        <span class="k">return</span> <span class="p">{</span>
+</span><span id="Landsat7-46"><a href="#Landsat7-46"><span class="linenos">46</span></a>            <span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B1&quot;</span><span class="p">,</span>
+</span><span id="Landsat7-47"><a href="#Landsat7-47"><span class="linenos">47</span></a>            <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B2&quot;</span><span class="p">,</span>
+</span><span id="Landsat7-48"><a href="#Landsat7-48"><span class="linenos">48</span></a>            <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B3&quot;</span><span class="p">,</span>
+</span><span id="Landsat7-49"><a href="#Landsat7-49"><span class="linenos">49</span></a>            <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B4&quot;</span><span class="p">,</span>
+</span><span id="Landsat7-50"><a href="#Landsat7-50"><span class="linenos">50</span></a>            <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B5&quot;</span><span class="p">,</span>
+</span><span id="Landsat7-51"><a href="#Landsat7-51"><span class="linenos">51</span></a>            <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B7&quot;</span><span class="p">,</span>
+</span><span id="Landsat7-52"><a href="#Landsat7-52"><span class="linenos">52</span></a>        <span class="p">}</span>
+</span><span id="Landsat7-53"><a href="#Landsat7-53"><span class="linenos">53</span></a>
+</span><span id="Landsat7-54"><a href="#Landsat7-54"><span class="linenos">54</span></a>    <span class="nd">@property</span>
+</span><span id="Landsat7-55"><a href="#Landsat7-55"><span class="linenos">55</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">gee_collection</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Landsat7-56"><a href="#Landsat7-56"><span class="linenos">56</span></a>        <span class="k">return</span> <span class="s2">&quot;LANDSAT/LE07/C02/T1_L2&quot;</span>
+</span><span id="Landsat7-57"><a href="#Landsat7-57"><span class="linenos">57</span></a>
+</span><span id="Landsat7-58"><a href="#Landsat7-58"><span class="linenos">58</span></a>    <span class="nd">@property</span>
+</span><span id="Landsat7-59"><a href="#Landsat7-59"><span class="linenos">59</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">gee_scale</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Landsat7-60"><a href="#Landsat7-60"><span class="linenos">60</span></a>        <span class="k">return</span> <span class="mi">30</span>
+</span><span id="Landsat7-61"><a href="#Landsat7-61"><span class="linenos">61</span></a>
+</span><span id="Landsat7-62"><a href="#Landsat7-62"><span class="linenos">62</span></a>    <span class="nd">@property</span>
+</span><span id="Landsat7-63"><a href="#Landsat7-63"><span class="linenos">63</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">collection</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Landsat7-64"><a href="#Landsat7-64"><span class="linenos">64</span></a>        <span class="k">return</span> <span class="s2">&quot;landsat-c2-l2&quot;</span>
+</span><span id="Landsat7-65"><a href="#Landsat7-65"><span class="linenos">65</span></a>
+</span><span id="Landsat7-66"><a href="#Landsat7-66"><span class="linenos">66</span></a>    <span class="nd">@property</span>
+</span><span id="Landsat7-67"><a href="#Landsat7-67"><span class="linenos">67</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">resolution</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Landsat7-68"><a href="#Landsat7-68"><span class="linenos">68</span></a>        <span class="k">return</span> <span class="mi">30</span>
+</span><span id="Landsat7-69"><a href="#Landsat7-69"><span class="linenos">69</span></a>
+</span><span id="Landsat7-70"><a href="#Landsat7-70"><span class="linenos">70</span></a>    <span class="nd">@property</span>
+</span><span id="Landsat7-71"><a href="#Landsat7-71"><span class="linenos">71</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">valid_date_range</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Landsat7-72"><a href="#Landsat7-72"><span class="linenos">72</span></a>        <span class="k">return</span> <span class="p">(</span><span class="s2">&quot;1999-04-15&quot;</span><span class="p">,</span> <span class="s2">&quot;2022-03-31&quot;</span><span class="p">)</span>
 </span></pre></div>
 
 
-            <div class="docstring"><p>Base class for satellite missions.</p>
+            <div class="docstring"><p>Landsat-7 Enhanced Thematic Mapper Plus (ETM+) mission.</p>
+
+<p>Band layout is identical to Landsat-5 - the difference lies in the
+GEE collection ID and valid date range.</p>
+
+<div class="alert warning">
+
+<p>Imagery acquired after 2003-05-31 contains SLC-off scan gaps.
+Downstream masking steps should account for this when processing
+post-2003 Landsat-7 tiles.</p>
+
+</div>
+
+<p>DN-to-reflectance scale factor: <code>0.0000275 * DN - 0.2</code>
+(Landsat Collection 2 standard).</p>
 </div>
 
 
@@ -451,19 +562,30 @@
 
     </div>
     <a class="headerlink" href="#Landsat7.reflectance_stack"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="Landsat7.reflectance_stack-12"><a href="#Landsat7.reflectance_stack-12"><span class="linenos">12</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">reflectance_stack</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">src</span><span class="p">):</span>
-</span><span id="Landsat7.reflectance_stack-13"><a href="#Landsat7.reflectance_stack-13"><span class="linenos">13</span></a>        <span class="k">return</span> <span class="p">{</span>
-</span><span id="Landsat7.reflectance_stack-14"><a href="#Landsat7.reflectance_stack-14"><span class="linenos">14</span></a>            <span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B1&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-</span><span id="Landsat7.reflectance_stack-15"><a href="#Landsat7.reflectance_stack-15"><span class="linenos">15</span></a>            <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B2&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-</span><span id="Landsat7.reflectance_stack-16"><a href="#Landsat7.reflectance_stack-16"><span class="linenos">16</span></a>            <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B3&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-</span><span id="Landsat7.reflectance_stack-17"><a href="#Landsat7.reflectance_stack-17"><span class="linenos">17</span></a>            <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B4&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-</span><span id="Landsat7.reflectance_stack-18"><a href="#Landsat7.reflectance_stack-18"><span class="linenos">18</span></a>            <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B5&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-</span><span id="Landsat7.reflectance_stack-19"><a href="#Landsat7.reflectance_stack-19"><span class="linenos">19</span></a>            <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B7&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-</span><span id="Landsat7.reflectance_stack-20"><a href="#Landsat7.reflectance_stack-20"><span class="linenos">20</span></a>        <span class="p">}</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="Landsat7.reflectance_stack-31"><a href="#Landsat7.reflectance_stack-31"><span class="linenos">31</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">reflectance_stack</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">src</span><span class="p">):</span>
+</span><span id="Landsat7.reflectance_stack-32"><a href="#Landsat7.reflectance_stack-32"><span class="linenos">32</span></a>        <span class="k">return</span> <span class="p">{</span>
+</span><span id="Landsat7.reflectance_stack-33"><a href="#Landsat7.reflectance_stack-33"><span class="linenos">33</span></a>            <span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B1&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+</span><span id="Landsat7.reflectance_stack-34"><a href="#Landsat7.reflectance_stack-34"><span class="linenos">34</span></a>            <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B2&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+</span><span id="Landsat7.reflectance_stack-35"><a href="#Landsat7.reflectance_stack-35"><span class="linenos">35</span></a>            <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B3&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+</span><span id="Landsat7.reflectance_stack-36"><a href="#Landsat7.reflectance_stack-36"><span class="linenos">36</span></a>            <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B4&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+</span><span id="Landsat7.reflectance_stack-37"><a href="#Landsat7.reflectance_stack-37"><span class="linenos">37</span></a>            <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B5&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+</span><span id="Landsat7.reflectance_stack-38"><a href="#Landsat7.reflectance_stack-38"><span class="linenos">38</span></a>            <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;SR_B7&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+</span><span id="Landsat7.reflectance_stack-39"><a href="#Landsat7.reflectance_stack-39"><span class="linenos">39</span></a>        <span class="p">}</span>
 </span></pre></div>
 
 
-    
+            <div class="docstring"><p>Extract surface-reflectance arrays from an open rasterio dataset.</p>
+
+<p>Args:
+    src: An open rasterio DatasetReader for a multiband GeoTIFF.</p>
+
+<p>Returns:
+    Dict[str, np.ndarray]: Logical band name to float32 array.</p>
+
+<p>Raises:
+    NotImplementedError: Always - must be overridden by subclasses.</p>
+</div>
+
 
                             </div>
                             <div id="Landsat7.band_indices" class="classattr">
@@ -477,12 +599,20 @@
 
     </div>
     <a class="headerlink" href="#Landsat7.band_indices"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="Landsat7.band_indices-22"><a href="#Landsat7.band_indices-22"><span class="linenos">22</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">band_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Landsat7.band_indices-23"><a href="#Landsat7.band_indices-23"><span class="linenos">23</span></a>        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span> <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="mi">6</span><span class="p">}</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="Landsat7.band_indices-41"><a href="#Landsat7.band_indices-41"><span class="linenos">41</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">band_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Landsat7.band_indices-42"><a href="#Landsat7.band_indices-42"><span class="linenos">42</span></a>        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span> <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="mi">6</span><span class="p">}</span>
 </span></pre></div>
 
 
-    
+            <div class="docstring"><p>Return a mapping from logical band names to 1-based rasterio band indices.</p>
+
+<p>Returns:
+    Dict[str, int]: e.g. <code>{"blue": 1, "green": 2, "red": 3, ...}</code>.</p>
+
+<p>Raises:
+    NotImplementedError: Always - must be overridden by subclasses.</p>
+</div>
+
 
                             </div>
                             <div id="Landsat7.bands" class="classattr">
@@ -496,19 +626,27 @@
 
     </div>
     <a class="headerlink" href="#Landsat7.bands"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="Landsat7.bands-25"><a href="#Landsat7.bands-25"><span class="linenos">25</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">bands</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Landsat7.bands-26"><a href="#Landsat7.bands-26"><span class="linenos">26</span></a>        <span class="k">return</span> <span class="p">{</span>
-</span><span id="Landsat7.bands-27"><a href="#Landsat7.bands-27"><span class="linenos">27</span></a>            <span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B1&quot;</span><span class="p">,</span>
-</span><span id="Landsat7.bands-28"><a href="#Landsat7.bands-28"><span class="linenos">28</span></a>            <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B2&quot;</span><span class="p">,</span>
-</span><span id="Landsat7.bands-29"><a href="#Landsat7.bands-29"><span class="linenos">29</span></a>            <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B3&quot;</span><span class="p">,</span>
-</span><span id="Landsat7.bands-30"><a href="#Landsat7.bands-30"><span class="linenos">30</span></a>            <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B4&quot;</span><span class="p">,</span>
-</span><span id="Landsat7.bands-31"><a href="#Landsat7.bands-31"><span class="linenos">31</span></a>            <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B5&quot;</span><span class="p">,</span>
-</span><span id="Landsat7.bands-32"><a href="#Landsat7.bands-32"><span class="linenos">32</span></a>            <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B7&quot;</span><span class="p">,</span>
-</span><span id="Landsat7.bands-33"><a href="#Landsat7.bands-33"><span class="linenos">33</span></a>        <span class="p">}</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="Landsat7.bands-44"><a href="#Landsat7.bands-44"><span class="linenos">44</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">bands</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Landsat7.bands-45"><a href="#Landsat7.bands-45"><span class="linenos">45</span></a>        <span class="k">return</span> <span class="p">{</span>
+</span><span id="Landsat7.bands-46"><a href="#Landsat7.bands-46"><span class="linenos">46</span></a>            <span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B1&quot;</span><span class="p">,</span>
+</span><span id="Landsat7.bands-47"><a href="#Landsat7.bands-47"><span class="linenos">47</span></a>            <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B2&quot;</span><span class="p">,</span>
+</span><span id="Landsat7.bands-48"><a href="#Landsat7.bands-48"><span class="linenos">48</span></a>            <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B3&quot;</span><span class="p">,</span>
+</span><span id="Landsat7.bands-49"><a href="#Landsat7.bands-49"><span class="linenos">49</span></a>            <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B4&quot;</span><span class="p">,</span>
+</span><span id="Landsat7.bands-50"><a href="#Landsat7.bands-50"><span class="linenos">50</span></a>            <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B5&quot;</span><span class="p">,</span>
+</span><span id="Landsat7.bands-51"><a href="#Landsat7.bands-51"><span class="linenos">51</span></a>            <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="s2">&quot;SR_B7&quot;</span><span class="p">,</span>
+</span><span id="Landsat7.bands-52"><a href="#Landsat7.bands-52"><span class="linenos">52</span></a>        <span class="p">}</span>
 </span></pre></div>
 
 
-    
+            <div class="docstring"><p>Return a mapping from logical band names to native GEE band names.</p>
+
+<p>Returns:
+    Dict[str, str]: e.g. <code>{"blue": "B2", "green": "B3", ...}</code>.</p>
+
+<p>Raises:
+    NotImplementedError: Always - must be overridden by subclasses.</p>
+</div>
+
 
                             </div>
                             <div id="Landsat7.gee_collection" class="classattr">
@@ -520,13 +658,18 @@
 
     </div>
     <a class="headerlink" href="#Landsat7.gee_collection"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="Landsat7.gee_collection-35"><a href="#Landsat7.gee_collection-35"><span class="linenos">35</span></a>    <span class="nd">@property</span>
-</span><span id="Landsat7.gee_collection-36"><a href="#Landsat7.gee_collection-36"><span class="linenos">36</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">gee_collection</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Landsat7.gee_collection-37"><a href="#Landsat7.gee_collection-37"><span class="linenos">37</span></a>        <span class="k">return</span> <span class="s2">&quot;LANDSAT/LE07/C02/T1_L2&quot;</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="Landsat7.gee_collection-54"><a href="#Landsat7.gee_collection-54"><span class="linenos">54</span></a>    <span class="nd">@property</span>
+</span><span id="Landsat7.gee_collection-55"><a href="#Landsat7.gee_collection-55"><span class="linenos">55</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">gee_collection</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Landsat7.gee_collection-56"><a href="#Landsat7.gee_collection-56"><span class="linenos">56</span></a>        <span class="k">return</span> <span class="s2">&quot;LANDSAT/LE07/C02/T1_L2&quot;</span>
 </span></pre></div>
 
 
-    
+            <div class="docstring"><p>GEE ImageCollection asset ID for this mission.</p>
+
+<p>Raises:
+    NotImplementedError: Always - must be overridden by subclasses.</p>
+</div>
+
 
                             </div>
                             <div id="Landsat7.gee_scale" class="classattr">
@@ -538,13 +681,18 @@
 
     </div>
     <a class="headerlink" href="#Landsat7.gee_scale"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="Landsat7.gee_scale-39"><a href="#Landsat7.gee_scale-39"><span class="linenos">39</span></a>    <span class="nd">@property</span>
-</span><span id="Landsat7.gee_scale-40"><a href="#Landsat7.gee_scale-40"><span class="linenos">40</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">gee_scale</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Landsat7.gee_scale-41"><a href="#Landsat7.gee_scale-41"><span class="linenos">41</span></a>        <span class="k">return</span> <span class="mi">30</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="Landsat7.gee_scale-58"><a href="#Landsat7.gee_scale-58"><span class="linenos">58</span></a>    <span class="nd">@property</span>
+</span><span id="Landsat7.gee_scale-59"><a href="#Landsat7.gee_scale-59"><span class="linenos">59</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">gee_scale</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Landsat7.gee_scale-60"><a href="#Landsat7.gee_scale-60"><span class="linenos">60</span></a>        <span class="k">return</span> <span class="mi">30</span>
 </span></pre></div>
 
 
-    
+            <div class="docstring"><p>Native pixel resolution in metres used when exporting from GEE.</p>
+
+<p>Raises:
+    NotImplementedError: Always - must be overridden by subclasses.</p>
+</div>
+
 
                             </div>
                             <div id="Landsat7.collection" class="classattr">
@@ -556,13 +704,18 @@
 
     </div>
     <a class="headerlink" href="#Landsat7.collection"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="Landsat7.collection-43"><a href="#Landsat7.collection-43"><span class="linenos">43</span></a>    <span class="nd">@property</span>
-</span><span id="Landsat7.collection-44"><a href="#Landsat7.collection-44"><span class="linenos">44</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">collection</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Landsat7.collection-45"><a href="#Landsat7.collection-45"><span class="linenos">45</span></a>        <span class="k">return</span> <span class="s2">&quot;landsat-c2-l2&quot;</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="Landsat7.collection-62"><a href="#Landsat7.collection-62"><span class="linenos">62</span></a>    <span class="nd">@property</span>
+</span><span id="Landsat7.collection-63"><a href="#Landsat7.collection-63"><span class="linenos">63</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">collection</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Landsat7.collection-64"><a href="#Landsat7.collection-64"><span class="linenos">64</span></a>        <span class="k">return</span> <span class="s2">&quot;landsat-c2-l2&quot;</span>
 </span></pre></div>
 
 
-    
+            <div class="docstring"><p>STAC collection identifier (retained for legacy compatibility).</p>
+
+<p>Raises:
+    NotImplementedError: Always - must be overridden by subclasses.</p>
+</div>
+
 
                             </div>
                             <div id="Landsat7.resolution" class="classattr">
@@ -574,13 +727,18 @@
 
     </div>
     <a class="headerlink" href="#Landsat7.resolution"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="Landsat7.resolution-47"><a href="#Landsat7.resolution-47"><span class="linenos">47</span></a>    <span class="nd">@property</span>
-</span><span id="Landsat7.resolution-48"><a href="#Landsat7.resolution-48"><span class="linenos">48</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">resolution</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Landsat7.resolution-49"><a href="#Landsat7.resolution-49"><span class="linenos">49</span></a>        <span class="k">return</span> <span class="mi">30</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="Landsat7.resolution-66"><a href="#Landsat7.resolution-66"><span class="linenos">66</span></a>    <span class="nd">@property</span>
+</span><span id="Landsat7.resolution-67"><a href="#Landsat7.resolution-67"><span class="linenos">67</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">resolution</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Landsat7.resolution-68"><a href="#Landsat7.resolution-68"><span class="linenos">68</span></a>        <span class="k">return</span> <span class="mi">30</span>
 </span></pre></div>
 
 
-    
+            <div class="docstring"><p>Native sensor resolution in metres.</p>
+
+<p>Raises:
+    NotImplementedError: Always - must be overridden by subclasses.</p>
+</div>
+
 
                             </div>
                             <div id="Landsat7.valid_date_range" class="classattr">
@@ -592,13 +750,20 @@
 
     </div>
     <a class="headerlink" href="#Landsat7.valid_date_range"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="Landsat7.valid_date_range-51"><a href="#Landsat7.valid_date_range-51"><span class="linenos">51</span></a>    <span class="nd">@property</span>
-</span><span id="Landsat7.valid_date_range-52"><a href="#Landsat7.valid_date_range-52"><span class="linenos">52</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">valid_date_range</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Landsat7.valid_date_range-53"><a href="#Landsat7.valid_date_range-53"><span class="linenos">53</span></a>        <span class="k">return</span> <span class="p">(</span><span class="s2">&quot;1999-04-15&quot;</span><span class="p">,</span> <span class="s2">&quot;2022-03-31&quot;</span><span class="p">)</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="Landsat7.valid_date_range-70"><a href="#Landsat7.valid_date_range-70"><span class="linenos">70</span></a>    <span class="nd">@property</span>
+</span><span id="Landsat7.valid_date_range-71"><a href="#Landsat7.valid_date_range-71"><span class="linenos">71</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">valid_date_range</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Landsat7.valid_date_range-72"><a href="#Landsat7.valid_date_range-72"><span class="linenos">72</span></a>        <span class="k">return</span> <span class="p">(</span><span class="s2">&quot;1999-04-15&quot;</span><span class="p">,</span> <span class="s2">&quot;2022-03-31&quot;</span><span class="p">)</span>
 </span></pre></div>
 
 
-    
+            <div class="docstring"><p>Operational date range as <code>(start_date, end_date)</code> ISO-8601 strings.</p>
+
+<p><code>None</code> indicates an open bound (mission still active or no cutoff).</p>
+
+<p>Raises:
+    NotImplementedError: Always - must be overridden by subclasses.</p>
+</div>
+
 
                             </div>
                 </section>
@@ -613,56 +778,87 @@
 
     </div>
     <a class="headerlink" href="#Sentinel2"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="Sentinel2-8"><a href="#Sentinel2-8"><span class="linenos"> 8</span></a><span class="k">class</span><span class="w"> </span><span class="nc">Sentinel2</span><span class="p">(</span><span class="n">Mission</span><span class="p">):</span>
-</span><span id="Sentinel2-9"><a href="#Sentinel2-9"><span class="linenos"> 9</span></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Sentinel2-10"><a href="#Sentinel2-10"><span class="linenos">10</span></a>        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="s2">&quot;sentinel-2&quot;</span><span class="p">)</span>
-</span><span id="Sentinel2-11"><a href="#Sentinel2-11"><span class="linenos">11</span></a>
-</span><span id="Sentinel2-12"><a href="#Sentinel2-12"><span class="linenos">12</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">reflectance_stack</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">src</span><span class="p">):</span>
-</span><span id="Sentinel2-13"><a href="#Sentinel2-13"><span class="linenos">13</span></a>        <span class="k">return</span> <span class="p">{</span>
-</span><span id="Sentinel2-14"><a href="#Sentinel2-14"><span class="linenos">14</span></a>            <span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;B2&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-</span><span id="Sentinel2-15"><a href="#Sentinel2-15"><span class="linenos">15</span></a>            <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;B3&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-</span><span id="Sentinel2-16"><a href="#Sentinel2-16"><span class="linenos">16</span></a>            <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;B4&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-</span><span id="Sentinel2-17"><a href="#Sentinel2-17"><span class="linenos">17</span></a>            <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;B8&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-</span><span id="Sentinel2-18"><a href="#Sentinel2-18"><span class="linenos">18</span></a>            <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;B11&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-</span><span id="Sentinel2-19"><a href="#Sentinel2-19"><span class="linenos">19</span></a>            <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;B12&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-</span><span id="Sentinel2-20"><a href="#Sentinel2-20"><span class="linenos">20</span></a>        <span class="p">}</span>
-</span><span id="Sentinel2-21"><a href="#Sentinel2-21"><span class="linenos">21</span></a>
-</span><span id="Sentinel2-22"><a href="#Sentinel2-22"><span class="linenos">22</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">band_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Sentinel2-23"><a href="#Sentinel2-23"><span class="linenos">23</span></a>        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span> <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="mi">6</span><span class="p">}</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="Sentinel2-13"><a href="#Sentinel2-13"><span class="linenos">13</span></a><span class="k">class</span><span class="w"> </span><span class="nc">Sentinel2</span><span class="p">(</span><span class="n">Mission</span><span class="p">):</span>
+</span><span id="Sentinel2-14"><a href="#Sentinel2-14"><span class="linenos">14</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Sentinel-2 MultiSpectral Instrument (MSI) mission.</span>
+</span><span id="Sentinel2-15"><a href="#Sentinel2-15"><span class="linenos">15</span></a>
+</span><span id="Sentinel2-16"><a href="#Sentinel2-16"><span class="linenos">16</span></a><span class="sd">    Band mapping (Level-2A surface reflectance, ``COPERNICUS/S2_SR_HARMONIZED``):</span>
+</span><span id="Sentinel2-17"><a href="#Sentinel2-17"><span class="linenos">17</span></a>
+</span><span id="Sentinel2-18"><a href="#Sentinel2-18"><span class="linenos">18</span></a><span class="sd">    - blue   -&gt; B2  (band index 1)</span>
+</span><span id="Sentinel2-19"><a href="#Sentinel2-19"><span class="linenos">19</span></a><span class="sd">    - green  -&gt; B3  (band index 2)</span>
+</span><span id="Sentinel2-20"><a href="#Sentinel2-20"><span class="linenos">20</span></a><span class="sd">    - red    -&gt; B4  (band index 3)</span>
+</span><span id="Sentinel2-21"><a href="#Sentinel2-21"><span class="linenos">21</span></a><span class="sd">    - nir08  -&gt; B8  (band index 4)</span>
+</span><span id="Sentinel2-22"><a href="#Sentinel2-22"><span class="linenos">22</span></a><span class="sd">    - swir16 -&gt; B11 (band index 5)</span>
+</span><span id="Sentinel2-23"><a href="#Sentinel2-23"><span class="linenos">23</span></a><span class="sd">    - swir22 -&gt; B12 (band index 6)</span>
 </span><span id="Sentinel2-24"><a href="#Sentinel2-24"><span class="linenos">24</span></a>
-</span><span id="Sentinel2-25"><a href="#Sentinel2-25"><span class="linenos">25</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">bands</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Sentinel2-26"><a href="#Sentinel2-26"><span class="linenos">26</span></a>        <span class="k">return</span> <span class="p">{</span>
-</span><span id="Sentinel2-27"><a href="#Sentinel2-27"><span class="linenos">27</span></a>            <span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="s2">&quot;B2&quot;</span><span class="p">,</span>
-</span><span id="Sentinel2-28"><a href="#Sentinel2-28"><span class="linenos">28</span></a>            <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="s2">&quot;B3&quot;</span><span class="p">,</span>
-</span><span id="Sentinel2-29"><a href="#Sentinel2-29"><span class="linenos">29</span></a>            <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="s2">&quot;B4&quot;</span><span class="p">,</span>
-</span><span id="Sentinel2-30"><a href="#Sentinel2-30"><span class="linenos">30</span></a>            <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="s2">&quot;B8&quot;</span><span class="p">,</span>
-</span><span id="Sentinel2-31"><a href="#Sentinel2-31"><span class="linenos">31</span></a>            <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="s2">&quot;B11&quot;</span><span class="p">,</span>
-</span><span id="Sentinel2-32"><a href="#Sentinel2-32"><span class="linenos">32</span></a>            <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="s2">&quot;B12&quot;</span><span class="p">,</span>
-</span><span id="Sentinel2-33"><a href="#Sentinel2-33"><span class="linenos">33</span></a>        <span class="p">}</span>
-</span><span id="Sentinel2-34"><a href="#Sentinel2-34"><span class="linenos">34</span></a>
-</span><span id="Sentinel2-35"><a href="#Sentinel2-35"><span class="linenos">35</span></a>    <span class="nd">@property</span>
-</span><span id="Sentinel2-36"><a href="#Sentinel2-36"><span class="linenos">36</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">gee_collection</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Sentinel2-37"><a href="#Sentinel2-37"><span class="linenos">37</span></a>        <span class="k">return</span> <span class="s2">&quot;COPERNICUS/S2_SR_HARMONIZED&quot;</span>
-</span><span id="Sentinel2-38"><a href="#Sentinel2-38"><span class="linenos">38</span></a>
-</span><span id="Sentinel2-39"><a href="#Sentinel2-39"><span class="linenos">39</span></a>    <span class="nd">@property</span>
-</span><span id="Sentinel2-40"><a href="#Sentinel2-40"><span class="linenos">40</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">gee_scale</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Sentinel2-41"><a href="#Sentinel2-41"><span class="linenos">41</span></a>        <span class="k">return</span> <span class="mi">10</span>
+</span><span id="Sentinel2-25"><a href="#Sentinel2-25"><span class="linenos">25</span></a><span class="sd">    Sentinel-2 SR values are scaled integers - divide by 10 000 for</span>
+</span><span id="Sentinel2-26"><a href="#Sentinel2-26"><span class="linenos">26</span></a><span class="sd">    reflectance in [0, 1].  The pipeline handles this via the</span>
+</span><span id="Sentinel2-27"><a href="#Sentinel2-27"><span class="linenos">27</span></a><span class="sd">    ``reflectance_scale`` parameter in the salinity model.</span>
+</span><span id="Sentinel2-28"><a href="#Sentinel2-28"><span class="linenos">28</span></a><span class="sd">    &quot;&quot;&quot;</span>
+</span><span id="Sentinel2-29"><a href="#Sentinel2-29"><span class="linenos">29</span></a>
+</span><span id="Sentinel2-30"><a href="#Sentinel2-30"><span class="linenos">30</span></a>    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="Sentinel2-31"><a href="#Sentinel2-31"><span class="linenos">31</span></a>        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="s2">&quot;sentinel-2&quot;</span><span class="p">)</span>
+</span><span id="Sentinel2-32"><a href="#Sentinel2-32"><span class="linenos">32</span></a>
+</span><span id="Sentinel2-33"><a href="#Sentinel2-33"><span class="linenos">33</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">reflectance_stack</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">src</span><span class="p">):</span>
+</span><span id="Sentinel2-34"><a href="#Sentinel2-34"><span class="linenos">34</span></a>        <span class="k">return</span> <span class="p">{</span>
+</span><span id="Sentinel2-35"><a href="#Sentinel2-35"><span class="linenos">35</span></a>            <span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;B2&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+</span><span id="Sentinel2-36"><a href="#Sentinel2-36"><span class="linenos">36</span></a>            <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;B3&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+</span><span id="Sentinel2-37"><a href="#Sentinel2-37"><span class="linenos">37</span></a>            <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;B4&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+</span><span id="Sentinel2-38"><a href="#Sentinel2-38"><span class="linenos">38</span></a>            <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;B8&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+</span><span id="Sentinel2-39"><a href="#Sentinel2-39"><span class="linenos">39</span></a>            <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;B11&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+</span><span id="Sentinel2-40"><a href="#Sentinel2-40"><span class="linenos">40</span></a>            <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;B12&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+</span><span id="Sentinel2-41"><a href="#Sentinel2-41"><span class="linenos">41</span></a>        <span class="p">}</span>
 </span><span id="Sentinel2-42"><a href="#Sentinel2-42"><span class="linenos">42</span></a>
-</span><span id="Sentinel2-43"><a href="#Sentinel2-43"><span class="linenos">43</span></a>    <span class="nd">@property</span>
-</span><span id="Sentinel2-44"><a href="#Sentinel2-44"><span class="linenos">44</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">collection</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Sentinel2-45"><a href="#Sentinel2-45"><span class="linenos">45</span></a>        <span class="k">return</span> <span class="s2">&quot;sentinel-2-l2a&quot;</span>
-</span><span id="Sentinel2-46"><a href="#Sentinel2-46"><span class="linenos">46</span></a>
-</span><span id="Sentinel2-47"><a href="#Sentinel2-47"><span class="linenos">47</span></a>    <span class="nd">@property</span>
-</span><span id="Sentinel2-48"><a href="#Sentinel2-48"><span class="linenos">48</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">resolution</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Sentinel2-49"><a href="#Sentinel2-49"><span class="linenos">49</span></a>        <span class="k">return</span> <span class="mi">10</span>
-</span><span id="Sentinel2-50"><a href="#Sentinel2-50"><span class="linenos">50</span></a>
-</span><span id="Sentinel2-51"><a href="#Sentinel2-51"><span class="linenos">51</span></a>    <span class="nd">@property</span>
-</span><span id="Sentinel2-52"><a href="#Sentinel2-52"><span class="linenos">52</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">valid_date_range</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Sentinel2-53"><a href="#Sentinel2-53"><span class="linenos">53</span></a>        <span class="k">return</span> <span class="p">(</span><span class="s2">&quot;2015-06-23&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+</span><span id="Sentinel2-43"><a href="#Sentinel2-43"><span class="linenos">43</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">band_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Sentinel2-44"><a href="#Sentinel2-44"><span class="linenos">44</span></a>        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span> <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="mi">6</span><span class="p">}</span>
+</span><span id="Sentinel2-45"><a href="#Sentinel2-45"><span class="linenos">45</span></a>
+</span><span id="Sentinel2-46"><a href="#Sentinel2-46"><span class="linenos">46</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">bands</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Sentinel2-47"><a href="#Sentinel2-47"><span class="linenos">47</span></a>        <span class="k">return</span> <span class="p">{</span>
+</span><span id="Sentinel2-48"><a href="#Sentinel2-48"><span class="linenos">48</span></a>            <span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="s2">&quot;B2&quot;</span><span class="p">,</span>
+</span><span id="Sentinel2-49"><a href="#Sentinel2-49"><span class="linenos">49</span></a>            <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="s2">&quot;B3&quot;</span><span class="p">,</span>
+</span><span id="Sentinel2-50"><a href="#Sentinel2-50"><span class="linenos">50</span></a>            <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="s2">&quot;B4&quot;</span><span class="p">,</span>
+</span><span id="Sentinel2-51"><a href="#Sentinel2-51"><span class="linenos">51</span></a>            <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="s2">&quot;B8&quot;</span><span class="p">,</span>
+</span><span id="Sentinel2-52"><a href="#Sentinel2-52"><span class="linenos">52</span></a>            <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="s2">&quot;B11&quot;</span><span class="p">,</span>
+</span><span id="Sentinel2-53"><a href="#Sentinel2-53"><span class="linenos">53</span></a>            <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="s2">&quot;B12&quot;</span><span class="p">,</span>
+</span><span id="Sentinel2-54"><a href="#Sentinel2-54"><span class="linenos">54</span></a>        <span class="p">}</span>
+</span><span id="Sentinel2-55"><a href="#Sentinel2-55"><span class="linenos">55</span></a>
+</span><span id="Sentinel2-56"><a href="#Sentinel2-56"><span class="linenos">56</span></a>    <span class="nd">@property</span>
+</span><span id="Sentinel2-57"><a href="#Sentinel2-57"><span class="linenos">57</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">gee_collection</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Sentinel2-58"><a href="#Sentinel2-58"><span class="linenos">58</span></a>        <span class="k">return</span> <span class="s2">&quot;COPERNICUS/S2_SR_HARMONIZED&quot;</span>
+</span><span id="Sentinel2-59"><a href="#Sentinel2-59"><span class="linenos">59</span></a>
+</span><span id="Sentinel2-60"><a href="#Sentinel2-60"><span class="linenos">60</span></a>    <span class="nd">@property</span>
+</span><span id="Sentinel2-61"><a href="#Sentinel2-61"><span class="linenos">61</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">gee_scale</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Sentinel2-62"><a href="#Sentinel2-62"><span class="linenos">62</span></a>        <span class="k">return</span> <span class="mi">10</span>
+</span><span id="Sentinel2-63"><a href="#Sentinel2-63"><span class="linenos">63</span></a>
+</span><span id="Sentinel2-64"><a href="#Sentinel2-64"><span class="linenos">64</span></a>    <span class="nd">@property</span>
+</span><span id="Sentinel2-65"><a href="#Sentinel2-65"><span class="linenos">65</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">collection</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Sentinel2-66"><a href="#Sentinel2-66"><span class="linenos">66</span></a>        <span class="k">return</span> <span class="s2">&quot;sentinel-2-l2a&quot;</span>
+</span><span id="Sentinel2-67"><a href="#Sentinel2-67"><span class="linenos">67</span></a>
+</span><span id="Sentinel2-68"><a href="#Sentinel2-68"><span class="linenos">68</span></a>    <span class="nd">@property</span>
+</span><span id="Sentinel2-69"><a href="#Sentinel2-69"><span class="linenos">69</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">resolution</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Sentinel2-70"><a href="#Sentinel2-70"><span class="linenos">70</span></a>        <span class="k">return</span> <span class="mi">10</span>
+</span><span id="Sentinel2-71"><a href="#Sentinel2-71"><span class="linenos">71</span></a>
+</span><span id="Sentinel2-72"><a href="#Sentinel2-72"><span class="linenos">72</span></a>    <span class="nd">@property</span>
+</span><span id="Sentinel2-73"><a href="#Sentinel2-73"><span class="linenos">73</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">valid_date_range</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Sentinel2-74"><a href="#Sentinel2-74"><span class="linenos">74</span></a>        <span class="k">return</span> <span class="p">(</span><span class="s2">&quot;2015-06-23&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
 </span></pre></div>
 
 
-            <div class="docstring"><p>Base class for satellite missions.</p>
+            <div class="docstring"><p>Sentinel-2 MultiSpectral Instrument (MSI) mission.</p>
+
+<p>Band mapping (Level-2A surface reflectance, <code>COPERNICUS/S2_SR_HARMONIZED</code>):</p>
+
+<ul>
+<li>blue   -> B2  (band index 1)</li>
+<li>green  -> B3  (band index 2)</li>
+<li>red    -> B4  (band index 3)</li>
+<li>nir08  -> B8  (band index 4)</li>
+<li>swir16 -> B11 (band index 5)</li>
+<li>swir22 -> B12 (band index 6)</li>
+</ul>
+
+<p>Sentinel-2 SR values are scaled integers - divide by 10 000 for
+reflectance in [0, 1].  The pipeline handles this via the
+<code>reflectance_scale</code> parameter in the salinity model.</p>
 </div>
 
 
@@ -677,19 +873,30 @@
 
     </div>
     <a class="headerlink" href="#Sentinel2.reflectance_stack"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="Sentinel2.reflectance_stack-12"><a href="#Sentinel2.reflectance_stack-12"><span class="linenos">12</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">reflectance_stack</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">src</span><span class="p">):</span>
-</span><span id="Sentinel2.reflectance_stack-13"><a href="#Sentinel2.reflectance_stack-13"><span class="linenos">13</span></a>        <span class="k">return</span> <span class="p">{</span>
-</span><span id="Sentinel2.reflectance_stack-14"><a href="#Sentinel2.reflectance_stack-14"><span class="linenos">14</span></a>            <span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;B2&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-</span><span id="Sentinel2.reflectance_stack-15"><a href="#Sentinel2.reflectance_stack-15"><span class="linenos">15</span></a>            <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;B3&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-</span><span id="Sentinel2.reflectance_stack-16"><a href="#Sentinel2.reflectance_stack-16"><span class="linenos">16</span></a>            <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;B4&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-</span><span id="Sentinel2.reflectance_stack-17"><a href="#Sentinel2.reflectance_stack-17"><span class="linenos">17</span></a>            <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;B8&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-</span><span id="Sentinel2.reflectance_stack-18"><a href="#Sentinel2.reflectance_stack-18"><span class="linenos">18</span></a>            <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;B11&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-</span><span id="Sentinel2.reflectance_stack-19"><a href="#Sentinel2.reflectance_stack-19"><span class="linenos">19</span></a>            <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;B12&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-</span><span id="Sentinel2.reflectance_stack-20"><a href="#Sentinel2.reflectance_stack-20"><span class="linenos">20</span></a>        <span class="p">}</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="Sentinel2.reflectance_stack-33"><a href="#Sentinel2.reflectance_stack-33"><span class="linenos">33</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">reflectance_stack</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">src</span><span class="p">):</span>
+</span><span id="Sentinel2.reflectance_stack-34"><a href="#Sentinel2.reflectance_stack-34"><span class="linenos">34</span></a>        <span class="k">return</span> <span class="p">{</span>
+</span><span id="Sentinel2.reflectance_stack-35"><a href="#Sentinel2.reflectance_stack-35"><span class="linenos">35</span></a>            <span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;B2&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+</span><span id="Sentinel2.reflectance_stack-36"><a href="#Sentinel2.reflectance_stack-36"><span class="linenos">36</span></a>            <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;B3&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+</span><span id="Sentinel2.reflectance_stack-37"><a href="#Sentinel2.reflectance_stack-37"><span class="linenos">37</span></a>            <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;B4&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+</span><span id="Sentinel2.reflectance_stack-38"><a href="#Sentinel2.reflectance_stack-38"><span class="linenos">38</span></a>            <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;B8&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+</span><span id="Sentinel2.reflectance_stack-39"><a href="#Sentinel2.reflectance_stack-39"><span class="linenos">39</span></a>            <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;B11&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+</span><span id="Sentinel2.reflectance_stack-40"><a href="#Sentinel2.reflectance_stack-40"><span class="linenos">40</span></a>            <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="n">src</span><span class="p">[</span><span class="s2">&quot;B12&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+</span><span id="Sentinel2.reflectance_stack-41"><a href="#Sentinel2.reflectance_stack-41"><span class="linenos">41</span></a>        <span class="p">}</span>
 </span></pre></div>
 
 
-    
+            <div class="docstring"><p>Extract surface-reflectance arrays from an open rasterio dataset.</p>
+
+<p>Args:
+    src: An open rasterio DatasetReader for a multiband GeoTIFF.</p>
+
+<p>Returns:
+    Dict[str, np.ndarray]: Logical band name to float32 array.</p>
+
+<p>Raises:
+    NotImplementedError: Always - must be overridden by subclasses.</p>
+</div>
+
 
                             </div>
                             <div id="Sentinel2.band_indices" class="classattr">
@@ -703,12 +910,20 @@
 
     </div>
     <a class="headerlink" href="#Sentinel2.band_indices"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="Sentinel2.band_indices-22"><a href="#Sentinel2.band_indices-22"><span class="linenos">22</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">band_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Sentinel2.band_indices-23"><a href="#Sentinel2.band_indices-23"><span class="linenos">23</span></a>        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span> <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="mi">6</span><span class="p">}</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="Sentinel2.band_indices-43"><a href="#Sentinel2.band_indices-43"><span class="linenos">43</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">band_indices</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Sentinel2.band_indices-44"><a href="#Sentinel2.band_indices-44"><span class="linenos">44</span></a>        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span> <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span> <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span> <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span> <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="mi">6</span><span class="p">}</span>
 </span></pre></div>
 
 
-    
+            <div class="docstring"><p>Return a mapping from logical band names to 1-based rasterio band indices.</p>
+
+<p>Returns:
+    Dict[str, int]: e.g. <code>{"blue": 1, "green": 2, "red": 3, ...}</code>.</p>
+
+<p>Raises:
+    NotImplementedError: Always - must be overridden by subclasses.</p>
+</div>
+
 
                             </div>
                             <div id="Sentinel2.bands" class="classattr">
@@ -722,19 +937,27 @@
 
     </div>
     <a class="headerlink" href="#Sentinel2.bands"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="Sentinel2.bands-25"><a href="#Sentinel2.bands-25"><span class="linenos">25</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">bands</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Sentinel2.bands-26"><a href="#Sentinel2.bands-26"><span class="linenos">26</span></a>        <span class="k">return</span> <span class="p">{</span>
-</span><span id="Sentinel2.bands-27"><a href="#Sentinel2.bands-27"><span class="linenos">27</span></a>            <span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="s2">&quot;B2&quot;</span><span class="p">,</span>
-</span><span id="Sentinel2.bands-28"><a href="#Sentinel2.bands-28"><span class="linenos">28</span></a>            <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="s2">&quot;B3&quot;</span><span class="p">,</span>
-</span><span id="Sentinel2.bands-29"><a href="#Sentinel2.bands-29"><span class="linenos">29</span></a>            <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="s2">&quot;B4&quot;</span><span class="p">,</span>
-</span><span id="Sentinel2.bands-30"><a href="#Sentinel2.bands-30"><span class="linenos">30</span></a>            <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="s2">&quot;B8&quot;</span><span class="p">,</span>
-</span><span id="Sentinel2.bands-31"><a href="#Sentinel2.bands-31"><span class="linenos">31</span></a>            <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="s2">&quot;B11&quot;</span><span class="p">,</span>
-</span><span id="Sentinel2.bands-32"><a href="#Sentinel2.bands-32"><span class="linenos">32</span></a>            <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="s2">&quot;B12&quot;</span><span class="p">,</span>
-</span><span id="Sentinel2.bands-33"><a href="#Sentinel2.bands-33"><span class="linenos">33</span></a>        <span class="p">}</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="Sentinel2.bands-46"><a href="#Sentinel2.bands-46"><span class="linenos">46</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">bands</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Sentinel2.bands-47"><a href="#Sentinel2.bands-47"><span class="linenos">47</span></a>        <span class="k">return</span> <span class="p">{</span>
+</span><span id="Sentinel2.bands-48"><a href="#Sentinel2.bands-48"><span class="linenos">48</span></a>            <span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="s2">&quot;B2&quot;</span><span class="p">,</span>
+</span><span id="Sentinel2.bands-49"><a href="#Sentinel2.bands-49"><span class="linenos">49</span></a>            <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="s2">&quot;B3&quot;</span><span class="p">,</span>
+</span><span id="Sentinel2.bands-50"><a href="#Sentinel2.bands-50"><span class="linenos">50</span></a>            <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="s2">&quot;B4&quot;</span><span class="p">,</span>
+</span><span id="Sentinel2.bands-51"><a href="#Sentinel2.bands-51"><span class="linenos">51</span></a>            <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="s2">&quot;B8&quot;</span><span class="p">,</span>
+</span><span id="Sentinel2.bands-52"><a href="#Sentinel2.bands-52"><span class="linenos">52</span></a>            <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="s2">&quot;B11&quot;</span><span class="p">,</span>
+</span><span id="Sentinel2.bands-53"><a href="#Sentinel2.bands-53"><span class="linenos">53</span></a>            <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="s2">&quot;B12&quot;</span><span class="p">,</span>
+</span><span id="Sentinel2.bands-54"><a href="#Sentinel2.bands-54"><span class="linenos">54</span></a>        <span class="p">}</span>
 </span></pre></div>
 
 
-    
+            <div class="docstring"><p>Return a mapping from logical band names to native GEE band names.</p>
+
+<p>Returns:
+    Dict[str, str]: e.g. <code>{"blue": "B2", "green": "B3", ...}</code>.</p>
+
+<p>Raises:
+    NotImplementedError: Always - must be overridden by subclasses.</p>
+</div>
+
 
                             </div>
                             <div id="Sentinel2.gee_collection" class="classattr">
@@ -746,13 +969,18 @@
 
     </div>
     <a class="headerlink" href="#Sentinel2.gee_collection"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="Sentinel2.gee_collection-35"><a href="#Sentinel2.gee_collection-35"><span class="linenos">35</span></a>    <span class="nd">@property</span>
-</span><span id="Sentinel2.gee_collection-36"><a href="#Sentinel2.gee_collection-36"><span class="linenos">36</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">gee_collection</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Sentinel2.gee_collection-37"><a href="#Sentinel2.gee_collection-37"><span class="linenos">37</span></a>        <span class="k">return</span> <span class="s2">&quot;COPERNICUS/S2_SR_HARMONIZED&quot;</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="Sentinel2.gee_collection-56"><a href="#Sentinel2.gee_collection-56"><span class="linenos">56</span></a>    <span class="nd">@property</span>
+</span><span id="Sentinel2.gee_collection-57"><a href="#Sentinel2.gee_collection-57"><span class="linenos">57</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">gee_collection</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Sentinel2.gee_collection-58"><a href="#Sentinel2.gee_collection-58"><span class="linenos">58</span></a>        <span class="k">return</span> <span class="s2">&quot;COPERNICUS/S2_SR_HARMONIZED&quot;</span>
 </span></pre></div>
 
 
-    
+            <div class="docstring"><p>GEE ImageCollection asset ID for this mission.</p>
+
+<p>Raises:
+    NotImplementedError: Always - must be overridden by subclasses.</p>
+</div>
+
 
                             </div>
                             <div id="Sentinel2.gee_scale" class="classattr">
@@ -764,13 +992,18 @@
 
     </div>
     <a class="headerlink" href="#Sentinel2.gee_scale"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="Sentinel2.gee_scale-39"><a href="#Sentinel2.gee_scale-39"><span class="linenos">39</span></a>    <span class="nd">@property</span>
-</span><span id="Sentinel2.gee_scale-40"><a href="#Sentinel2.gee_scale-40"><span class="linenos">40</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">gee_scale</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Sentinel2.gee_scale-41"><a href="#Sentinel2.gee_scale-41"><span class="linenos">41</span></a>        <span class="k">return</span> <span class="mi">10</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="Sentinel2.gee_scale-60"><a href="#Sentinel2.gee_scale-60"><span class="linenos">60</span></a>    <span class="nd">@property</span>
+</span><span id="Sentinel2.gee_scale-61"><a href="#Sentinel2.gee_scale-61"><span class="linenos">61</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">gee_scale</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Sentinel2.gee_scale-62"><a href="#Sentinel2.gee_scale-62"><span class="linenos">62</span></a>        <span class="k">return</span> <span class="mi">10</span>
 </span></pre></div>
 
 
-    
+            <div class="docstring"><p>Native pixel resolution in metres used when exporting from GEE.</p>
+
+<p>Raises:
+    NotImplementedError: Always - must be overridden by subclasses.</p>
+</div>
+
 
                             </div>
                             <div id="Sentinel2.collection" class="classattr">
@@ -782,13 +1015,18 @@
 
     </div>
     <a class="headerlink" href="#Sentinel2.collection"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="Sentinel2.collection-43"><a href="#Sentinel2.collection-43"><span class="linenos">43</span></a>    <span class="nd">@property</span>
-</span><span id="Sentinel2.collection-44"><a href="#Sentinel2.collection-44"><span class="linenos">44</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">collection</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Sentinel2.collection-45"><a href="#Sentinel2.collection-45"><span class="linenos">45</span></a>        <span class="k">return</span> <span class="s2">&quot;sentinel-2-l2a&quot;</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="Sentinel2.collection-64"><a href="#Sentinel2.collection-64"><span class="linenos">64</span></a>    <span class="nd">@property</span>
+</span><span id="Sentinel2.collection-65"><a href="#Sentinel2.collection-65"><span class="linenos">65</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">collection</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Sentinel2.collection-66"><a href="#Sentinel2.collection-66"><span class="linenos">66</span></a>        <span class="k">return</span> <span class="s2">&quot;sentinel-2-l2a&quot;</span>
 </span></pre></div>
 
 
-    
+            <div class="docstring"><p>STAC collection identifier (retained for legacy compatibility).</p>
+
+<p>Raises:
+    NotImplementedError: Always - must be overridden by subclasses.</p>
+</div>
+
 
                             </div>
                             <div id="Sentinel2.resolution" class="classattr">
@@ -800,13 +1038,18 @@
 
     </div>
     <a class="headerlink" href="#Sentinel2.resolution"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="Sentinel2.resolution-47"><a href="#Sentinel2.resolution-47"><span class="linenos">47</span></a>    <span class="nd">@property</span>
-</span><span id="Sentinel2.resolution-48"><a href="#Sentinel2.resolution-48"><span class="linenos">48</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">resolution</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Sentinel2.resolution-49"><a href="#Sentinel2.resolution-49"><span class="linenos">49</span></a>        <span class="k">return</span> <span class="mi">10</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="Sentinel2.resolution-68"><a href="#Sentinel2.resolution-68"><span class="linenos">68</span></a>    <span class="nd">@property</span>
+</span><span id="Sentinel2.resolution-69"><a href="#Sentinel2.resolution-69"><span class="linenos">69</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">resolution</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Sentinel2.resolution-70"><a href="#Sentinel2.resolution-70"><span class="linenos">70</span></a>        <span class="k">return</span> <span class="mi">10</span>
 </span></pre></div>
 
 
-    
+            <div class="docstring"><p>Native sensor resolution in metres.</p>
+
+<p>Raises:
+    NotImplementedError: Always - must be overridden by subclasses.</p>
+</div>
+
 
                             </div>
                             <div id="Sentinel2.valid_date_range" class="classattr">
@@ -818,13 +1061,20 @@
 
     </div>
     <a class="headerlink" href="#Sentinel2.valid_date_range"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="Sentinel2.valid_date_range-51"><a href="#Sentinel2.valid_date_range-51"><span class="linenos">51</span></a>    <span class="nd">@property</span>
-</span><span id="Sentinel2.valid_date_range-52"><a href="#Sentinel2.valid_date_range-52"><span class="linenos">52</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">valid_date_range</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-</span><span id="Sentinel2.valid_date_range-53"><a href="#Sentinel2.valid_date_range-53"><span class="linenos">53</span></a>        <span class="k">return</span> <span class="p">(</span><span class="s2">&quot;2015-06-23&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="Sentinel2.valid_date_range-72"><a href="#Sentinel2.valid_date_range-72"><span class="linenos">72</span></a>    <span class="nd">@property</span>
+</span><span id="Sentinel2.valid_date_range-73"><a href="#Sentinel2.valid_date_range-73"><span class="linenos">73</span></a>    <span class="k">def</span><span class="w"> </span><span class="nf">valid_date_range</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+</span><span id="Sentinel2.valid_date_range-74"><a href="#Sentinel2.valid_date_range-74"><span class="linenos">74</span></a>        <span class="k">return</span> <span class="p">(</span><span class="s2">&quot;2015-06-23&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
 </span></pre></div>
 
 
-    
+            <div class="docstring"><p>Operational date range as <code>(start_date, end_date)</code> ISO-8601 strings.</p>
+
+<p><code>None</code> indicates an open bound (mission still active or no cutoff).</p>
+
+<p>Raises:
+    NotImplementedError: Always - must be overridden by subclasses.</p>
+</div>
+
 
                             </div>
                 </section>

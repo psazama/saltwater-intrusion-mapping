@@ -58,80 +58,142 @@
                     <h1 class="modulename">
 <a href="./../../swmaps.html">swmaps</a><wbr>.<a href="./../core.html">core</a><wbr>.missions    </h1>
 
-                        <div class="docstring"><p>Mission configuration using subclass methods for satellite-specific logic.</p>
+                        <div class="docstring"><p>Mission configuration and factory utilities for satellite-specific logic.</p>
+
+<p>This module provides a registry of supported satellite missions and a unified
+factory interface for resolving <code>~swmaps.core.satellites.base.Mission</code>
+instances from a slug string, an integer ID, or a file path.  All three lookup
+styles delegate to a single internal registry so the supported-mission list
+only needs to be maintained in one place.</p>
 </div>
 
                         <input id="mod-missions-view-source" class="view-source-toggle-state" type="checkbox" aria-hidden="true" tabindex="-1">
 
                         <label class="view-source-button" for="mod-missions-view-source"><span>View Source</span></label>
 
-                        <div class="pdoc-code codehilite"><pre><span></span><span id="L-1"><a href="#L-1"><span class="linenos"> 1</span></a><span class="sd">&quot;&quot;&quot;Mission configuration using subclass methods for satellite-specific logic.&quot;&quot;&quot;</span>
-</span><span id="L-2"><a href="#L-2"><span class="linenos"> 2</span></a>
-</span><span id="L-3"><a href="#L-3"><span class="linenos"> 3</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
-</span><span id="L-4"><a href="#L-4"><span class="linenos"> 4</span></a>
-</span><span id="L-5"><a href="#L-5"><span class="linenos"> 5</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">.satellites.base</span><span class="w"> </span><span class="kn">import</span> <span class="n">Mission</span>
-</span><span id="L-6"><a href="#L-6"><span class="linenos"> 6</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">.satellites.landsat5</span><span class="w"> </span><span class="kn">import</span> <span class="n">Landsat5</span>
-</span><span id="L-7"><a href="#L-7"><span class="linenos"> 7</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">.satellites.landsat7</span><span class="w"> </span><span class="kn">import</span> <span class="n">Landsat7</span>
-</span><span id="L-8"><a href="#L-8"><span class="linenos"> 8</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">.satellites.sentinel2</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sentinel2</span>
-</span><span id="L-9"><a href="#L-9"><span class="linenos"> 9</span></a>
-</span><span id="L-10"><a href="#L-10"><span class="linenos">10</span></a><span class="c1"># --------------------------</span>
-</span><span id="L-11"><a href="#L-11"><span class="linenos">11</span></a><span class="c1"># Factory function</span>
-</span><span id="L-12"><a href="#L-12"><span class="linenos">12</span></a><span class="c1"># --------------------------</span>
-</span><span id="L-13"><a href="#L-13"><span class="linenos">13</span></a><span class="n">GLOBAL_BAND_IDS</span> <span class="o">=</span> <span class="p">{</span>
-</span><span id="L-14"><a href="#L-14"><span class="linenos">14</span></a>    <span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
-</span><span id="L-15"><a href="#L-15"><span class="linenos">15</span></a>    <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
-</span><span id="L-16"><a href="#L-16"><span class="linenos">16</span></a>    <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
-</span><span id="L-17"><a href="#L-17"><span class="linenos">17</span></a>    <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
-</span><span id="L-18"><a href="#L-18"><span class="linenos">18</span></a>    <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span>
-</span><span id="L-19"><a href="#L-19"><span class="linenos">19</span></a>    <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span>
-</span><span id="L-20"><a href="#L-20"><span class="linenos">20</span></a><span class="p">}</span>
-</span><span id="L-21"><a href="#L-21"><span class="linenos">21</span></a>
-</span><span id="L-22"><a href="#L-22"><span class="linenos">22</span></a>
-</span><span id="L-23"><a href="#L-23"><span class="linenos">23</span></a><span class="k">def</span><span class="w"> </span><span class="nf">get_mission</span><span class="p">(</span><span class="n">mission</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Mission</span><span class="p">:</span>
-</span><span id="L-24"><a href="#L-24"><span class="linenos">24</span></a>    <span class="n">mission_map</span> <span class="o">=</span> <span class="p">{</span>
-</span><span id="L-25"><a href="#L-25"><span class="linenos">25</span></a>        <span class="s2">&quot;sentinel-2&quot;</span><span class="p">:</span> <span class="n">Sentinel2</span><span class="p">,</span>
-</span><span id="L-26"><a href="#L-26"><span class="linenos">26</span></a>        <span class="s2">&quot;landsat-5&quot;</span><span class="p">:</span> <span class="n">Landsat5</span><span class="p">,</span>
-</span><span id="L-27"><a href="#L-27"><span class="linenos">27</span></a>        <span class="s2">&quot;landsat-7&quot;</span><span class="p">:</span> <span class="n">Landsat7</span><span class="p">,</span>
-</span><span id="L-28"><a href="#L-28"><span class="linenos">28</span></a>    <span class="p">}</span>
-</span><span id="L-29"><a href="#L-29"><span class="linenos">29</span></a>
-</span><span id="L-30"><a href="#L-30"><span class="linenos">30</span></a>    <span class="k">if</span> <span class="n">mission</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">mission_map</span><span class="p">:</span>
-</span><span id="L-31"><a href="#L-31"><span class="linenos">31</span></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unsupported mission: </span><span class="si">{</span><span class="n">mission</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-</span><span id="L-32"><a href="#L-32"><span class="linenos">32</span></a>
-</span><span id="L-33"><a href="#L-33"><span class="linenos">33</span></a>    <span class="k">return</span> <span class="n">mission_map</span><span class="p">[</span><span class="n">mission</span><span class="p">]()</span>
-</span><span id="L-34"><a href="#L-34"><span class="linenos">34</span></a>
-</span><span id="L-35"><a href="#L-35"><span class="linenos">35</span></a>
-</span><span id="L-36"><a href="#L-36"><span class="linenos">36</span></a><span class="k">def</span><span class="w"> </span><span class="nf">get_mission_from_id</span><span class="p">(</span><span class="n">mission</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Mission</span><span class="p">:</span>
-</span><span id="L-37"><a href="#L-37"><span class="linenos">37</span></a>    <span class="n">missions</span> <span class="o">=</span> <span class="p">{</span>
-</span><span id="L-38"><a href="#L-38"><span class="linenos">38</span></a>        <span class="mi">0</span><span class="p">:</span> <span class="n">Sentinel2</span><span class="p">(),</span>
-</span><span id="L-39"><a href="#L-39"><span class="linenos">39</span></a>        <span class="mi">1</span><span class="p">:</span> <span class="n">Landsat5</span><span class="p">(),</span>
-</span><span id="L-40"><a href="#L-40"><span class="linenos">40</span></a>        <span class="mi">2</span><span class="p">:</span> <span class="n">Landsat7</span><span class="p">(),</span>
-</span><span id="L-41"><a href="#L-41"><span class="linenos">41</span></a>    <span class="p">}</span>
-</span><span id="L-42"><a href="#L-42"><span class="linenos">42</span></a>
-</span><span id="L-43"><a href="#L-43"><span class="linenos">43</span></a>    <span class="k">return</span> <span class="n">missions</span><span class="p">[</span><span class="n">mission</span><span class="p">]</span>
-</span><span id="L-44"><a href="#L-44"><span class="linenos">44</span></a>
-</span><span id="L-45"><a href="#L-45"><span class="linenos">45</span></a>
-</span><span id="L-46"><a href="#L-46"><span class="linenos">46</span></a><span class="k">def</span><span class="w"> </span><span class="nf">get_mission_from_path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Mission</span><span class="p">:</span>
-</span><span id="L-47"><a href="#L-47"><span class="linenos">47</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-</span><span id="L-48"><a href="#L-48"><span class="linenos">48</span></a><span class="sd">    Derives the Mission object from a file path.</span>
-</span><span id="L-49"><a href="#L-49"><span class="linenos">49</span></a><span class="sd">    Matches against known mission slugs in the mission map.</span>
-</span><span id="L-50"><a href="#L-50"><span class="linenos">50</span></a><span class="sd">    &quot;&quot;&quot;</span>
-</span><span id="L-51"><a href="#L-51"><span class="linenos">51</span></a>    <span class="n">name</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
-</span><span id="L-52"><a href="#L-52"><span class="linenos">52</span></a>    <span class="n">mission_map</span> <span class="o">=</span> <span class="p">{</span>
-</span><span id="L-53"><a href="#L-53"><span class="linenos">53</span></a>        <span class="s2">&quot;sentinel-2&quot;</span><span class="p">:</span> <span class="n">Sentinel2</span><span class="p">,</span>
-</span><span id="L-54"><a href="#L-54"><span class="linenos">54</span></a>        <span class="s2">&quot;landsat-5&quot;</span><span class="p">:</span> <span class="n">Landsat5</span><span class="p">,</span>
-</span><span id="L-55"><a href="#L-55"><span class="linenos">55</span></a>        <span class="s2">&quot;landsat-7&quot;</span><span class="p">:</span> <span class="n">Landsat7</span><span class="p">,</span>
-</span><span id="L-56"><a href="#L-56"><span class="linenos">56</span></a>    <span class="p">}</span>
-</span><span id="L-57"><a href="#L-57"><span class="linenos">57</span></a>    <span class="k">for</span> <span class="n">slug</span><span class="p">,</span> <span class="bp">cls</span> <span class="ow">in</span> <span class="n">mission_map</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-</span><span id="L-58"><a href="#L-58"><span class="linenos">58</span></a>        <span class="k">if</span> <span class="n">slug</span> <span class="ow">in</span> <span class="n">name</span><span class="p">:</span>
-</span><span id="L-59"><a href="#L-59"><span class="linenos">59</span></a>            <span class="k">return</span> <span class="bp">cls</span><span class="p">()</span>
-</span><span id="L-60"><a href="#L-60"><span class="linenos">60</span></a>    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Cannot derive mission from path: </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+                        <div class="pdoc-code codehilite"><pre><span></span><span id="L-1"><a href="#L-1"><span class="linenos">  1</span></a><span class="sd">&quot;&quot;&quot;Mission configuration and factory utilities for satellite-specific logic.</span>
+</span><span id="L-2"><a href="#L-2"><span class="linenos">  2</span></a>
+</span><span id="L-3"><a href="#L-3"><span class="linenos">  3</span></a><span class="sd">This module provides a registry of supported satellite missions and a unified</span>
+</span><span id="L-4"><a href="#L-4"><span class="linenos">  4</span></a><span class="sd">factory interface for resolving :class:`~swmaps.core.satellites.base.Mission`</span>
+</span><span id="L-5"><a href="#L-5"><span class="linenos">  5</span></a><span class="sd">instances from a slug string, an integer ID, or a file path.  All three lookup</span>
+</span><span id="L-6"><a href="#L-6"><span class="linenos">  6</span></a><span class="sd">styles delegate to a single internal registry so the supported-mission list</span>
+</span><span id="L-7"><a href="#L-7"><span class="linenos">  7</span></a><span class="sd">only needs to be maintained in one place.</span>
+</span><span id="L-8"><a href="#L-8"><span class="linenos">  8</span></a><span class="sd">&quot;&quot;&quot;</span>
+</span><span id="L-9"><a href="#L-9"><span class="linenos">  9</span></a>
+</span><span id="L-10"><a href="#L-10"><span class="linenos"> 10</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+</span><span id="L-11"><a href="#L-11"><span class="linenos"> 11</span></a>
+</span><span id="L-12"><a href="#L-12"><span class="linenos"> 12</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">.satellites.base</span><span class="w"> </span><span class="kn">import</span> <span class="n">Mission</span>
+</span><span id="L-13"><a href="#L-13"><span class="linenos"> 13</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">.satellites.landsat5</span><span class="w"> </span><span class="kn">import</span> <span class="n">Landsat5</span>
+</span><span id="L-14"><a href="#L-14"><span class="linenos"> 14</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">.satellites.landsat7</span><span class="w"> </span><span class="kn">import</span> <span class="n">Landsat7</span>
+</span><span id="L-15"><a href="#L-15"><span class="linenos"> 15</span></a><span class="kn">from</span><span class="w"> </span><span class="nn">.satellites.sentinel2</span><span class="w"> </span><span class="kn">import</span> <span class="n">Sentinel2</span>
+</span><span id="L-16"><a href="#L-16"><span class="linenos"> 16</span></a>
+</span><span id="L-17"><a href="#L-17"><span class="linenos"> 17</span></a><span class="c1"># ---------------------------------------------------------------------------</span>
+</span><span id="L-18"><a href="#L-18"><span class="linenos"> 18</span></a><span class="c1"># Global band ordering</span>
+</span><span id="L-19"><a href="#L-19"><span class="linenos"> 19</span></a><span class="c1"># ---------------------------------------------------------------------------</span>
+</span><span id="L-20"><a href="#L-20"><span class="linenos"> 20</span></a>
+</span><span id="L-21"><a href="#L-21"><span class="linenos"> 21</span></a><span class="n">GLOBAL_BAND_IDS</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="L-22"><a href="#L-22"><span class="linenos"> 22</span></a>    <span class="s2">&quot;blue&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+</span><span id="L-23"><a href="#L-23"><span class="linenos"> 23</span></a>    <span class="s2">&quot;green&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span>
+</span><span id="L-24"><a href="#L-24"><span class="linenos"> 24</span></a>    <span class="s2">&quot;red&quot;</span><span class="p">:</span> <span class="mi">2</span><span class="p">,</span>
+</span><span id="L-25"><a href="#L-25"><span class="linenos"> 25</span></a>    <span class="s2">&quot;nir08&quot;</span><span class="p">:</span> <span class="mi">3</span><span class="p">,</span>
+</span><span id="L-26"><a href="#L-26"><span class="linenos"> 26</span></a>    <span class="s2">&quot;swir16&quot;</span><span class="p">:</span> <span class="mi">4</span><span class="p">,</span>
+</span><span id="L-27"><a href="#L-27"><span class="linenos"> 27</span></a>    <span class="s2">&quot;swir22&quot;</span><span class="p">:</span> <span class="mi">5</span><span class="p">,</span>
+</span><span id="L-28"><a href="#L-28"><span class="linenos"> 28</span></a><span class="p">}</span>
+</span><span id="L-29"><a href="#L-29"><span class="linenos"> 29</span></a>
+</span><span id="L-30"><a href="#L-30"><span class="linenos"> 30</span></a><span class="c1"># ---------------------------------------------------------------------------</span>
+</span><span id="L-31"><a href="#L-31"><span class="linenos"> 31</span></a><span class="c1"># Internal registry</span>
+</span><span id="L-32"><a href="#L-32"><span class="linenos"> 32</span></a><span class="c1"># ---------------------------------------------------------------------------</span>
+</span><span id="L-33"><a href="#L-33"><span class="linenos"> 33</span></a>
+</span><span id="L-34"><a href="#L-34"><span class="linenos"> 34</span></a><span class="n">_MISSION_REGISTRY</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">type</span><span class="p">[</span><span class="n">Mission</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="L-35"><a href="#L-35"><span class="linenos"> 35</span></a>    <span class="s2">&quot;sentinel-2&quot;</span><span class="p">:</span> <span class="n">Sentinel2</span><span class="p">,</span>
+</span><span id="L-36"><a href="#L-36"><span class="linenos"> 36</span></a>    <span class="s2">&quot;landsat-5&quot;</span><span class="p">:</span> <span class="n">Landsat5</span><span class="p">,</span>
+</span><span id="L-37"><a href="#L-37"><span class="linenos"> 37</span></a>    <span class="s2">&quot;landsat-7&quot;</span><span class="p">:</span> <span class="n">Landsat7</span><span class="p">,</span>
+</span><span id="L-38"><a href="#L-38"><span class="linenos"> 38</span></a><span class="p">}</span>
+</span><span id="L-39"><a href="#L-39"><span class="linenos"> 39</span></a>
+</span><span id="L-40"><a href="#L-40"><span class="linenos"> 40</span></a><span class="n">_MISSION_BY_ID</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">type</span><span class="p">[</span><span class="n">Mission</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{</span>
+</span><span id="L-41"><a href="#L-41"><span class="linenos"> 41</span></a>    <span class="mi">0</span><span class="p">:</span> <span class="n">Sentinel2</span><span class="p">,</span>
+</span><span id="L-42"><a href="#L-42"><span class="linenos"> 42</span></a>    <span class="mi">1</span><span class="p">:</span> <span class="n">Landsat5</span><span class="p">,</span>
+</span><span id="L-43"><a href="#L-43"><span class="linenos"> 43</span></a>    <span class="mi">2</span><span class="p">:</span> <span class="n">Landsat7</span><span class="p">,</span>
+</span><span id="L-44"><a href="#L-44"><span class="linenos"> 44</span></a><span class="p">}</span>
+</span><span id="L-45"><a href="#L-45"><span class="linenos"> 45</span></a>
+</span><span id="L-46"><a href="#L-46"><span class="linenos"> 46</span></a><span class="c1"># ---------------------------------------------------------------------------</span>
+</span><span id="L-47"><a href="#L-47"><span class="linenos"> 47</span></a><span class="c1"># Public factory functions</span>
+</span><span id="L-48"><a href="#L-48"><span class="linenos"> 48</span></a><span class="c1"># ---------------------------------------------------------------------------</span>
+</span><span id="L-49"><a href="#L-49"><span class="linenos"> 49</span></a>
+</span><span id="L-50"><a href="#L-50"><span class="linenos"> 50</span></a>
+</span><span id="L-51"><a href="#L-51"><span class="linenos"> 51</span></a><span class="k">def</span><span class="w"> </span><span class="nf">get_mission</span><span class="p">(</span><span class="n">mission</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Mission</span><span class="p">:</span>
+</span><span id="L-52"><a href="#L-52"><span class="linenos"> 52</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Return a Mission for the given slug.</span>
+</span><span id="L-53"><a href="#L-53"><span class="linenos"> 53</span></a>
+</span><span id="L-54"><a href="#L-54"><span class="linenos"> 54</span></a><span class="sd">    Args:</span>
+</span><span id="L-55"><a href="#L-55"><span class="linenos"> 55</span></a><span class="sd">        mission: e.g. ``&quot;sentinel-2&quot;``, ``&quot;landsat-5&quot;``, ``&quot;landsat-7&quot;``.</span>
+</span><span id="L-56"><a href="#L-56"><span class="linenos"> 56</span></a>
+</span><span id="L-57"><a href="#L-57"><span class="linenos"> 57</span></a><span class="sd">    Returns:</span>
+</span><span id="L-58"><a href="#L-58"><span class="linenos"> 58</span></a><span class="sd">        Mission: A fresh instance of the corresponding Mission subclass.</span>
+</span><span id="L-59"><a href="#L-59"><span class="linenos"> 59</span></a>
+</span><span id="L-60"><a href="#L-60"><span class="linenos"> 60</span></a><span class="sd">    Raises:</span>
+</span><span id="L-61"><a href="#L-61"><span class="linenos"> 61</span></a><span class="sd">        ValueError: If *mission* is not in the registry.</span>
+</span><span id="L-62"><a href="#L-62"><span class="linenos"> 62</span></a><span class="sd">    &quot;&quot;&quot;</span>
+</span><span id="L-63"><a href="#L-63"><span class="linenos"> 63</span></a>    <span class="k">if</span> <span class="n">mission</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_MISSION_REGISTRY</span><span class="p">:</span>
+</span><span id="L-64"><a href="#L-64"><span class="linenos"> 64</span></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+</span><span id="L-65"><a href="#L-65"><span class="linenos"> 65</span></a>            <span class="sa">f</span><span class="s2">&quot;Unsupported mission: &#39;</span><span class="si">{</span><span class="n">mission</span><span class="si">}</span><span class="s2">&#39;. &quot;</span>
+</span><span id="L-66"><a href="#L-66"><span class="linenos"> 66</span></a>            <span class="sa">f</span><span class="s2">&quot;Valid options are: </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="n">_MISSION_REGISTRY</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
+</span><span id="L-67"><a href="#L-67"><span class="linenos"> 67</span></a>        <span class="p">)</span>
+</span><span id="L-68"><a href="#L-68"><span class="linenos"> 68</span></a>    <span class="k">return</span> <span class="n">_MISSION_REGISTRY</span><span class="p">[</span><span class="n">mission</span><span class="p">]()</span>
+</span><span id="L-69"><a href="#L-69"><span class="linenos"> 69</span></a>
+</span><span id="L-70"><a href="#L-70"><span class="linenos"> 70</span></a>
+</span><span id="L-71"><a href="#L-71"><span class="linenos"> 71</span></a><span class="k">def</span><span class="w"> </span><span class="nf">get_mission_from_id</span><span class="p">(</span><span class="n">mission_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Mission</span><span class="p">:</span>
+</span><span id="L-72"><a href="#L-72"><span class="linenos"> 72</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Return a Mission for the given integer ID.</span>
+</span><span id="L-73"><a href="#L-73"><span class="linenos"> 73</span></a>
+</span><span id="L-74"><a href="#L-74"><span class="linenos"> 74</span></a><span class="sd">    Args:</span>
+</span><span id="L-75"><a href="#L-75"><span class="linenos"> 75</span></a><span class="sd">        mission_id: ``0`` → Sentinel-2, ``1`` → Landsat-5, ``2`` → Landsat-7.</span>
+</span><span id="L-76"><a href="#L-76"><span class="linenos"> 76</span></a>
+</span><span id="L-77"><a href="#L-77"><span class="linenos"> 77</span></a><span class="sd">    Returns:</span>
+</span><span id="L-78"><a href="#L-78"><span class="linenos"> 78</span></a><span class="sd">        Mission: A fresh instance of the corresponding Mission subclass.</span>
+</span><span id="L-79"><a href="#L-79"><span class="linenos"> 79</span></a>
+</span><span id="L-80"><a href="#L-80"><span class="linenos"> 80</span></a><span class="sd">    Raises:</span>
+</span><span id="L-81"><a href="#L-81"><span class="linenos"> 81</span></a><span class="sd">        KeyError: If *mission_id* has no registered mapping.</span>
+</span><span id="L-82"><a href="#L-82"><span class="linenos"> 82</span></a><span class="sd">    &quot;&quot;&quot;</span>
+</span><span id="L-83"><a href="#L-83"><span class="linenos"> 83</span></a>    <span class="k">if</span> <span class="n">mission_id</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_MISSION_BY_ID</span><span class="p">:</span>
+</span><span id="L-84"><a href="#L-84"><span class="linenos"> 84</span></a>        <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span>
+</span><span id="L-85"><a href="#L-85"><span class="linenos"> 85</span></a>            <span class="sa">f</span><span class="s2">&quot;Unknown mission ID: </span><span class="si">{</span><span class="n">mission_id</span><span class="si">}</span><span class="s2">. &quot;</span>
+</span><span id="L-86"><a href="#L-86"><span class="linenos"> 86</span></a>            <span class="sa">f</span><span class="s2">&quot;Valid IDs are: </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="n">_MISSION_BY_ID</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
+</span><span id="L-87"><a href="#L-87"><span class="linenos"> 87</span></a>        <span class="p">)</span>
+</span><span id="L-88"><a href="#L-88"><span class="linenos"> 88</span></a>    <span class="k">return</span> <span class="n">_MISSION_BY_ID</span><span class="p">[</span><span class="n">mission_id</span><span class="p">]()</span>
+</span><span id="L-89"><a href="#L-89"><span class="linenos"> 89</span></a>
+</span><span id="L-90"><a href="#L-90"><span class="linenos"> 90</span></a>
+</span><span id="L-91"><a href="#L-91"><span class="linenos"> 91</span></a><span class="k">def</span><span class="w"> </span><span class="nf">get_mission_from_path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Mission</span><span class="p">:</span>
+</span><span id="L-92"><a href="#L-92"><span class="linenos"> 92</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Infer a Mission from a file path.</span>
+</span><span id="L-93"><a href="#L-93"><span class="linenos"> 93</span></a>
+</span><span id="L-94"><a href="#L-94"><span class="linenos"> 94</span></a><span class="sd">    Searches the filename and parent directory name for a known mission slug.</span>
+</span><span id="L-95"><a href="#L-95"><span class="linenos"> 95</span></a>
+</span><span id="L-96"><a href="#L-96"><span class="linenos"> 96</span></a><span class="sd">    Args:</span>
+</span><span id="L-97"><a href="#L-97"><span class="linenos"> 97</span></a><span class="sd">        path: Path to a GeoTIFF whose name or parent directory encodes the mission.</span>
+</span><span id="L-98"><a href="#L-98"><span class="linenos"> 98</span></a>
+</span><span id="L-99"><a href="#L-99"><span class="linenos"> 99</span></a><span class="sd">    Returns:</span>
+</span><span id="L-100"><a href="#L-100"><span class="linenos">100</span></a><span class="sd">        Mission: A fresh instance of the matched Mission subclass.</span>
+</span><span id="L-101"><a href="#L-101"><span class="linenos">101</span></a>
+</span><span id="L-102"><a href="#L-102"><span class="linenos">102</span></a><span class="sd">    Raises:</span>
+</span><span id="L-103"><a href="#L-103"><span class="linenos">103</span></a><span class="sd">        ValueError: If no registered mission slug is found in the path.</span>
+</span><span id="L-104"><a href="#L-104"><span class="linenos">104</span></a><span class="sd">    &quot;&quot;&quot;</span>
+</span><span id="L-105"><a href="#L-105"><span class="linenos">105</span></a>    <span class="n">p</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+</span><span id="L-106"><a href="#L-106"><span class="linenos">106</span></a>    <span class="n">search_str</span> <span class="o">=</span> <span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">name</span> <span class="o">+</span> <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="n">p</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">name</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+</span><span id="L-107"><a href="#L-107"><span class="linenos">107</span></a>
+</span><span id="L-108"><a href="#L-108"><span class="linenos">108</span></a>    <span class="k">for</span> <span class="n">slug</span><span class="p">,</span> <span class="bp">cls</span> <span class="ow">in</span> <span class="n">_MISSION_REGISTRY</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+</span><span id="L-109"><a href="#L-109"><span class="linenos">109</span></a>        <span class="k">if</span> <span class="n">slug</span> <span class="ow">in</span> <span class="n">search_str</span><span class="p">:</span>
+</span><span id="L-110"><a href="#L-110"><span class="linenos">110</span></a>            <span class="k">return</span> <span class="bp">cls</span><span class="p">()</span>
+</span><span id="L-111"><a href="#L-111"><span class="linenos">111</span></a>
+</span><span id="L-112"><a href="#L-112"><span class="linenos">112</span></a>    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+</span><span id="L-113"><a href="#L-113"><span class="linenos">113</span></a>        <span class="sa">f</span><span class="s2">&quot;Cannot derive mission from path: &#39;</span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">&#39;. &quot;</span>
+</span><span id="L-114"><a href="#L-114"><span class="linenos">114</span></a>        <span class="sa">f</span><span class="s2">&quot;Expected one of </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="n">_MISSION_REGISTRY</span><span class="p">)</span><span class="si">}</span><span class="s2"> to appear in the &quot;</span>
+</span><span id="L-115"><a href="#L-115"><span class="linenos">115</span></a>        <span class="sa">f</span><span class="s2">&quot;filename or parent directory name.&quot;</span>
+</span><span id="L-116"><a href="#L-116"><span class="linenos">116</span></a>    <span class="p">)</span>
 </span></pre></div>
 
 
             </section>
                 <section id="GLOBAL_BAND_IDS">
                     <div class="attr variable">
-            <span class="name">GLOBAL_BAND_IDS</span>        =
+            <span class="name">GLOBAL_BAND_IDS</span><span class="annotation">: dict[str, int]</span>        =
 <span class="default_value">{&#39;blue&#39;: 0, &#39;green&#39;: 1, &#39;red&#39;: 2, &#39;nir08&#39;: 3, &#39;swir16&#39;: 4, &#39;swir22&#39;: 5}</span>
 
         
@@ -152,21 +214,39 @@
 
     </div>
     <a class="headerlink" href="#get_mission"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="get_mission-24"><a href="#get_mission-24"><span class="linenos">24</span></a><span class="k">def</span><span class="w"> </span><span class="nf">get_mission</span><span class="p">(</span><span class="n">mission</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Mission</span><span class="p">:</span>
-</span><span id="get_mission-25"><a href="#get_mission-25"><span class="linenos">25</span></a>    <span class="n">mission_map</span> <span class="o">=</span> <span class="p">{</span>
-</span><span id="get_mission-26"><a href="#get_mission-26"><span class="linenos">26</span></a>        <span class="s2">&quot;sentinel-2&quot;</span><span class="p">:</span> <span class="n">Sentinel2</span><span class="p">,</span>
-</span><span id="get_mission-27"><a href="#get_mission-27"><span class="linenos">27</span></a>        <span class="s2">&quot;landsat-5&quot;</span><span class="p">:</span> <span class="n">Landsat5</span><span class="p">,</span>
-</span><span id="get_mission-28"><a href="#get_mission-28"><span class="linenos">28</span></a>        <span class="s2">&quot;landsat-7&quot;</span><span class="p">:</span> <span class="n">Landsat7</span><span class="p">,</span>
-</span><span id="get_mission-29"><a href="#get_mission-29"><span class="linenos">29</span></a>    <span class="p">}</span>
-</span><span id="get_mission-30"><a href="#get_mission-30"><span class="linenos">30</span></a>
-</span><span id="get_mission-31"><a href="#get_mission-31"><span class="linenos">31</span></a>    <span class="k">if</span> <span class="n">mission</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">mission_map</span><span class="p">:</span>
-</span><span id="get_mission-32"><a href="#get_mission-32"><span class="linenos">32</span></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unsupported mission: </span><span class="si">{</span><span class="n">mission</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-</span><span id="get_mission-33"><a href="#get_mission-33"><span class="linenos">33</span></a>
-</span><span id="get_mission-34"><a href="#get_mission-34"><span class="linenos">34</span></a>    <span class="k">return</span> <span class="n">mission_map</span><span class="p">[</span><span class="n">mission</span><span class="p">]()</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="get_mission-52"><a href="#get_mission-52"><span class="linenos">52</span></a><span class="k">def</span><span class="w"> </span><span class="nf">get_mission</span><span class="p">(</span><span class="n">mission</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Mission</span><span class="p">:</span>
+</span><span id="get_mission-53"><a href="#get_mission-53"><span class="linenos">53</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Return a Mission for the given slug.</span>
+</span><span id="get_mission-54"><a href="#get_mission-54"><span class="linenos">54</span></a>
+</span><span id="get_mission-55"><a href="#get_mission-55"><span class="linenos">55</span></a><span class="sd">    Args:</span>
+</span><span id="get_mission-56"><a href="#get_mission-56"><span class="linenos">56</span></a><span class="sd">        mission: e.g. ``&quot;sentinel-2&quot;``, ``&quot;landsat-5&quot;``, ``&quot;landsat-7&quot;``.</span>
+</span><span id="get_mission-57"><a href="#get_mission-57"><span class="linenos">57</span></a>
+</span><span id="get_mission-58"><a href="#get_mission-58"><span class="linenos">58</span></a><span class="sd">    Returns:</span>
+</span><span id="get_mission-59"><a href="#get_mission-59"><span class="linenos">59</span></a><span class="sd">        Mission: A fresh instance of the corresponding Mission subclass.</span>
+</span><span id="get_mission-60"><a href="#get_mission-60"><span class="linenos">60</span></a>
+</span><span id="get_mission-61"><a href="#get_mission-61"><span class="linenos">61</span></a><span class="sd">    Raises:</span>
+</span><span id="get_mission-62"><a href="#get_mission-62"><span class="linenos">62</span></a><span class="sd">        ValueError: If *mission* is not in the registry.</span>
+</span><span id="get_mission-63"><a href="#get_mission-63"><span class="linenos">63</span></a><span class="sd">    &quot;&quot;&quot;</span>
+</span><span id="get_mission-64"><a href="#get_mission-64"><span class="linenos">64</span></a>    <span class="k">if</span> <span class="n">mission</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_MISSION_REGISTRY</span><span class="p">:</span>
+</span><span id="get_mission-65"><a href="#get_mission-65"><span class="linenos">65</span></a>        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+</span><span id="get_mission-66"><a href="#get_mission-66"><span class="linenos">66</span></a>            <span class="sa">f</span><span class="s2">&quot;Unsupported mission: &#39;</span><span class="si">{</span><span class="n">mission</span><span class="si">}</span><span class="s2">&#39;. &quot;</span>
+</span><span id="get_mission-67"><a href="#get_mission-67"><span class="linenos">67</span></a>            <span class="sa">f</span><span class="s2">&quot;Valid options are: </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="n">_MISSION_REGISTRY</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
+</span><span id="get_mission-68"><a href="#get_mission-68"><span class="linenos">68</span></a>        <span class="p">)</span>
+</span><span id="get_mission-69"><a href="#get_mission-69"><span class="linenos">69</span></a>    <span class="k">return</span> <span class="n">_MISSION_REGISTRY</span><span class="p">[</span><span class="n">mission</span><span class="p">]()</span>
 </span></pre></div>
 
 
-    
+            <div class="docstring"><p>Return a Mission for the given slug.</p>
+
+<p>Args:
+    mission: e.g. <code>"sentinel-2"</code>, <code>"landsat-5"</code>, <code>"landsat-7"</code>.</p>
+
+<p>Returns:
+    Mission: A fresh instance of the corresponding Mission subclass.</p>
+
+<p>Raises:
+    ValueError: If <em>mission</em> is not in the registry.</p>
+</div>
+
 
                 </section>
                 <section id="get_mission_from_id">
@@ -174,24 +254,45 @@
 <div class="attr function">
             
         <span class="def">def</span>
-        <span class="name">get_mission_from_id</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">mission</span><span class="p">:</span> <span class="nb">int</span></span><span class="return-annotation">) -> <span class="n">swmaps</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">satellites</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">Mission</span>:</span></span>
+        <span class="name">get_mission_from_id</span><span class="signature pdoc-code condensed">(<span class="param"><span class="n">mission_id</span><span class="p">:</span> <span class="nb">int</span></span><span class="return-annotation">) -> <span class="n">swmaps</span><span class="o">.</span><span class="n">core</span><span class="o">.</span><span class="n">satellites</span><span class="o">.</span><span class="n">base</span><span class="o">.</span><span class="n">Mission</span>:</span></span>
 
                 <label class="view-source-button" for="get_mission_from_id-view-source"><span>View Source</span></label>
 
     </div>
     <a class="headerlink" href="#get_mission_from_id"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="get_mission_from_id-37"><a href="#get_mission_from_id-37"><span class="linenos">37</span></a><span class="k">def</span><span class="w"> </span><span class="nf">get_mission_from_id</span><span class="p">(</span><span class="n">mission</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Mission</span><span class="p">:</span>
-</span><span id="get_mission_from_id-38"><a href="#get_mission_from_id-38"><span class="linenos">38</span></a>    <span class="n">missions</span> <span class="o">=</span> <span class="p">{</span>
-</span><span id="get_mission_from_id-39"><a href="#get_mission_from_id-39"><span class="linenos">39</span></a>        <span class="mi">0</span><span class="p">:</span> <span class="n">Sentinel2</span><span class="p">(),</span>
-</span><span id="get_mission_from_id-40"><a href="#get_mission_from_id-40"><span class="linenos">40</span></a>        <span class="mi">1</span><span class="p">:</span> <span class="n">Landsat5</span><span class="p">(),</span>
-</span><span id="get_mission_from_id-41"><a href="#get_mission_from_id-41"><span class="linenos">41</span></a>        <span class="mi">2</span><span class="p">:</span> <span class="n">Landsat7</span><span class="p">(),</span>
-</span><span id="get_mission_from_id-42"><a href="#get_mission_from_id-42"><span class="linenos">42</span></a>    <span class="p">}</span>
-</span><span id="get_mission_from_id-43"><a href="#get_mission_from_id-43"><span class="linenos">43</span></a>
-</span><span id="get_mission_from_id-44"><a href="#get_mission_from_id-44"><span class="linenos">44</span></a>    <span class="k">return</span> <span class="n">missions</span><span class="p">[</span><span class="n">mission</span><span class="p">]</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="get_mission_from_id-72"><a href="#get_mission_from_id-72"><span class="linenos">72</span></a><span class="k">def</span><span class="w"> </span><span class="nf">get_mission_from_id</span><span class="p">(</span><span class="n">mission_id</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Mission</span><span class="p">:</span>
+</span><span id="get_mission_from_id-73"><a href="#get_mission_from_id-73"><span class="linenos">73</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Return a Mission for the given integer ID.</span>
+</span><span id="get_mission_from_id-74"><a href="#get_mission_from_id-74"><span class="linenos">74</span></a>
+</span><span id="get_mission_from_id-75"><a href="#get_mission_from_id-75"><span class="linenos">75</span></a><span class="sd">    Args:</span>
+</span><span id="get_mission_from_id-76"><a href="#get_mission_from_id-76"><span class="linenos">76</span></a><span class="sd">        mission_id: ``0`` → Sentinel-2, ``1`` → Landsat-5, ``2`` → Landsat-7.</span>
+</span><span id="get_mission_from_id-77"><a href="#get_mission_from_id-77"><span class="linenos">77</span></a>
+</span><span id="get_mission_from_id-78"><a href="#get_mission_from_id-78"><span class="linenos">78</span></a><span class="sd">    Returns:</span>
+</span><span id="get_mission_from_id-79"><a href="#get_mission_from_id-79"><span class="linenos">79</span></a><span class="sd">        Mission: A fresh instance of the corresponding Mission subclass.</span>
+</span><span id="get_mission_from_id-80"><a href="#get_mission_from_id-80"><span class="linenos">80</span></a>
+</span><span id="get_mission_from_id-81"><a href="#get_mission_from_id-81"><span class="linenos">81</span></a><span class="sd">    Raises:</span>
+</span><span id="get_mission_from_id-82"><a href="#get_mission_from_id-82"><span class="linenos">82</span></a><span class="sd">        KeyError: If *mission_id* has no registered mapping.</span>
+</span><span id="get_mission_from_id-83"><a href="#get_mission_from_id-83"><span class="linenos">83</span></a><span class="sd">    &quot;&quot;&quot;</span>
+</span><span id="get_mission_from_id-84"><a href="#get_mission_from_id-84"><span class="linenos">84</span></a>    <span class="k">if</span> <span class="n">mission_id</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_MISSION_BY_ID</span><span class="p">:</span>
+</span><span id="get_mission_from_id-85"><a href="#get_mission_from_id-85"><span class="linenos">85</span></a>        <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span>
+</span><span id="get_mission_from_id-86"><a href="#get_mission_from_id-86"><span class="linenos">86</span></a>            <span class="sa">f</span><span class="s2">&quot;Unknown mission ID: </span><span class="si">{</span><span class="n">mission_id</span><span class="si">}</span><span class="s2">. &quot;</span>
+</span><span id="get_mission_from_id-87"><a href="#get_mission_from_id-87"><span class="linenos">87</span></a>            <span class="sa">f</span><span class="s2">&quot;Valid IDs are: </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="n">_MISSION_BY_ID</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
+</span><span id="get_mission_from_id-88"><a href="#get_mission_from_id-88"><span class="linenos">88</span></a>        <span class="p">)</span>
+</span><span id="get_mission_from_id-89"><a href="#get_mission_from_id-89"><span class="linenos">89</span></a>    <span class="k">return</span> <span class="n">_MISSION_BY_ID</span><span class="p">[</span><span class="n">mission_id</span><span class="p">]()</span>
 </span></pre></div>
 
 
-    
+            <div class="docstring"><p>Return a Mission for the given integer ID.</p>
+
+<p>Args:
+    mission_id: <code>0</code> → Sentinel-2, <code>1</code> → Landsat-5, <code>2</code> → Landsat-7.</p>
+
+<p>Returns:
+    Mission: A fresh instance of the corresponding Mission subclass.</p>
+
+<p>Raises:
+    KeyError: If <em>mission_id</em> has no registered mapping.</p>
+</div>
+
 
                 </section>
                 <section id="get_mission_from_path">
@@ -205,26 +306,47 @@
 
     </div>
     <a class="headerlink" href="#get_mission_from_path"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="get_mission_from_path-47"><a href="#get_mission_from_path-47"><span class="linenos">47</span></a><span class="k">def</span><span class="w"> </span><span class="nf">get_mission_from_path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Mission</span><span class="p">:</span>
-</span><span id="get_mission_from_path-48"><a href="#get_mission_from_path-48"><span class="linenos">48</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-</span><span id="get_mission_from_path-49"><a href="#get_mission_from_path-49"><span class="linenos">49</span></a><span class="sd">    Derives the Mission object from a file path.</span>
-</span><span id="get_mission_from_path-50"><a href="#get_mission_from_path-50"><span class="linenos">50</span></a><span class="sd">    Matches against known mission slugs in the mission map.</span>
-</span><span id="get_mission_from_path-51"><a href="#get_mission_from_path-51"><span class="linenos">51</span></a><span class="sd">    &quot;&quot;&quot;</span>
-</span><span id="get_mission_from_path-52"><a href="#get_mission_from_path-52"><span class="linenos">52</span></a>    <span class="n">name</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
-</span><span id="get_mission_from_path-53"><a href="#get_mission_from_path-53"><span class="linenos">53</span></a>    <span class="n">mission_map</span> <span class="o">=</span> <span class="p">{</span>
-</span><span id="get_mission_from_path-54"><a href="#get_mission_from_path-54"><span class="linenos">54</span></a>        <span class="s2">&quot;sentinel-2&quot;</span><span class="p">:</span> <span class="n">Sentinel2</span><span class="p">,</span>
-</span><span id="get_mission_from_path-55"><a href="#get_mission_from_path-55"><span class="linenos">55</span></a>        <span class="s2">&quot;landsat-5&quot;</span><span class="p">:</span> <span class="n">Landsat5</span><span class="p">,</span>
-</span><span id="get_mission_from_path-56"><a href="#get_mission_from_path-56"><span class="linenos">56</span></a>        <span class="s2">&quot;landsat-7&quot;</span><span class="p">:</span> <span class="n">Landsat7</span><span class="p">,</span>
-</span><span id="get_mission_from_path-57"><a href="#get_mission_from_path-57"><span class="linenos">57</span></a>    <span class="p">}</span>
-</span><span id="get_mission_from_path-58"><a href="#get_mission_from_path-58"><span class="linenos">58</span></a>    <span class="k">for</span> <span class="n">slug</span><span class="p">,</span> <span class="bp">cls</span> <span class="ow">in</span> <span class="n">mission_map</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
-</span><span id="get_mission_from_path-59"><a href="#get_mission_from_path-59"><span class="linenos">59</span></a>        <span class="k">if</span> <span class="n">slug</span> <span class="ow">in</span> <span class="n">name</span><span class="p">:</span>
-</span><span id="get_mission_from_path-60"><a href="#get_mission_from_path-60"><span class="linenos">60</span></a>            <span class="k">return</span> <span class="bp">cls</span><span class="p">()</span>
-</span><span id="get_mission_from_path-61"><a href="#get_mission_from_path-61"><span class="linenos">61</span></a>    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Cannot derive mission from path: </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="get_mission_from_path-92"><a href="#get_mission_from_path-92"><span class="linenos"> 92</span></a><span class="k">def</span><span class="w"> </span><span class="nf">get_mission_from_path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Mission</span><span class="p">:</span>
+</span><span id="get_mission_from_path-93"><a href="#get_mission_from_path-93"><span class="linenos"> 93</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Infer a Mission from a file path.</span>
+</span><span id="get_mission_from_path-94"><a href="#get_mission_from_path-94"><span class="linenos"> 94</span></a>
+</span><span id="get_mission_from_path-95"><a href="#get_mission_from_path-95"><span class="linenos"> 95</span></a><span class="sd">    Searches the filename and parent directory name for a known mission slug.</span>
+</span><span id="get_mission_from_path-96"><a href="#get_mission_from_path-96"><span class="linenos"> 96</span></a>
+</span><span id="get_mission_from_path-97"><a href="#get_mission_from_path-97"><span class="linenos"> 97</span></a><span class="sd">    Args:</span>
+</span><span id="get_mission_from_path-98"><a href="#get_mission_from_path-98"><span class="linenos"> 98</span></a><span class="sd">        path: Path to a GeoTIFF whose name or parent directory encodes the mission.</span>
+</span><span id="get_mission_from_path-99"><a href="#get_mission_from_path-99"><span class="linenos"> 99</span></a>
+</span><span id="get_mission_from_path-100"><a href="#get_mission_from_path-100"><span class="linenos">100</span></a><span class="sd">    Returns:</span>
+</span><span id="get_mission_from_path-101"><a href="#get_mission_from_path-101"><span class="linenos">101</span></a><span class="sd">        Mission: A fresh instance of the matched Mission subclass.</span>
+</span><span id="get_mission_from_path-102"><a href="#get_mission_from_path-102"><span class="linenos">102</span></a>
+</span><span id="get_mission_from_path-103"><a href="#get_mission_from_path-103"><span class="linenos">103</span></a><span class="sd">    Raises:</span>
+</span><span id="get_mission_from_path-104"><a href="#get_mission_from_path-104"><span class="linenos">104</span></a><span class="sd">        ValueError: If no registered mission slug is found in the path.</span>
+</span><span id="get_mission_from_path-105"><a href="#get_mission_from_path-105"><span class="linenos">105</span></a><span class="sd">    &quot;&quot;&quot;</span>
+</span><span id="get_mission_from_path-106"><a href="#get_mission_from_path-106"><span class="linenos">106</span></a>    <span class="n">p</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+</span><span id="get_mission_from_path-107"><a href="#get_mission_from_path-107"><span class="linenos">107</span></a>    <span class="n">search_str</span> <span class="o">=</span> <span class="p">(</span><span class="n">p</span><span class="o">.</span><span class="n">name</span> <span class="o">+</span> <span class="s2">&quot;/&quot;</span> <span class="o">+</span> <span class="n">p</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">name</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+</span><span id="get_mission_from_path-108"><a href="#get_mission_from_path-108"><span class="linenos">108</span></a>
+</span><span id="get_mission_from_path-109"><a href="#get_mission_from_path-109"><span class="linenos">109</span></a>    <span class="k">for</span> <span class="n">slug</span><span class="p">,</span> <span class="bp">cls</span> <span class="ow">in</span> <span class="n">_MISSION_REGISTRY</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+</span><span id="get_mission_from_path-110"><a href="#get_mission_from_path-110"><span class="linenos">110</span></a>        <span class="k">if</span> <span class="n">slug</span> <span class="ow">in</span> <span class="n">search_str</span><span class="p">:</span>
+</span><span id="get_mission_from_path-111"><a href="#get_mission_from_path-111"><span class="linenos">111</span></a>            <span class="k">return</span> <span class="bp">cls</span><span class="p">()</span>
+</span><span id="get_mission_from_path-112"><a href="#get_mission_from_path-112"><span class="linenos">112</span></a>
+</span><span id="get_mission_from_path-113"><a href="#get_mission_from_path-113"><span class="linenos">113</span></a>    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+</span><span id="get_mission_from_path-114"><a href="#get_mission_from_path-114"><span class="linenos">114</span></a>        <span class="sa">f</span><span class="s2">&quot;Cannot derive mission from path: &#39;</span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">&#39;. &quot;</span>
+</span><span id="get_mission_from_path-115"><a href="#get_mission_from_path-115"><span class="linenos">115</span></a>        <span class="sa">f</span><span class="s2">&quot;Expected one of </span><span class="si">{</span><span class="nb">sorted</span><span class="p">(</span><span class="n">_MISSION_REGISTRY</span><span class="p">)</span><span class="si">}</span><span class="s2"> to appear in the &quot;</span>
+</span><span id="get_mission_from_path-116"><a href="#get_mission_from_path-116"><span class="linenos">116</span></a>        <span class="sa">f</span><span class="s2">&quot;filename or parent directory name.&quot;</span>
+</span><span id="get_mission_from_path-117"><a href="#get_mission_from_path-117"><span class="linenos">117</span></a>    <span class="p">)</span>
 </span></pre></div>
 
 
-            <div class="docstring"><p>Derives the Mission object from a file path.
-Matches against known mission slugs in the mission map.</p>
+            <div class="docstring"><p>Infer a Mission from a file path.</p>
+
+<p>Searches the filename and parent directory name for a known mission slug.</p>
+
+<p>Args:
+    path: Path to a GeoTIFF whose name or parent directory encodes the mission.</p>
+
+<p>Returns:
+    Mission: A fresh instance of the matched Mission subclass.</p>
+
+<p>Raises:
+    ValueError: If no registered mission slug is found in the path.</p>
 </div>
 
 

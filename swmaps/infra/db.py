@@ -242,6 +242,113 @@ def fetch_scenes_intersecting(conn, bbox: tuple) -> list:
         return cursor.fetchall()
 
 
+def fetch_scenes(
+    conn,
+    bbox: tuple | None = None,
+    lat: float | None = None,
+    lon: float | None = None,
+    radius_km: float | None = None,
+    sensor: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    status: str = "active",
+) -> list:
+    """Query imagery scenes with spatial and optional attribute filters.
+
+    Requires either *bbox* or all three of *lat*, *lon*, and *radius_km*
+    to anchor the spatial query.
+
+    Args:
+        conn: Open psycopg2 connection.
+        bbox: Bounding box as ``(min_lon, min_lat, max_lon, max_lat)``
+            in EPSG:4326.
+        lat: Centre latitude in decimal degrees. Used with *lon* and
+            *radius_km* as an alternative to *bbox*.
+        lon: Centre longitude in decimal degrees.
+        radius_km: Search radius in kilometres around *lat*/*lon*.
+        sensor: Filter by mission slug, e.g. ``"sentinel-2"``. Returns
+            all sensors when ``None``.
+        date_from: ISO-8601 start date, inclusive e.g. ``"2020-01-01"``.
+        date_to: ISO-8601 end date, inclusive e.g. ``"2021-12-31"``.
+        status: Filter by scene status. Defaults to ``"active"``.
+
+    Returns:
+        list[dict]: Matching imagery rows.
+
+    Raises:
+        ValueError: If neither *bbox* nor *lat*/*lon*/*radius_km* is provided.
+    """
+    if bbox is None:
+        if lat is None or lon is None or radius_km is None:
+            raise ValueError(
+                "Provide either 'bbox' or all of 'lat', 'lon', and 'radius_km'."
+            )
+        deg = radius_km / 111.0
+        bbox = (lon - deg, lat - deg, lon + deg, lat + deg)
+
+    conditions = [
+        "ST_Intersects(location, ST_MakeEnvelope(%s, %s, %s, %s, 4326))",
+        "status = %s",
+    ]
+    params = [*bbox, status]
+
+    if sensor:
+        conditions.append("sensor = %s")
+        params.append(sensor)
+    if date_from:
+        conditions.append("acquisition_date >= %s")
+        params.append(date_from)
+    if date_to:
+        conditions.append("acquisition_date <= %s")
+        params.append(date_to)
+
+    sql = f"""
+        SELECT * FROM imagery
+        WHERE {" AND ".join(conditions)}
+        ORDER BY acquisition_date DESC;
+    """
+    with conn.cursor() as cursor:
+        cursor.execute(sql, params)
+        return cursor.fetchall()
+
+
+def fetch_scene(conn, scene_id: str) -> dict | None:
+    """Fetch a single imagery scene by its scene ID.
+
+    Args:
+        conn: Open psycopg2 connection.
+        scene_id: GEE scene identifier.
+
+    Returns:
+        dict | None: The matching imagery row, or ``None`` if not found.
+    """
+    sql = "SELECT * FROM imagery WHERE scene_id = %s;"
+    with conn.cursor() as cursor:
+        cursor.execute(sql, (scene_id,))
+        return cursor.fetchone()
+
+
+def fetch_scene_products(conn, scene_id: str) -> list:
+    """Fetch all processed products for a given scene.
+
+    Args:
+        conn: Open psycopg2 connection.
+        scene_id: GEE scene identifier.
+
+    Returns:
+        list[dict]: All ``processed_products`` rows for this scene, ordered
+        by start time descending.
+    """
+    sql = """
+        SELECT * FROM processed_products
+        WHERE base_scene_id = %s
+        ORDER BY started_at DESC;
+    """
+    with conn.cursor() as cursor:
+        cursor.execute(sql, (scene_id,))
+        return cursor.fetchall()
+
+
 def register_scene(
     conn,
     image_id: str,
@@ -462,6 +569,112 @@ def fetch_imagery_near_sample(
         return cursor.fetchall()
 
 
+def fetch_salinity_profiles(
+    conn,
+    bbox: tuple | None = None,
+    lat: float | None = None,
+    lon: float | None = None,
+    radius_km: float | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    min_salinity: float | None = None,
+    max_salinity: float | None = None,
+) -> list:
+    """Query salinity profiles with spatial and optional attribute filters.
+
+    Requires either *bbox* or all three of *lat*, *lon*, and *radius_km*.
+
+    Args:
+        conn: Open psycopg2 connection.
+        bbox: Bounding box as ``(min_lon, min_lat, max_lon, max_lat)``
+            in EPSG:4326.
+        lat: Centre latitude in decimal degrees.
+        lon: Centre longitude in decimal degrees.
+        radius_km: Search radius in kilometres around *lat*/*lon*.
+        date_from: ISO-8601 start date, inclusive.
+        date_to: ISO-8601 end date, inclusive.
+        min_salinity: Minimum surface salinity in PSU, inclusive.
+        max_salinity: Maximum surface salinity in PSU, inclusive.
+
+    Returns:
+        list[dict]: Matching salinity profile rows ordered by sample date
+        descending.
+
+    Raises:
+        ValueError: If neither *bbox* nor *lat*/*lon*/*radius_km* is provided.
+    """
+    if bbox is None:
+        if lat is None or lon is None or radius_km is None:
+            raise ValueError(
+                "Provide either 'bbox' or all of 'lat', 'lon', and 'radius_km'."
+            )
+        deg = radius_km / 111.0
+        bbox = (lon - deg, lat - deg, lon + deg, lat + deg)
+
+    conditions = [
+        "ST_Intersects(location, ST_MakeEnvelope(%s, %s, %s, %s, 4326))",
+    ]
+    params = [*bbox]
+
+    if date_from:
+        conditions.append("sample_date >= %s")
+        params.append(date_from)
+    if date_to:
+        conditions.append("sample_date <= %s")
+        params.append(date_to)
+    if min_salinity is not None:
+        conditions.append("surface_salinity >= %s")
+        params.append(min_salinity)
+    if max_salinity is not None:
+        conditions.append("surface_salinity <= %s")
+        params.append(max_salinity)
+
+    sql = f"""
+        SELECT * FROM salinity_profiles
+        WHERE {" AND ".join(conditions)}
+        ORDER BY sample_date DESC;
+    """
+    with conn.cursor() as cursor:
+        cursor.execute(sql, params)
+        return cursor.fetchall()
+
+
+def fetch_salinity_profile(conn, cast_id: str) -> dict | None:
+    """Fetch a single salinity profile by cast ID.
+
+    Args:
+        conn: Open psycopg2 connection.
+        cast_id: Unique cast identifier.
+
+    Returns:
+        dict | None: The matching profile row, or ``None`` if not found.
+    """
+    sql = "SELECT * FROM salinity_profiles WHERE cast_id = %s;"
+    with conn.cursor() as cursor:
+        cursor.execute(sql, (cast_id,))
+        return cursor.fetchone()
+
+
+def fetch_depth_profile(conn, cast_id: str) -> list:
+    """Fetch all depth levels for a single salinity cast.
+
+    Args:
+        conn: Open psycopg2 connection.
+        cast_id: Cast identifier matching a row in ``salinity_profiles``.
+
+    Returns:
+        list[dict]: Depth profile rows ordered by depth ascending.
+    """
+    sql = """
+        SELECT * FROM salinity_depth_profiles
+        WHERE cast_id = %s
+        ORDER BY depth_m ASC;
+    """
+    with conn.cursor() as cursor:
+        cursor.execute(sql, (cast_id,))
+        return cursor.fetchall()
+
+
 def seed_task_types(conn) -> None:
     """Seed the ``task_types`` table from ``config/processing_tasks.toml``.
 
@@ -587,6 +800,64 @@ def update_processing_run(
         cursor.execute(sql, (status, output_paths, error_message, status, product_id))
         conn.commit()
         return cursor.fetchone()
+
+
+def fetch_processing_run(conn, product_id: str) -> dict | None:
+    """Fetch a single processing run by product ID.
+
+    Args:
+        conn: Open psycopg2 connection.
+        product_id: Product identifier returned by
+            :func:`register_processing_run`.
+
+    Returns:
+        dict | None: The matching ``processed_products`` row, or ``None``
+        if not found.
+    """
+    sql = "SELECT * FROM processed_products WHERE product_id = %s;"
+    with conn.cursor() as cursor:
+        cursor.execute(sql, (product_id,))
+        return cursor.fetchone()
+
+
+def fetch_processing_runs(
+    conn,
+    task: str | None = None,
+    status: str | None = None,
+) -> list:
+    """Fetch processing runs with optional task and status filters.
+
+    Args:
+        conn: Open psycopg2 connection.
+        task: Filter by task name, e.g. ``"water_mask"``. Returns all
+            tasks when ``None``.
+        status: Filter by status — one of ``"not_started"``, ``"running"``,
+            ``"complete"``, ``"failed"``. Returns all statuses when ``None``.
+
+    Returns:
+        list[dict]: Matching ``processed_products`` rows ordered by start
+        time descending.
+    """
+    conditions = []
+    params = []
+
+    if task:
+        conditions.append("task = %s")
+        params.append(task)
+    if status:
+        conditions.append("status = %s")
+        params.append(status)
+
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+
+    sql = f"""
+        SELECT * FROM processed_products
+        {where}
+        ORDER BY started_at DESC;
+    """
+    with conn.cursor() as cursor:
+        cursor.execute(sql, params)
+        return cursor.fetchall()
 
 
 def fetch_unprocessed_scenes(conn, task: str, parameters: dict = None) -> list:

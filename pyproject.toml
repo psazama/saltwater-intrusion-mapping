@@ -3,6 +3,7 @@ name = "swmaps"
 version = "0.1.0"
 dependencies = [
     "dask",
+    "fastapi",
     "flask",
     "earthengine-api",
     "numpy",
@@ -16,6 +17,7 @@ dependencies = [
     "xarray",
     "scikit-learn",
     "tqdm",
+    "uvicorn",
     "xgboost",
 ]
 

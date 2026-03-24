@@ -406,3 +406,182 @@ class WorkflowConfig(BaseModel):
             salinity=SalinityConfig.from_dict(d),
             trend=TrendConfig.from_dict(d),
         )
+
+
+# ---------------------------------------------------------------------------
+# API response models
+# ---------------------------------------------------------------------------
+
+
+class SceneResponse(BaseModel):
+    """API response model for a single imagery scene.
+
+    Attributes:
+        scene_id: GEE scene identifier.
+        sensor: Mission slug, e.g. ``"sentinel-2"``.
+        acquisition_date: ISO-8601 acquisition date.
+        band_count: Number of spectral bands.
+        crs: Coordinate reference system string.
+        status: One of ``"active"``, ``"missing"``, ``"archived"``.
+        file_locations: List of file paths or ``gs://`` URIs.
+        ingest_timestamp: When the scene was registered.
+        version_no: Incremented when the file hash changes on re-ingest.
+    """
+
+    scene_id: str
+    sensor: str
+    acquisition_date: str
+    band_count: Optional[int] = None
+    crs: Optional[str] = None
+    status: str
+    file_locations: List[str]
+    ingest_timestamp: Optional[str] = None
+    version_no: int = 1
+
+    @classmethod
+    def from_row(cls, row: dict) -> SceneResponse:
+        """Construct from a psycopg2 RealDictRow.
+
+        Args:
+            row: Database row dict from :func:`~swmaps.infra.db.fetch_scene`.
+
+        Returns:
+            SceneResponse: Validated response model instance.
+        """
+        return cls(
+            scene_id=row["scene_id"],
+            sensor=row["sensor"],
+            acquisition_date=str(row["acquisition_date"]),
+            band_count=row.get("band_count"),
+            crs=row.get("crs"),
+            status=row["status"],
+            file_locations=row["file_locations"],
+            ingest_timestamp=(
+                str(row["ingest_timestamp"]) if row.get("ingest_timestamp") else None
+            ),
+            version_no=row.get("version_no", 1),
+        )
+
+
+class SalinityProfileResponse(BaseModel):
+    """API response model for a single salinity profile.
+
+    Attributes:
+        cast_id: Unique cast identifier.
+        sample_date: ISO-8601 sample date.
+        surface_salinity: Near-surface salinity in PSU.
+        max_depth: Maximum sampling depth in metres.
+        source_file: Source NetCDF filename.
+        ingested_at: When the profile was registered.
+    """
+
+    cast_id: str
+    sample_date: str
+    surface_salinity: float
+    max_depth: Optional[float] = None
+    source_file: str
+    ingested_at: Optional[str] = None
+
+    @classmethod
+    def from_row(cls, row: dict) -> SalinityProfileResponse:
+        """Construct from a psycopg2 RealDictRow.
+
+        Args:
+            row: Database row dict from
+                :func:`~swmaps.infra.db.fetch_salinity_profile`.
+
+        Returns:
+            SalinityProfileResponse: Validated response model instance.
+        """
+        return cls(
+            cast_id=row["cast_id"],
+            sample_date=str(row["sample_date"]),
+            surface_salinity=row["surface_salinity"],
+            max_depth=row.get("max_depth"),
+            source_file=row["source_file"],
+            ingested_at=str(row["ingested_at"]) if row.get("ingested_at") else None,
+        )
+
+
+class DepthProfileResponse(BaseModel):
+    """API response model for a single depth level in a salinity cast.
+
+    Attributes:
+        cast_id: Parent cast identifier.
+        depth_m: Sampling depth in metres.
+        salinity: Salinity observation in PSU.
+        temperature: Temperature observation in degrees Celsius.
+    """
+
+    cast_id: str
+    depth_m: float
+    salinity: Optional[float] = None
+    temperature: Optional[float] = None
+
+    @classmethod
+    def from_row(cls, row: dict) -> DepthProfileResponse:
+        """Construct from a psycopg2 RealDictRow.
+
+        Args:
+            row: Database row dict from
+                :func:`~swmaps.infra.db.fetch_depth_profile`.
+
+        Returns:
+            DepthProfileResponse: Validated response model instance.
+        """
+        return cls(
+            cast_id=row["cast_id"],
+            depth_m=row["depth_m"],
+            salinity=row.get("salinity"),
+            temperature=row.get("temperature"),
+        )
+
+
+class ProcessingRunResponse(BaseModel):
+    """API response model for a single processing run.
+
+    Attributes:
+        product_id: Unique product identifier.
+        base_scene_id: Scene this product was derived from.
+        task: Pipeline task name, e.g. ``"water_mask"``.
+        status: One of ``"not_started"``, ``"running"``, ``"complete"``,
+            ``"failed"``.
+        started_at: When the run was registered.
+        completed_at: When the run finished, or ``None`` if still running.
+        output_paths: List of output file paths or ``gs://`` URIs.
+        error_message: Error description when status is ``"failed"``.
+        parameters: Task parameters used for this run.
+    """
+
+    product_id: str
+    base_scene_id: str
+    task: str
+    status: str
+    started_at: Optional[str] = None
+    completed_at: Optional[str] = None
+    output_paths: Optional[List[str]] = None
+    error_message: Optional[str] = None
+    parameters: Optional[dict] = None
+
+    @classmethod
+    def from_row(cls, row: dict) -> ProcessingRunResponse:
+        """Construct from a psycopg2 RealDictRow.
+
+        Args:
+            row: Database row dict from
+                :func:`~swmaps.infra.db.fetch_processing_run`.
+
+        Returns:
+            ProcessingRunResponse: Validated response model instance.
+        """
+        return cls(
+            product_id=row["product_id"],
+            base_scene_id=row["base_scene_id"],
+            task=row["task"],
+            status=row["status"],
+            started_at=str(row["started_at"]) if row.get("started_at") else None,
+            completed_at=str(row["completed_at"]) if row.get("completed_at") else None,
+            output_paths=row.get("output_paths"),
+            error_message=row.get("error_message"),
+            parameters=row.get("parameters"),
+        )

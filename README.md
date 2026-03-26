@@ -18,6 +18,20 @@ This repository integrates Google Earth Engine (GEE) data acquisition, supervise
 
 ---
 
+## 📝 Changelog
+### 0.0.2 (March 2026)
+
+#### Added
+- **API Integration:** FastAPI application (`swmaps/api.py`) exposes pipeline functionality and database queries via HTTP endpoints
+- **Typed Configuration:** Pydantic models (`swmaps/schema.py`) for type-checked configuration of all pipeline steps
+- **Database Tracking:** `track_pipeline_run` context manager and query functions in `swmaps/infra/db.py`
+- **Pipeline Registry:** Centralized task definitions in `swmaps/pipeline/registry.py` for easier extension
+
+#### Changed
+- **Workflow Runner:** Refactored `examples/workflow_runner.py` to use Pydantic schemas and modular execution
+- **Mission Classes:** Enhanced `swmaps/core/satellites/base.py` with type hints, docstrings, and standardized `read_bands` method
+- **Salinity Model:** Separated core prediction logic from I/O in `swmaps/models/salinity_heuristic.py`
+
 ## 🚀 Quick Start
 
 ### 1. Environment Setup 🛠️
@@ -89,13 +103,21 @@ This workflow will:
 .
 ├── swmaps/                   # Main package source
 │   ├── core/                 # GEE logic, satellites (L5, S2, L7), & spectral indices
+│   │   └── satellites/       # Updated with standardized read_bands & type hints
 │   ├── datasets/             # Data loaders for CDL, NLCD, and Salinity truth
-│   ├── models/               # FarSeg, SAM, training logic, and inference
-│   └── pipeline/             # Workflow stages (Trend, Masks, Salinity, Download)
+│   ├── models/               # FarSeg, SAM, training logic, and salinity heuristics
+│   │   └── salinity_heuristic.py # Refactored for pure function logic
+│   ├── infra/                # Database interactions (new)
+│   │   └── db.py             # Run tracking & scene querying
+│   ├── pipeline/             # Workflow stages & new Registry
+│   │   └── registry.py       # Centralized task definitions
+│   ├── api.py                # FastAPI application for HTTP endpoints (new)
+│   └── schema.py             # Pydantic configuration models (new)
 ├── config/                   # GeoJSON and GPKG region definitions
 ├── deploy/                   # Vertex AI deployment & hyperparameter search scripts
 ├── docs/                     # HTML documentation and API references
-├── examples/                 # TOML configs and workflow runner entry points
+├── examples/                 # TOML configs and refactored workflow runner
+│   └── workflow_runner.py    # Now uses Pydantic schemas
 ├── notebooks/                # Visualization and output exploration tools
 ├── tests/                    # Pytest suite
 └── pyproject.toml            # Build system and dependencies
@@ -112,6 +134,8 @@ This workflow will:
 | **🧂 Salinity** | Heuristic spectral classification using SWIR and turbidity proxies |
 | **🌊 Water Masking** | NDWI-based water extent and temporal trend heatmaps |
 | **☁️ Scaling** | One-command deployment to Vertex AI for A100 GPU training |
+| **🔌 API Access** | New: FastAPI endpoints for programmatic pipeline control and data catalog queries |
+| **⚙️ Config Validation** |	New: Pydantic-based schemas ensuring type-safe configuration for all pipeline steps. |
 
 ---
 

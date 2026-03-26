@@ -22,14 +22,15 @@ from PIL import Image
 from tqdm import tqdm
 
 from swmaps.core.indices import compute_ndwi
-from swmaps.core.missions import get_mission_from_path
+from swmaps.core.missions import get_mission_from_path, scene_id_from_path
 from swmaps.core.trend import check_image_for_nans, check_image_for_valid_signal
+from swmaps.infra.db import track_pipeline_run
 from swmaps.schema import PipelineResult
 
 logger = logging.getLogger(__name__)
 
 
-def generate_water_mask(mosaic: str | Path) -> PipelineResult:
+def generate_water_mask(mosaic: str | Path, conn=None) -> PipelineResult:
     """Generate an NDWI water mask for a single mosaic GeoTIFF.
 
     Validates the mosaic for NaNs and signal before computing the mask.
@@ -58,8 +59,14 @@ def generate_water_mask(mosaic: str | Path) -> PipelineResult:
             f"Mosaic {mosaic.name} has no valid signal - skipping."
         )
 
-    out_mask = mosaic.with_name(f"{mosaic.stem}_mask.tif")
-    compute_ndwi(str(mosaic), mission, str(out_mask), display=False)
+    try:
+        scene_id = scene_id_from_path(mosaic)
+    except ValueError:
+        scene_id = mosaic.stem
+
+    with track_pipeline_run(conn, scene_id, "water_mask"):
+        out_mask = mosaic.with_name(f"{mosaic.stem}_mask.tif")
+        compute_ndwi(str(mosaic), mission, str(out_mask), display=False)
 
     return PipelineResult.ok([out_mask], mission=mission)
 
@@ -68,6 +75,7 @@ def run_water_masks(
     mosaics: Path | list[Path],
     center_size: int | None = None,
     write_png: bool = True,
+    conn=None,
 ) -> PipelineResult:
     """Generate NDWI water masks for one or more mosaics.
 
@@ -119,14 +127,20 @@ def run_water_masks(
             skipped += 1
             continue
 
-        out_mask = tif.with_name(f"{tif.stem}_mask.tif")
-        compute_ndwi(
-            str(tif),
-            mission,
-            str(out_mask),
-            display=False,
-            center_size=center_size,
-        )
+        try:
+            scene_id = scene_id_from_path(tif)
+        except ValueError:
+            scene_id = tif.stem
+
+        with track_pipeline_run(conn, scene_id, "water_mask"):
+            out_mask = tif.with_name(f"{tif.stem}_mask.tif")
+            compute_ndwi(
+                str(tif),
+                mission,
+                str(out_mask),
+                display=False,
+                center_size=center_size,
+            )
         output_paths.append(out_mask)
 
         if write_png:

@@ -30,8 +30,7 @@ from pathlib import Path
 from swmaps.infra.db import (
     fetch_unprocessed_scenes,
     get_connection,
-    register_processing_run,
-    update_processing_run,
+    track_pipeline_run,
 )
 from swmaps.pipeline.registry import task_dict
 from swmaps.schema import PipelineResult
@@ -103,59 +102,29 @@ def run_pipeline() -> None:
 
     with get_connection() as conn:
         unprocessed_scenes = fetch_unprocessed_scenes(conn, task_id, parameters)
+
         for scene in unprocessed_scenes:
-            run_rec = register_processing_run(
-                conn,
-                scene_id=scene["scene_id"],
-                task=task_id,
-                parameters=parameters,
-            )
+            scene_id = scene["scene_id"]
             processed_locations: list[str] = []
 
             for f in scene["file_locations"]:
                 local_path, is_tmp = _resolve_input(f)
                 try:
-                    result: PipelineResult = task_func(local_path)
+                    with track_pipeline_run(conn, scene_id, task_id, parameters):
+                        result: PipelineResult = task_func(local_path, conn=conn)
 
-                    if not result.is_ok:
-                        update_processing_run(
-                            conn,
-                            run_rec["product_id"],
-                            status="failed",
-                            output_paths=[None],
-                            error_message=result.error,
-                        )
-                        conn.commit()
-                        break
+                        if not result.is_ok:
+                            raise RuntimeError(result.error)
 
-                    for out_path in result.output_paths:
-                        gcs_uri = _upload_output(out_path, scene["scene_id"], task_id)
-                        processed_locations.append(gcs_uri)
+                        for out_path in result.output_paths:
+                            gcs_uri = _upload_output(out_path, scene_id, task_id)
+                            processed_locations.append(gcs_uri)
 
-                except Exception as exc:
-                    update_processing_run(
-                        conn,
-                        run_rec["product_id"],
-                        status="failed",
-                        output_paths=[None],
-                        error_message=str(exc),
-                    )
-                    conn.commit()
-                    logger.exception(
-                        "Task %s failed for scene %s", task_id, scene["scene_id"]
-                    )
-                    break
+                except Exception:
+                    logger.exception("Task %s failed for scene %s", task_id, scene_id)
                 finally:
                     if is_tmp:
                         local_path.unlink(missing_ok=True)
-            else:
-                update_processing_run(
-                    conn,
-                    run_rec["product_id"],
-                    status="complete",
-                    output_paths=processed_locations,
-                )
-                conn.commit()
 
 
 if __name__ == "__main__":

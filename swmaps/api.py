@@ -407,7 +407,8 @@ def trigger_masks(
 
     Returns a :class:`~swmaps.schema.PipelineResult`.
     """
-    result = run_water_masks(Path(input_dir))
+    with _get_conn() as conn:
+        result = run_water_masks(Path(input_dir), conn=conn)
     return JSONResponse(content=result.to_dict())
 
 
@@ -432,7 +433,8 @@ def trigger_salinity_classify(
     Posts a :class:`~swmaps.schema.SalinityConfig` and returns a
     :class:`~swmaps.schema.PipelineResult`.
     """
-    result = run_salinity_classification(cfg, Path(input_dir))
+    with _get_conn() as conn:
+        result = run_salinity_classification(cfg, Path(input_dir), conn=conn)
     return JSONResponse(content=result.to_dict())
 
 
@@ -461,9 +463,14 @@ def trigger_workflow(cfg: WorkflowConfig) -> JSONResponse:
 
     results["salinity_pipeline"] = run_salinity_pipeline(cfg.salinity).to_dict()
 
-    results["salinity_classification"] = run_salinity_classification(
-        cfg.salinity, Path(cfg.download.out_dir or "data/outputs")
-    ).to_dict()
+    with _get_conn() as conn:
+        results["salinity_classification"] = run_salinity_classification(
+            cfg.salinity, Path(cfg.download.out_dir or "data/outputs"), conn=conn
+        ).to_dict()
+        results["water_masks"] = run_water_masks(
+            Path(cfg.download.out_dir or "data/outputs"),
+            conn=conn,
+        ).to_dict()
 
     results["trend"] = run_trend_heatmap(cfg.trend).to_dict()
 

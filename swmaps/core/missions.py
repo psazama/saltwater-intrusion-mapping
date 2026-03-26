@@ -8,6 +8,7 @@ only needs to be maintained in one place.
 """
 
 from pathlib import Path
+from typing import Union
 
 from .satellites.base import Mission
 from .satellites.landsat5 import Landsat5
@@ -113,4 +114,52 @@ def get_mission_from_path(path) -> Mission:
         f"Cannot derive mission from path: '{path}'. "
         f"Expected one of {sorted(_MISSION_REGISTRY)} to appear in the "
         f"filename or parent directory name."
+    )
+
+
+def scene_id_from_path(path: Union[str, Path]) -> str:
+    """Extract the GEE scene identifier from a multiband GeoTIFF filename.
+
+    Strips the mission prefix and ``_multiband`` suffix from the filename
+    stem to recover the original GEE scene ID used when the file was
+    downloaded and registered in the imagery catalog.
+
+    Handles both filename conventions produced by this pipeline:
+
+    - Sentinel-2: ``sentinel-2_S2B_20230601T..._multiband.tif``
+      → ``S2B_20230601T...``
+    - Landsat: ``landsat-7_LE07_014033_19990806_multiband.tif``
+      → ``LE07_014033_19990806``
+
+    Args:
+        path: Path to a multiband GeoTIFF produced by this pipeline.
+
+    Returns:
+        str: GEE scene identifier matching the ``scene_id`` column in the
+        ``imagery`` table.
+
+    Raises:
+        ValueError: If the filename does not match any known convention.
+
+    Example::
+
+        scene_id_from_path("landsat-7_LE07_014033_19990806_multiband.tif")
+        # returns "LE07_014033_19990806"
+    """
+    p = Path(path)
+    stem = p.stem  # e.g. "landsat-7_LE07_014033_19990806_multiband"
+
+    # Strip _multiband suffix
+    if stem.endswith("_multiband"):
+        stem = stem[: -len("_multiband")]
+
+    # Strip mission prefix — any known slug followed by underscore
+    for slug in _MISSION_REGISTRY:
+        prefix = slug + "_"
+        if stem.lower().startswith(prefix):
+            return stem[len(prefix) :]
+
+    raise ValueError(
+        f"Cannot extract scene ID from path: '{path}'. "
+        f"Expected filename to start with one of {sorted(_MISSION_REGISTRY)}."
     )

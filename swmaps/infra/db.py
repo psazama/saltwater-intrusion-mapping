@@ -22,6 +22,7 @@ import hashlib
 import json
 import os
 import tomllib
+from contextlib import contextmanager
 from pathlib import Path
 
 import psycopg2
@@ -69,6 +70,54 @@ def get_connection():
         password=os.environ["DB_PASSWORD"],
         cursor_factory=RealDictCursor,
     )
+
+
+@contextmanager
+def track_pipeline_run(conn, scene_id: str, task: str, parameters: dict = None):
+    """Context manager that registers and updates a processing run automatically.
+
+    Registers a ``not_started`` run before the block executes and updates
+    it to ``complete`` or ``failed`` depending on whether the block raises.
+    When *conn* is ``None`` the context manager is a no-op so pipeline
+    functions can be called without a connection.
+
+    Args:
+        conn: Open psycopg2 connection, or ``None`` to skip tracking.
+        scene_id: GEE scene identifier to associate the run with.
+        task: Pipeline task name, e.g. ``"water_mask"``.
+        parameters: Optional task parameter dict stored as JSONB.
+
+    Yields:
+        dict | None: The ``processed_products`` row created by
+        :func:`register_processing_run`, or ``None`` when *conn* is
+        ``None``.
+
+    Example::
+
+        with track_pipeline_run(conn, scene_id, "water_mask") as run:
+            result = generate_water_mask(mosaic_path)
+        # run record is automatically marked complete or failed
+    """
+    if conn is None:
+        yield None
+        return
+
+    run_rec = register_processing_run(conn, scene_id, task, parameters)
+    try:
+        yield run_rec
+        update_processing_run(
+            conn,
+            run_rec["product_id"],
+            status="complete",
+        )
+    except Exception as exc:
+        update_processing_run(
+            conn,
+            run_rec["product_id"],
+            status="failed",
+            error_message=str(exc),
+        )
+        raise
 
 
 def run_migration(sql_file: str) -> None:

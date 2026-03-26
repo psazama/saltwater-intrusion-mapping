@@ -34,7 +34,7 @@ import rasterio
 from rasterio.errors import RasterioError
 
 from swmaps.config import data_path
-from swmaps.core.missions import get_mission_from_path
+from swmaps.core.missions import get_mission_from_path, scene_id_from_path
 from swmaps.core.satellite_query import (
     download_matching_gee_images as _download_matching,
 )
@@ -45,6 +45,7 @@ from swmaps.datasets.salinity import (
     download_salinity_datasets,
     load_salinity_truth,
 )
+from swmaps.infra.db import track_pipeline_run
 from swmaps.models.salinity_heuristic import (
     SalinityHeuristicModel,
 )
@@ -83,6 +84,7 @@ def _write_band(
 def run_salinity_classification(
     cfg: SalinityConfig,
     mosaics: Path | list[Path],
+    conn=None,
 ) -> PipelineResult:
     """Run per-mosaic heuristic salinity classification and write rasters.
 
@@ -177,16 +179,26 @@ def run_salinity_classification(
         class_path = base.with_name(f"{base.stem}_salinity_class.tif")
         water_path = base.with_name(f"{base.stem}_salinity_water_mask.tif")
 
-        _write_band(score_path, profile, result["score"], dtype="float32")
-        _write_band(
-            class_path, profile, result["class_codes"], dtype="uint8", nodata=255
-        )
-        _write_band(
-            water_path,
-            profile,
-            result["water_mask"].astype(np.float32),
-            dtype="float32",
-        )
+        try:
+            scene_id = scene_id_from_path(mosaic_path)
+        except ValueError:
+            scene_id = mosaic_path.stem
+
+        with track_pipeline_run(conn, scene_id, "salinity"):
+            _write_band(score_path, profile, result["score"], dtype="float32")
+            _write_band(
+                class_path,
+                profile,
+                result["class_codes"],
+                dtype="uint8",
+                nodata=255,
+            )
+            _write_band(
+                water_path,
+                profile,
+                result["water_mask"].astype(np.float32),
+                dtype="float32",
+            )
 
         output_paths.extend([score_path, class_path, water_path])
         logger.info("Salinity products written for %s", mosaic_path.name)

@@ -19,7 +19,7 @@ This repository integrates Google Earth Engine (GEE) data acquisition, supervise
 ---
 
 ## 📝 Changelog
-### 0.0.2 (March 2026)
+### 0.1.1 (March 2026)
 
 #### Added
 - **API Integration:** FastAPI application (`swmaps/api.py`) exposes pipeline functionality and database queries via HTTP endpoints

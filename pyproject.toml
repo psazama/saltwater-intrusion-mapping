@@ -19,6 +19,7 @@ dependencies = [
     "shapely",
     "xarray",
     "scikit-learn",
+    "segmentation_models_pytorch",
     "tqdm",
     "uvicorn",
     "xgboost",

@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+import numpy as np
 import pytest
 
 pytest.importorskip("pydantic")
@@ -23,25 +24,9 @@ def test_build_salinity_truth_skips_when_output_exists(tmp_path: Path) -> None:
     assert output_csv.read_text() == "dummy"
 
 
-def test_extract_salinity_features_skip_when_outputs_exist(tmp_path: Path) -> None:
-    """Feature extraction should be skipped when outputs are already on disk."""
-
-    feature_path = tmp_path / "features.tif"
-    mask_path = tmp_path / "mask.tif"
-    feature_path.write_bytes(b"")
-    mask_path.write_bytes(b"")
-
-    # No mosaic is needed because the function should return early.
-    with pytest.raises(FileNotFoundError):
-        Path("nonexistent").resolve(strict=True)
-
+def test_salinity_predict_requires_valid_bands() -> None:
+    """predict() should raise ValueError when band dict is missing keys."""
     model = SalinityHeuristicModel()
-    model.estimate_salinity_from_mosaic(
-        mosaic_path="nonexistent-mosaic.tif",
-        class_path=feature_path,
-        water_path=mask_path,
-    )
 
-    # Files should remain untouched (still empty) after the no-op call.
-    assert feature_path.read_bytes() == b""
-    assert mask_path.read_bytes() == b""
+    with pytest.raises(ValueError, match="missing required keys"):
+        model.predict({"blue": np.zeros((4, 4), dtype=np.float32)})

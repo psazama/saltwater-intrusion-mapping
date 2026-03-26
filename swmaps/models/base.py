@@ -1,3 +1,17 @@
+"""Base classes for segmentation and salinity models.
+
+This module defines two abstract base classes:
+
+- :class:`BaseSegModel` - base for deep-learning semantic segmentation models
+  (FarSeg, Panopticon). Provides the full shared training loop
+  (:meth:`~BaseSegModel.train_core`), loss construction, metric computation,
+  checkpointing, and logging. Concrete models only need to implement
+  :meth:`~BaseSegModel.forward` and :meth:`~BaseSegModel.train_model`.
+
+- :class:`BaseSalinityModel` - lightweight base for salinity prediction models.
+  The training interface raises :exc:`NotImplementedError` unless overridden.
+"""
+
 import json
 from pathlib import Path
 from typing import List, Tuple, Union
@@ -17,6 +31,15 @@ from swmaps.models.dataset import data_transforms
 
 
 class JointLoss(nn.Module):
+    """Weighted combination of two loss functions.
+
+    Args:
+        first_loss: First loss criterion.
+        second_loss: Second loss criterion.
+        first_weight: Scalar weight applied to *first_loss*. Defaults to ``0.5``.
+        second_weight: Scalar weight applied to *second_loss*. Defaults to ``0.5``.
+    """
+
     def __init__(self, first_loss, second_loss, first_weight=0.5, second_weight=0.5):
         super().__init__()
         self.first_loss = first_loss
@@ -25,16 +48,31 @@ class JointLoss(nn.Module):
         self.second_weight = second_weight
 
     def forward(self, logits, targets):
+        """Compute the weighted sum of both component losses.
+
+        Args:
+            logits: Raw model output tensor of shape ``(B, C, H, W)``.
+            targets: Ground-truth label tensor of shape ``(B, H, W)``.
+
+        Returns:
+            torch.Tensor: Scalar combined loss.
+        """
+
         loss1 = self.first_loss(logits, targets)
         loss2 = self.second_loss(logits, targets)
         return (self.first_weight * loss1) + (self.second_weight * loss2)
 
 
 class BaseSegModel(nn.Module):
+    """Abstract base class for semantic segmentation models.
 
-    ###########################################
-    ## Segmentation Model Utilities
-    ###########################################
+    Provides the complete shared training loop, metric utilities, loss
+    construction, and checkpointing. Concrete subclasses only need to
+    implement :meth:`forward` and :meth:`train_model`.
+
+    Args:
+        num_classes: Number of output segmentation classes.
+    """
 
     def __init__(self, num_classes: int):
         super().__init__()
@@ -186,25 +224,26 @@ class BaseSegModel(nn.Module):
             json.dump(history, f, indent=4)
         print(f"Metrics log saved to {log_path}")
 
-    ###########################################
-    ## Segmentation Model Core
-    ###########################################
-
     def train_model(
         self,
         data_pairs: List[Tuple[Union[str, Path], Union[str, Path]]],
         out_dir: Union[str, Path],
-        label_map: dict = None,  # Added this
-        val_pairs: List[Tuple[Union[str, Path], Union[str, Path]]] = None,  # Added this
+        label_map: dict = None,
+        val_pairs: List[Tuple[Union[str, Path], Union[str, Path]]] = None,
         **kwargs,
     ):
+        """Abstract training method - must be overridden by subclasses.
+
+        Args:
+            data_pairs: List of ``(image_path, mask_path, sat_id)`` tuples.
+            out_dir: Directory where the model should save its results.
+            label_map: Optional mapping from raw mask values to class indices.
+            val_pairs: Optional validation pairs.
+            **kwargs: Additional training parameters passed from the TOML config.
+
+        Raises:
+            NotImplementedError: Always - must be overridden.
         """
-        Abstract training method.
-        Specific models (like FarSeg) must override this.
-        """
-        raise NotImplementedError(
-            "This model does not implement a custom training loop."
-        )
 
     def train_core(
         self,
@@ -224,6 +263,41 @@ class BaseSegModel(nn.Module):
         val_set=None,
         **kwargs,
     ):
+        """Shared training loop used by all segmentation model subclasses.
+
+        Implements the full supervised training procedure including class-weight
+        computation, configurable loss, linear LR warmup followed by
+        ReduceLROnPlateau decay, per-epoch mIoU tracking by satellite sensor,
+        best-model checkpointing, and early stopping.
+
+        Args:
+            data_pairs: List of ``(image_path, mask_path, sat_id)`` tuples for
+                training.
+            out_dir: Directory where ``best_model.pth``, ``final.pth``, and
+                ``training_log.json`` will be written.
+            label_map: Optional dict mapping raw mask pixel values to training
+                class indices. Pass ``None`` if masks already contain class indices.
+            val_pairs: Optional list of ``(image_path, mask_path, sat_id)``
+                tuples. When provided, validation loss and mIoU are computed
+                after each epoch and used for early stopping.
+            epochs: Maximum number of training epochs. Defaults to ``10``.
+            batch_size: Number of samples per mini-batch. Defaults to ``64``.
+            loss_type: One of ``"ce"``, ``"focal"``, ``"dice"``, ``"hybrid"``.
+                Defaults to ``"ce"``.
+            lr: Initial Adam learning rate. Defaults to ``5e-5``.
+            lr_patience: Epochs without improvement before LR is reduced.
+                Defaults to ``5``.
+            stopping_patience: Epochs without improvement before early stop.
+                Defaults to ``15``.
+            target_size: Square crop size in pixels. Defaults to ``512``.
+            dataset_class: Dataset class to instantiate for train/val loaders.
+            training_set: Pre-built training dataset (overrides data_pairs).
+            val_set: Pre-built validation dataset (overrides val_pairs).
+            **kwargs: Reserved for future extensions.
+
+        Returns:
+            str | Path: The *out_dir* path after training completes.
+        """
 
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.to(device)

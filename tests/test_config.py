@@ -11,6 +11,8 @@ CONFIG_PATH = Path(__file__).resolve().parents[1] / "swmaps" / "config.py"
 spec = importlib.util.spec_from_file_location("swmaps.config", CONFIG_PATH)
 config = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(config)
+
+
 def test_data_path_default() -> None:
     """Ensure data_path builds paths under the configured data root by default.
 

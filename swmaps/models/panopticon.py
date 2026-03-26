@@ -1,3 +1,14 @@
+"""Panopticon foundation encoder with segmentation head.
+
+This module provides:
+
+- :class:`PanopticonDataset` - a :class:`~swmaps.models.dataset.SegDataset`
+  subclass with Panopticon-specific image loading.
+- :class:`PanopticonModel` - a segmentation model combining the Panopticon
+  foundation encoder with a lightweight convolutional segmentation head.
+  Supports multi-sensor inputs via per-sample channel ID tensors.
+"""
+
 import numpy as np
 import rasterio
 import torch
@@ -9,12 +20,23 @@ from swmaps.core.missions import GLOBAL_BAND_IDS, get_mission_from_id
 from swmaps.models.base import BaseSegModel
 from swmaps.models.dataset import SegDataset
 
-# ============================================================
-# Dataset
-# ============================================================
-
 
 class PanopticonDataset(SegDataset):
+    """Dataset class for Panopticon training and inference.
+
+    Extends :class:`~swmaps.models.dataset.SegDataset` with the same
+    image normalisation as :class:`~swmaps.models.farseg.FarSegDataset`.
+    NoData pixels are masked with ignore index ``255``.
+
+    Args:
+        data_pairs: List of ``(image_path, mask_path, sat_id)`` tuples.
+        label_map: Optional dict mapping raw mask values to class indices.
+        target_size: Square crop size in pixels.
+        transform: Optional Albumentations transform.
+        inference_only: When ``True`` returns a dummy mask instead of
+            reading a mask file.
+    """
+
     def __init__(
         self,
         data_pairs,
@@ -59,14 +81,23 @@ class PanopticonDataset(SegDataset):
         return img_tensor, mask_tensor, sat_id
 
 
-# ============================================================
-# Model
-# ============================================================
-
-
 class PanopticonModel(BaseSegModel):
-    """
-    Panopticon foundation encoder + segmentation head.
+    """Panopticon foundation encoder with a convolutional segmentation head.
+
+    The Panopticon encoder processes multi-spectral imagery from multiple
+    satellite sensors using per-sample channel ID tensors that encode which
+    spectral bands are present. This allows a single model to handle
+    Landsat-5, Landsat-7, and Sentinel-2 imagery without separate heads.
+
+    The segmentation head is a two-layer conv block that upsamples encoder
+    features back to the input resolution.
+
+    Args:
+        num_classes: Number of output segmentation classes. Defaults to ``16``.
+        in_channels: Number of input spectral bands. Defaults to ``6``.
+        embed_dim: Encoder embedding dimension. Defaults to ``768``.
+        attn_dim: Encoder attention dimension. Defaults to ``2304``.
+        img_size: Input image size in pixels. Defaults to ``512``.
     """
 
     def __init__(
@@ -82,9 +113,6 @@ class PanopticonModel(BaseSegModel):
         self.embed_dim = embed_dim
         self.in_channels = in_channels
 
-        # ----------------------------------------------------
-        # Panopticon foundation encoder
-        # ----------------------------------------------------
         self.encoder = Panopticon(
             embed_dim=embed_dim,
             attn_dim=attn_dim,
@@ -93,18 +121,21 @@ class PanopticonModel(BaseSegModel):
 
         self.input_proj = nn.Identity()
 
-        # ----------------------------------------------------
-        # Segmentation head
-        # ----------------------------------------------------
         self.segmentation_head = self._make_head(
             embed_dim,
             num_classes,
         )
 
-    # --------------------------------------------------------
-    # Segmentation Head Builder
-    # --------------------------------------------------------
     def _make_head(self, in_channels, num_classes):
+        """Build the convolutional segmentation head.
+
+        Args:
+            in_channels: Number of input feature channels from the encoder.
+            num_classes: Number of output segmentation classes.
+
+        Returns:
+            nn.Sequential: Two-layer conv block with BatchNorm and ReLU.
+        """
         head = nn.Sequential(
             nn.Conv2d(in_channels, in_channels // 2, 3, padding=1),
             nn.BatchNorm2d(in_channels // 2),
@@ -121,10 +152,18 @@ class PanopticonModel(BaseSegModel):
 
         return head
 
-    # --------------------------------------------------------
-    # Forward
-    # --------------------------------------------------------
     def forward(self, x, sat_ids):
+        """Run a forward pass through the encoder and segmentation head.
+
+        Args:
+            x: Input tensor of shape ``(B, C, H, W)``.
+            sat_ids: Integer satellite ID tensor of shape ``(B,)`` used to
+                build per-sample channel ID tensors for the Panopticon encoder.
+
+        Returns:
+            torch.Tensor: Logit tensor of shape ``(B, num_classes, H, W)``
+            upsampled to the input spatial resolution.
+        """
         device = x.device
 
         chn_ids = self._get_channel_ids(sat_ids, device)
@@ -144,7 +183,6 @@ class PanopticonModel(BaseSegModel):
         }
 
         # Foundation features
-
         feats = self.encoder.model.forward_features(x_dict)
         feats = feats[:, 1:, :]
         B, N, D = feats.shape
@@ -164,9 +202,6 @@ class PanopticonModel(BaseSegModel):
 
         return logits
 
-    # --------------------------------------------------------
-    # Training Wrapper
-    # --------------------------------------------------------
     def train_model(
         self,
         data_pairs,
@@ -182,10 +217,29 @@ class PanopticonModel(BaseSegModel):
         target_size=512,
         **kwargs,
     ):
+        """Configure and launch Panopticon training.
 
-        # ----------------------------------------------------
-        # Dynamic class adjustment (HEAD ONLY)
-        # ----------------------------------------------------
+        Dynamically adjusts the segmentation head when *label_map* changes
+        the number of output classes, then delegates to
+        :meth:`~swmaps.models.base.BaseSegModel.train_core`.
+
+        Args:
+            data_pairs: List of ``(image_path, mask_path, sat_id)`` tuples.
+            out_dir: Directory for checkpoints and training logs.
+            label_map: Optional dict mapping raw mask values to class indices.
+                When provided the segmentation head is rebuilt to match the
+                number of unique output classes.
+            val_pairs: Optional validation pairs.
+            epochs: Maximum training epochs. Defaults to ``10``.
+            batch_size: Samples per mini-batch. Defaults to ``64``.
+            loss_type: One of ``"ce"``, ``"focal"``, ``"dice"``, ``"hybrid"``.
+            lr: Initial Adam learning rate. Defaults to ``5e-5``.
+            lr_patience: Epochs without improvement before LR reduction.
+            stopping_patience: Epochs without improvement before early stop.
+            target_size: Square crop size in pixels. Defaults to ``512``.
+            **kwargs: Forwarded to
+                :meth:`~swmaps.models.base.BaseSegModel.train_core`.
+        """
         if label_map:
             unique_superclasses = set(label_map.values())
             new_num_classes = max(unique_superclasses) + 1
@@ -230,17 +284,21 @@ class PanopticonModel(BaseSegModel):
             **kwargs,
         )
 
-    ######################################
-    # Helper Utilities
-    ######################################
     def _get_channel_ids(self, sat_ids, device):
-        """
-        Build Panopticon channel ID tensor.
+        """Build the Panopticon channel ID tensor for a batch.
+
+        Maps each satellite integer ID to its ordered list of global band
+        indices using :data:`~swmaps.core.missions.GLOBAL_BAND_IDS`, then
+        stacks them into a ``(B, C)`` tensor.
+
+        Args:
+            sat_ids: Integer satellite ID tensor of shape ``(B,)``.
+            device: Torch device to place the output tensor on.
 
         Returns:
-            chn_ids: (B, C)
+            torch.Tensor: Long tensor of shape ``(B, C)`` where each row
+            contains the global band indices for that sample's sensor.
         """
-
         chn_rows = []
 
         for sid in sat_ids:

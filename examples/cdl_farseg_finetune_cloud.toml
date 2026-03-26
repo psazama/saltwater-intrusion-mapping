@@ -55,7 +55,7 @@ segmentation_model_dir = "/gcs/eo-ml-data/choptank_cdl_finetune_binary/models/fa
 
 # hyperparameters
 model_type = "farseg"
-loss_function = "ce"   # supports "ce" "focal", "dice", "hybrid"
+loss = "ce"   # supports "ce" "focal", "dice", "hybrid"
 batch_size = 32
 lr_patience = 5
 stopping_patience = 15

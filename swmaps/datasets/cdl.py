@@ -1,5 +1,6 @@
 """Utilities for downloading CDL land-cover products."""
 
+import logging
 from pathlib import Path
 from typing import Sequence, Union
 
@@ -10,7 +11,9 @@ from PIL import Image
 from rasterio.enums import Resampling
 from shapely.geometry import MultiPolygon, Polygon, box, mapping
 
+from swmaps.config import data_path
 from swmaps.core.satellite_query import initialize_ee
+from swmaps.schema import DownloadConfig, PipelineResult
 
 # Refined Binary Mapping: 0 = Non-Vegetated/Water, 1 = Vegetated
 CDL_TO_BINARY_CLASS = {
@@ -249,3 +252,60 @@ def download_cdl_and_imagery(
             print(f"[WARN] Alignment failed: {e}")
 
     return {"cdl_aligned": aligned_cdl_paths, "imagery": imagery_paths}
+
+
+def run_cdl_download(cfg: DownloadConfig) -> PipelineResult:
+    """Download the USDA NASS Cropland Data Layer for the configured region.
+
+    Resolves the download region from config in priority order:
+
+    1. ``cdl_region`` - GeoJSON path or ``[xmin, ymin, xmax, ymax]`` bounds.
+    2. ``latitude`` / ``longitude`` + ``cdl_buffer_km`` - constructs a
+       bounding box around the centre point.
+
+    Args:
+        cfg: Download configuration.
+
+    Returns:
+        PipelineResult: ``status="ok"`` with the CDL raster path,
+        ``status="skipped"`` if ``download_cdl`` is ``False``, or
+        ``status="error"`` on failure.
+    """
+    if not cfg.download_cdl:
+        return PipelineResult.skipped("download_cdl is False in config")
+
+    import geopandas as gpd
+
+    from swmaps.core.mosaic import compute_bbox
+
+    cdl_out = (
+        Path(cfg.cdl_out)
+        if cfg.cdl_out
+        else data_path("downloads", f"cdl_{cfg.cdl_year}.tif")
+    )
+    cdl_out.parent.mkdir(parents=True, exist_ok=True)
+
+    region = None
+    if isinstance(cfg.cdl_region, str) and Path(cfg.cdl_region).exists():
+        gdf = gpd.read_file(cfg.cdl_region)
+        region = gdf.unary_union
+    elif isinstance(cfg.cdl_region, list) and len(cfg.cdl_region) == 4:
+        region = cfg.cdl_region
+    elif cfg.latitude is not None and cfg.longitude is not None:
+        lat = cfg.latitude[0] if isinstance(cfg.latitude, list) else cfg.latitude
+        lon = cfg.longitude[0] if isinstance(cfg.longitude, list) else cfg.longitude
+        region = tuple(compute_bbox(lat, lon, cfg.cdl_buffer_km))
+    else:
+        return PipelineResult.failure(
+            "download_cdl is True but no cdl_region or lat/lon is configured."
+        )
+
+    try:
+        cdl_path = download_nass_cdl(
+            region=region, year=cfg.cdl_year, output_path=cdl_out
+        )
+        logging.info("[CDL] Saved: %s", cdl_path)
+        return PipelineResult.ok([Path(cdl_path)], year=cfg.cdl_year)
+    except Exception as exc:
+        logging.exception("CDL download failed")
+        return PipelineResult.failure(str(exc))

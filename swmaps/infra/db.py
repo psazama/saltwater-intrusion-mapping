@@ -1,7 +1,28 @@
+"""PostgreSQL database helpers for the swmaps imagery and processing catalog.
+
+This module provides functions for:
+
+- Imagery catalog - registering downloaded scenes, querying by spatial extent,
+  and checking for duplicates (:func:`register_scene`, :func:`insert_record`,
+  :func:`fetch_scenes_intersecting`, :func:`scene_exists`).
+- Salinity profiles - inserting in-situ cast records and depth profiles
+  (:func:`insert_salinity_profile`, :func:`insert_depth_profile`).
+- Processing runs - tracking pipeline task execution against the
+  ``processed_products`` table (:func:`register_processing_run`,
+  :func:`update_processing_run`, :func:`fetch_unprocessed_scenes`).
+- Pub/Sub - publishing scene-ingestion notifications to downstream consumers
+  (:func:`publish_scene_message`).
+
+All functions expect an open psycopg2 connection. Use :func:`get_connection`
+to obtain one. Connections use ``RealDictCursor`` so rows are returned as
+dicts rather than tuples.
+"""
+
 import hashlib
 import json
 import os
 import tomllib
+from contextlib import contextmanager
 from pathlib import Path
 
 import psycopg2
@@ -13,7 +34,14 @@ load_dotenv()
 
 
 def compute_file_hash(path: str) -> str:
-    """Compute MD5 hash of file contents."""
+    """Compute the MD5 hash of a file's contents.
+
+    Args:
+        path: Path to the file to hash.
+
+    Returns:
+        str: Hex-encoded MD5 digest.
+    """
     hasher = hashlib.md5()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(8192), b""):
@@ -22,9 +50,17 @@ def compute_file_hash(path: str) -> str:
 
 
 def get_connection():
-    """
-    Returns a psycopg2 connection using environment variables.
-    Expected vars: DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD
+    """Return a psycopg2 connection using environment variables.
+
+    Reads ``DB_HOST``, ``DB_PORT``, ``DB_NAME``, ``DB_USER``, and
+    ``DB_PASSWORD`` from the environment. Uses ``RealDictCursor`` so
+    all rows are returned as dicts.
+
+    Returns:
+        psycopg2.connection: Open database connection.
+
+    Raises:
+        KeyError: If any required environment variable is missing.
     """
     return psycopg2.connect(
         host=os.environ["DB_HOST"],
@@ -36,10 +72,62 @@ def get_connection():
     )
 
 
-def run_migration(sql_file: str) -> None:
+@contextmanager
+def track_pipeline_run(conn, scene_id: str, task: str, parameters: dict = None):
+    """Context manager that registers and updates a processing run automatically.
+
+    Registers a ``not_started`` run before the block executes and updates
+    it to ``complete`` or ``failed`` depending on whether the block raises.
+    When *conn* is ``None`` the context manager is a no-op so pipeline
+    functions can be called without a connection.
+
+    Args:
+        conn: Open psycopg2 connection, or ``None`` to skip tracking.
+        scene_id: GEE scene identifier to associate the run with.
+        task: Pipeline task name, e.g. ``"water_mask"``.
+        parameters: Optional task parameter dict stored as JSONB.
+
+    Yields:
+        dict | None: The ``processed_products`` row created by
+        :func:`register_processing_run`, or ``None`` when *conn* is
+        ``None``.
+
+    Example::
+
+        with track_pipeline_run(conn, scene_id, "water_mask") as run:
+            result = generate_water_mask(mosaic_path)
+        # run record is automatically marked complete or failed
     """
-    Reads and executes a SQL file against the database.
-    Used to apply schema definitions and migrations.
+    if conn is None:
+        yield None
+        return
+
+    run_rec = register_processing_run(conn, scene_id, task, parameters)
+    try:
+        yield run_rec
+        update_processing_run(
+            conn,
+            run_rec["product_id"],
+            status="complete",
+        )
+    except Exception as exc:
+        update_processing_run(
+            conn,
+            run_rec["product_id"],
+            status="failed",
+            error_message=str(exc),
+        )
+        raise
+
+
+def run_migration(sql_file: str) -> None:
+    """Read and execute a SQL file against the database.
+
+    Args:
+        sql_file: Path to a ``.sql`` file containing one or more statements.
+
+    Returns:
+        None
     """
     with open(sql_file, "r") as f:
         sql = f.read()
@@ -56,9 +144,16 @@ def publish_scene_message(
     acquisition_date: str,
     topic_id: str = "swmaps-new-scenes",
 ) -> None:
-    """
-    Publishes a new scene notification to Pub/Sub.
-    Requires GOOGLE_CLOUD_PROJECT environment variable to be set.
+    """Publish a new scene notification to a Pub/Sub topic.
+
+    Args:
+        scene_id: GEE scene identifier.
+        sensor: Mission slug, e.g. ``"sentinel-2"``.
+        acquisition_date: ISO-8601 date string, e.g. ``"2021-06-01"``.
+        topic_id: Pub/Sub topic name. Defaults to ``"swmaps-new-scenes"``.
+
+    Raises:
+        ValueError: If ``GOOGLE_CLOUD_PROJECT`` is not set.
     """
     project_id = os.environ.get("GOOGLE_CLOUD_PROJECT")
     if not project_id:
@@ -70,7 +165,7 @@ def publish_scene_message(
     message = {
         "scene_id": scene_id,
         "sensor": sensor,
-        "aquisition_date": acquisition_date,
+        "acquisition_date": acquisition_date,
     }
 
     future = publisher.publish(topic_path, json.dumps(message).encode("utf-8"))
@@ -89,10 +184,26 @@ def insert_record(
     publish: bool = True,
     file_hash: str = None,
 ) -> dict:
-    """
-    Inserts a single imagery record into the database.
-    location should be a WKT polygon string e.g. 'POLYGON((...))'
-    Returns the inserted row.
+    """Insert or upsert a single imagery record into the catalog.
+
+    On conflict (duplicate ``scene_id``) the row is updated and
+    ``version_no`` is incremented only when the file hash changes.
+
+    Args:
+        conn: Open psycopg2 connection.
+        scene_id: Unique GEE scene identifier.
+        location: WKT polygon string e.g. ``"POLYGON((...))"`` in EPSG:4326.
+        band_count: Number of spectral bands in the imagery file.
+        acquisition_date: ISO-8601 acquisition date string.
+        sensor: Mission slug, e.g. ``"sentinel-2"``.
+        file_locations: List of file paths or ``gs://`` URIs for this scene.
+        crs: Coordinate reference system string, e.g. ``"EPSG:32618"``.
+        publish: Whether to publish a Pub/Sub notification on success.
+        file_hash: Pre-computed MD5 hash. Computed from ``file_locations[0]``
+            when ``None``.
+
+    Returns:
+        dict: The inserted or updated row.
     """
     from swmaps.infra.validate import ImageryRecord
 
@@ -157,10 +268,14 @@ def insert_record(
 
 
 def fetch_scenes_intersecting(conn, bbox: tuple) -> list:
-    """
-    Returns all imagery records whose location intersects the
-    given bounding box.
-    bbox should be a tuple of (min_lon, min_lat, max_lon, max_lat)
+    """Return all active imagery records intersecting a bounding box.
+
+    Args:
+        conn: Open psycopg2 connection.
+        bbox: ``(min_lon, min_lat, max_lon, max_lat)`` in EPSG:4326.
+
+    Returns:
+        list[dict]: Matching imagery rows.
     """
     sql = """
         SELECT * FROM imagery
@@ -176,6 +291,113 @@ def fetch_scenes_intersecting(conn, bbox: tuple) -> list:
         return cursor.fetchall()
 
 
+def fetch_scenes(
+    conn,
+    bbox: tuple | None = None,
+    lat: float | None = None,
+    lon: float | None = None,
+    radius_km: float | None = None,
+    sensor: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    status: str = "active",
+) -> list:
+    """Query imagery scenes with spatial and optional attribute filters.
+
+    Requires either *bbox* or all three of *lat*, *lon*, and *radius_km*
+    to anchor the spatial query.
+
+    Args:
+        conn: Open psycopg2 connection.
+        bbox: Bounding box as ``(min_lon, min_lat, max_lon, max_lat)``
+            in EPSG:4326.
+        lat: Centre latitude in decimal degrees. Used with *lon* and
+            *radius_km* as an alternative to *bbox*.
+        lon: Centre longitude in decimal degrees.
+        radius_km: Search radius in kilometres around *lat*/*lon*.
+        sensor: Filter by mission slug, e.g. ``"sentinel-2"``. Returns
+            all sensors when ``None``.
+        date_from: ISO-8601 start date, inclusive e.g. ``"2020-01-01"``.
+        date_to: ISO-8601 end date, inclusive e.g. ``"2021-12-31"``.
+        status: Filter by scene status. Defaults to ``"active"``.
+
+    Returns:
+        list[dict]: Matching imagery rows.
+
+    Raises:
+        ValueError: If neither *bbox* nor *lat*/*lon*/*radius_km* is provided.
+    """
+    if bbox is None:
+        if lat is None or lon is None or radius_km is None:
+            raise ValueError(
+                "Provide either 'bbox' or all of 'lat', 'lon', and 'radius_km'."
+            )
+        deg = radius_km / 111.0
+        bbox = (lon - deg, lat - deg, lon + deg, lat + deg)
+
+    conditions = [
+        "ST_Intersects(location, ST_MakeEnvelope(%s, %s, %s, %s, 4326))",
+        "status = %s",
+    ]
+    params = [*bbox, status]
+
+    if sensor:
+        conditions.append("sensor = %s")
+        params.append(sensor)
+    if date_from:
+        conditions.append("acquisition_date >= %s")
+        params.append(date_from)
+    if date_to:
+        conditions.append("acquisition_date <= %s")
+        params.append(date_to)
+
+    sql = f"""
+        SELECT * FROM imagery
+        WHERE {" AND ".join(conditions)}
+        ORDER BY acquisition_date DESC;
+    """
+    with conn.cursor() as cursor:
+        cursor.execute(sql, params)
+        return cursor.fetchall()
+
+
+def fetch_scene(conn, scene_id: str) -> dict | None:
+    """Fetch a single imagery scene by its scene ID.
+
+    Args:
+        conn: Open psycopg2 connection.
+        scene_id: GEE scene identifier.
+
+    Returns:
+        dict | None: The matching imagery row, or ``None`` if not found.
+    """
+    sql = "SELECT * FROM imagery WHERE scene_id = %s;"
+    with conn.cursor() as cursor:
+        cursor.execute(sql, (scene_id,))
+        return cursor.fetchone()
+
+
+def fetch_scene_products(conn, scene_id: str) -> list:
+    """Fetch all processed products for a given scene.
+
+    Args:
+        conn: Open psycopg2 connection.
+        scene_id: GEE scene identifier.
+
+    Returns:
+        list[dict]: All ``processed_products`` rows for this scene, ordered
+        by start time descending.
+    """
+    sql = """
+        SELECT * FROM processed_products
+        WHERE base_scene_id = %s
+        ORDER BY started_at DESC;
+    """
+    with conn.cursor() as cursor:
+        cursor.execute(sql, (scene_id,))
+        return cursor.fetchall()
+
+
 def register_scene(
     conn,
     image_id: str,
@@ -185,10 +407,23 @@ def register_scene(
     crs: str,
     acquisition_date: str,
 ) -> dict:
-    """
-    Registers a downloaded scene in the imagery catalog.
-    Derives band_count from the output_file.
-    bbox should be [minx, miny, maxx, maxy]
+    """Register a downloaded GEE scene in the imagery catalog.
+
+    Reads the band count from the GeoTIFF, optionally uploads to GCS,
+    converts the bounding box to a WKT polygon, and calls
+    :func:`insert_record`.
+
+    Args:
+        conn: Open psycopg2 connection.
+        image_id: GEE scene identifier used as ``scene_id``.
+        mission: Mission slug, e.g. ``"sentinel-2"``.
+        bbox: ``[minx, miny, maxx, maxy]`` in EPSG:4326 degrees.
+        out_path: Local path to the downloaded multiband GeoTIFF.
+        crs: CRS string of the downloaded file, e.g. ``"EPSG:32618"``.
+        acquisition_date: ISO-8601 acquisition date string.
+
+    Returns:
+        dict: The inserted or updated imagery row.
     """
     import rasterio
     from shapely.geometry import box
@@ -233,9 +468,14 @@ def register_scene(
 
 
 def scene_exists(conn, scene_id: str) -> bool:
-    """
-    Returns True if a scene with the given scene_id already exists
-    in the catalog with status 'active'.
+    """Check whether an active scene already exists in the catalog.
+
+    Args:
+        conn: Open psycopg2 connection.
+        scene_id: GEE scene identifier to check.
+
+    Returns:
+        bool: ``True`` if an active record exists, ``False`` otherwise.
     """
     sql = """
         SELECT 1 FROM imagery
@@ -248,11 +488,6 @@ def scene_exists(conn, scene_id: str) -> bool:
         return cursor.fetchone() is not None
 
 
-############################
-# Salinity Table Functions #
-############################
-
-
 def insert_salinity_profile(
     conn,
     cast_id: str,
@@ -263,9 +498,23 @@ def insert_salinity_profile(
     max_depth: float,
     source_file: str,
 ) -> dict:
-    """
-    Inserts a single salinity cast into salinity_profiles
-    Returns the inserted row.
+    """Insert a single in-situ salinity cast into ``salinity_profiles``.
+
+    Silently skips duplicate ``cast_id`` values via ``ON CONFLICT DO NOTHING``.
+
+    Args:
+        conn: Open psycopg2 connection.
+        cast_id: Stable unique identifier for this cast, e.g.
+            ``"WOD_CAS_T_S_2018_2_000042"``.
+        longitude: Cast longitude in decimal degrees (EPSG:4326).
+        latitude: Cast latitude in decimal degrees (EPSG:4326).
+        sample_date: ISO-8601 date string, e.g. ``"2018-06-15"``.
+        surface_salinity: Near-surface salinity observation in PSU.
+        max_depth: Maximum sampling depth in metres.
+        source_file: Source NetCDF filename, e.g. ``"WOD_CAS_T_S_2018_2.nc"``.
+
+    Returns:
+        dict | None: The inserted row, or ``None`` if the cast already existed.
     """
     sql = """
         INSERT INTO salinity_profiles
@@ -296,9 +545,18 @@ def insert_salinity_profile(
 def insert_depth_profile(
     conn, cast_id: str, depths: list, salinities: list, temperatures: list = None
 ) -> None:
-    """
-    Inserts all depth levels for a single cast into salinity_depth_profiles.
-    depths, salinities, and temperatures should be parallel lists.
+    """Insert all depth levels for a single cast into ``salinity_depth_profiles``.
+
+    Args:
+        conn: Open psycopg2 connection.
+        cast_id: Cast identifier matching a row in ``salinity_profiles``.
+        depths: Sampling depths in metres, parallel to *salinities*.
+        salinities: Salinity observations in PSU, parallel to *depths*.
+        temperatures: Optional temperature observations in °C, parallel to
+            *depths*. Stored as ``NULL`` when ``None``.
+
+    Returns:
+        None
     """
     if temperatures is None:
         temperatures = [None] * len(depths)
@@ -320,11 +578,18 @@ def insert_depth_profile(
 def fetch_imagery_near_sample(
     conn, cast_id: str, radius_km: float = 50, days_window: int = 30
 ) -> list:
-    """
-    Returns imagery records that spatially and temporally overlap a given
-    salinity cast.
-    radius_km: search radius around sample location
-    days_window: number of days before and after sample date to search
+    """Return imagery records that spatially and temporally overlap a salinity cast.
+
+    Args:
+        conn: Open psycopg2 connection.
+        cast_id: Cast identifier to search around.
+        radius_km: Search radius in kilometres. Defaults to ``50``.
+        days_window: Number of days before and after the sample date to
+            include. Defaults to ``30``.
+
+    Returns:
+        list[dict]: Matching imagery rows with an additional ``distance_km``
+        field indicating proximity to the cast location.
     """
     sql = """
         SELECT
@@ -353,15 +618,122 @@ def fetch_imagery_near_sample(
         return cursor.fetchall()
 
 
-############################
-# Processing Table Functions #
-############################
+def fetch_salinity_profiles(
+    conn,
+    bbox: tuple | None = None,
+    lat: float | None = None,
+    lon: float | None = None,
+    radius_km: float | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    min_salinity: float | None = None,
+    max_salinity: float | None = None,
+) -> list:
+    """Query salinity profiles with spatial and optional attribute filters.
+
+    Requires either *bbox* or all three of *lat*, *lon*, and *radius_km*.
+
+    Args:
+        conn: Open psycopg2 connection.
+        bbox: Bounding box as ``(min_lon, min_lat, max_lon, max_lat)``
+            in EPSG:4326.
+        lat: Centre latitude in decimal degrees.
+        lon: Centre longitude in decimal degrees.
+        radius_km: Search radius in kilometres around *lat*/*lon*.
+        date_from: ISO-8601 start date, inclusive.
+        date_to: ISO-8601 end date, inclusive.
+        min_salinity: Minimum surface salinity in PSU, inclusive.
+        max_salinity: Maximum surface salinity in PSU, inclusive.
+
+    Returns:
+        list[dict]: Matching salinity profile rows ordered by sample date
+        descending.
+
+    Raises:
+        ValueError: If neither *bbox* nor *lat*/*lon*/*radius_km* is provided.
+    """
+    if bbox is None:
+        if lat is None or lon is None or radius_km is None:
+            raise ValueError(
+                "Provide either 'bbox' or all of 'lat', 'lon', and 'radius_km'."
+            )
+        deg = radius_km / 111.0
+        bbox = (lon - deg, lat - deg, lon + deg, lat + deg)
+
+    conditions = [
+        "ST_Intersects(location, ST_MakeEnvelope(%s, %s, %s, %s, 4326))",
+    ]
+    params = [*bbox]
+
+    if date_from:
+        conditions.append("sample_date >= %s")
+        params.append(date_from)
+    if date_to:
+        conditions.append("sample_date <= %s")
+        params.append(date_to)
+    if min_salinity is not None:
+        conditions.append("surface_salinity >= %s")
+        params.append(min_salinity)
+    if max_salinity is not None:
+        conditions.append("surface_salinity <= %s")
+        params.append(max_salinity)
+
+    sql = f"""
+        SELECT * FROM salinity_profiles
+        WHERE {" AND ".join(conditions)}
+        ORDER BY sample_date DESC;
+    """
+    with conn.cursor() as cursor:
+        cursor.execute(sql, params)
+        return cursor.fetchall()
+
+
+def fetch_salinity_profile(conn, cast_id: str) -> dict | None:
+    """Fetch a single salinity profile by cast ID.
+
+    Args:
+        conn: Open psycopg2 connection.
+        cast_id: Unique cast identifier.
+
+    Returns:
+        dict | None: The matching profile row, or ``None`` if not found.
+    """
+    sql = "SELECT * FROM salinity_profiles WHERE cast_id = %s;"
+    with conn.cursor() as cursor:
+        cursor.execute(sql, (cast_id,))
+        return cursor.fetchone()
+
+
+def fetch_depth_profile(conn, cast_id: str) -> list:
+    """Fetch all depth levels for a single salinity cast.
+
+    Args:
+        conn: Open psycopg2 connection.
+        cast_id: Cast identifier matching a row in ``salinity_profiles``.
+
+    Returns:
+        list[dict]: Depth profile rows ordered by depth ascending.
+    """
+    sql = """
+        SELECT * FROM salinity_depth_profiles
+        WHERE cast_id = %s
+        ORDER BY depth_m ASC;
+    """
+    with conn.cursor() as cursor:
+        cursor.execute(sql, (cast_id,))
+        return cursor.fetchall()
 
 
 def seed_task_types(conn) -> None:
-    """
-    Seeds task_types table from processing_tasks config.
-    Safe to run multiple times -- uses ON CONFLICT DO NOTHING.
+    """Seed the ``task_types`` table from ``config/processing_tasks.toml``.
+
+    Safe to run multiple times - uses ``ON CONFLICT DO NOTHING``.
+
+    Args:
+        conn: Open psycopg2 connection.
+
+    Returns:
+        None
     """
     with open("config/processing_tasks.toml", "rb") as f:
         config = tomllib.load(f)
@@ -378,9 +750,18 @@ def seed_task_types(conn) -> None:
 
 
 def generate_product_id(scene_id: str, task: str, parameters: dict) -> str:
-    """
-    Generates a stable unique product ID from scene_id, task, and parameters
-    sort_keys=True ensures parameter order doesn't affect the hash
+    """Generate a stable unique product ID from scene, task, and parameters.
+
+    Parameter key order does not affect the output - the dict is serialised
+    with ``sort_keys=True`` before hashing.
+
+    Args:
+        scene_id: GEE scene identifier.
+        task: Pipeline task name, e.g. ``"water_mask"``.
+        parameters: Task parameter dict.
+
+    Returns:
+        str: Hex-encoded MD5 digest used as ``product_id``.
     """
     content = f"{scene_id}:{task}:{json.dumps(parameters, sort_keys=True)}"
     return hashlib.md5(content.encode()).hexdigest()
@@ -389,9 +770,20 @@ def generate_product_id(scene_id: str, task: str, parameters: dict) -> str:
 def register_processing_run(
     conn, scene_id: str, task: str, parameters: dict = None
 ) -> dict:
-    """
-    Creates a new processing run record with status 'not_started'
-    Returns the inserted row including the generated product_id
+    """Create a new processing run record with status ``not_started``.
+
+    If a record with the same ``product_id`` already exists (i.e. identical
+    scene, task, and parameters), the existing row is returned unchanged.
+
+    Args:
+        conn: Open psycopg2 connection.
+        scene_id: GEE scene identifier.
+        task: Pipeline task name, e.g. ``"water_mask"``.
+        parameters: Optional task parameter dict stored as JSONB.
+
+    Returns:
+        dict: The inserted or existing ``processed_products`` row, including
+        the generated ``product_id``.
     """
     parameters = parameters or {}
     product_id = generate_product_id(scene_id, task, parameters)
@@ -424,9 +816,22 @@ def update_processing_run(
     output_paths: list = None,
     error_message: str = None,
 ) -> dict:
-    """
-    Updates a processing run's status, output paths, and error message.
-    Sets completed_at automatically when status is 'complete' or 'failed'
+    """Update the status, output paths, and error message of a processing run.
+
+    Sets ``completed_at`` automatically when *status* is ``"complete"``
+    or ``"failed"``.
+
+    Args:
+        conn: Open psycopg2 connection.
+        product_id: Product identifier returned by :func:`register_processing_run`.
+        status: New status - one of ``"not_started"``, ``"complete"``,
+            ``"failed"``.
+        output_paths: List of output file paths or ``gs://`` URIs.
+        error_message: Human-readable error description when *status* is
+            ``"failed"``.
+
+    Returns:
+        dict: The updated ``processed_products`` row.
     """
     sql = """
         UPDATE processed_products SET
@@ -446,10 +851,78 @@ def update_processing_run(
         return cursor.fetchone()
 
 
-def fetch_unprocessed_scenes(conn, task: str, parameters: dict = None) -> list:
+def fetch_processing_run(conn, product_id: str) -> dict | None:
+    """Fetch a single processing run by product ID.
+
+    Args:
+        conn: Open psycopg2 connection.
+        product_id: Product identifier returned by
+            :func:`register_processing_run`.
+
+    Returns:
+        dict | None: The matching ``processed_products`` row, or ``None``
+        if not found.
     """
-    Returns all active imagery scenes that have no completed process runs
-    for a giving task and parameter set.
+    sql = "SELECT * FROM processed_products WHERE product_id = %s;"
+    with conn.cursor() as cursor:
+        cursor.execute(sql, (product_id,))
+        return cursor.fetchone()
+
+
+def fetch_processing_runs(
+    conn,
+    task: str | None = None,
+    status: str | None = None,
+) -> list:
+    """Fetch processing runs with optional task and status filters.
+
+    Args:
+        conn: Open psycopg2 connection.
+        task: Filter by task name, e.g. ``"water_mask"``. Returns all
+            tasks when ``None``.
+        status: Filter by status — one of ``"not_started"``, ``"running"``,
+            ``"complete"``, ``"failed"``. Returns all statuses when ``None``.
+
+    Returns:
+        list[dict]: Matching ``processed_products`` rows ordered by start
+        time descending.
+    """
+    conditions = []
+    params = []
+
+    if task:
+        conditions.append("task = %s")
+        params.append(task)
+    if status:
+        conditions.append("status = %s")
+        params.append(status)
+
+    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+
+    sql = f"""
+        SELECT * FROM processed_products
+        {where}
+        ORDER BY started_at DESC;
+    """
+    with conn.cursor() as cursor:
+        cursor.execute(sql, params)
+        return cursor.fetchall()
+
+
+def fetch_unprocessed_scenes(conn, task: str, parameters: dict = None) -> list:
+    """Return active imagery scenes with no completed run for a given task.
+
+    Uses a JSONB containment check (``@>``) so a scene is considered
+    processed only when its parameters are a superset of the requested ones.
+
+    Args:
+        conn: Open psycopg2 connection.
+        task: Pipeline task name to check, e.g. ``"water_mask"``.
+        parameters: Optional parameter dict - only scenes with no completed
+            run matching these parameters are returned.
+
+    Returns:
+        list[dict]: Unprocessed imagery rows.
     """
     parameters = parameters or {}
     sql = """

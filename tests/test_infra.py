@@ -480,3 +480,23 @@ class TestBackfillHelpers:
 
         with pytest.raises(ValueError):
             get_mission_from_path(Path("data/unknown_sensor_multiband.tif")).slug
+
+    def test_scene_id_from_landsat_path(self):
+        from swmaps.core.missions import scene_id_from_path
+
+        result = scene_id_from_path("landsat-7_LE07_014033_19990806_multiband.tif")
+        assert result == "LE07_014033_19990806"
+
+    def test_scene_id_from_sentinel_path(self):
+        from swmaps.core.missions import scene_id_from_path
+
+        result = scene_id_from_path(
+            "sentinel-2_S2B_20230601T154819_20230601T155818_T18SVJ_multiband.tif"
+        )
+        assert result == "S2B_20230601T154819_20230601T155818_T18SVJ"
+
+    def test_scene_id_unknown_raises(self):
+        from swmaps.core.missions import scene_id_from_path
+
+        with pytest.raises(ValueError):
+            scene_id_from_path("unknown_sensor_multiband.tif")

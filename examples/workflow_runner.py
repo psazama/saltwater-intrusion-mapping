@@ -1,9 +1,18 @@
-#!/usr/bin/env python3
+"""Workflow runner for the saltwater intrusion mapping pipeline.
 
+This script is the primary CLI entry point. It loads a TOML config file,
+constructs a typed :class:`~swmaps.schema.WorkflowConfig`, and calls each
+enabled pipeline stage in order.
+
+No model classes are imported here - all model access is encapsulated
+inside the pipeline layer.
+
+Usage::
+
+    python examples/workflow_runner.py --config examples/quickstart_train.toml
 """
-Workflow runner for the saltwater intrusion mapping pipeline (GEE version).
-Updated: Site-specific subdirectories (1, 2, 3...) and global validation.
-"""
+
+from __future__ import annotations
 
 import argparse
 import logging
@@ -11,297 +20,208 @@ import shutil
 import tomllib
 from pathlib import Path
 
-from swmaps.config import data_path
-from swmaps.datasets.cdl import CDL_TO_BINARY_CLASS
+from swmaps.datasets.cdl import run_cdl_download
 from swmaps.models.dataset import mission_from_path, satellite_id_from_mission
 from swmaps.models.inference import run_segmentation
-from swmaps.models.salinity_heuristic import SalinityHeuristicModel
-from swmaps.pipeline.download import (
-    _extract_coords_from_geojson,
-    download_cdl,
-    download_data,
-)
-from swmaps.pipeline.masks import generate_masks
-from swmaps.pipeline.salinity import salinity_pipeline
-from swmaps.pipeline.trend import trend_heatmap
+from swmaps.models.model_factory import get_model
+from swmaps.pipeline.download import run_download
+from swmaps.pipeline.masks import run_water_masks
+from swmaps.pipeline.salinity import run_salinity_classification, run_salinity_pipeline
+from swmaps.pipeline.trend import run_trend_heatmap
+from swmaps.schema import DownloadConfig, WorkflowConfig
 
-# ---------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+logger = logging.getLogger(__name__)
 
 
-def load_config(path: str) -> dict:
-    with open(path, "rb") as f:
-        return tomllib.load(f)
+def _log_result(stage: str, result) -> None:
+    """Log a PipelineResult at INFO or WARNING level.
+
+    Args:
+        stage: Name of the pipeline stage for the log prefix.
+        result: A :class:`~swmaps.schema.PipelineResult` instance.
+    """
+    if result.is_ok:
+        logger.info("[%s] ok - %d files written", stage, len(result.output_paths))
+    elif result.status == "skipped":
+        logger.info("[%s] skipped - %s", stage, result.error or "")
+    else:
+        logger.warning("[%s] error - %s", stage, result.error)
 
 
-def ensure_list(val):
-    if val is None:
-        return []
-    return val if isinstance(val, list) else [val]
-
-
-# ---------------------------------------------------------------------
-# Main workflow
-# ---------------------------------------------------------------------
-
-
-def main():
-    parser = argparse.ArgumentParser(description="GEE Saltwater Intrusion Pipeline")
-    parser.add_argument("--config", required=True, help="Path to TOML config")
-    parser.add_argument("--loss_function", type=str)
+def main() -> None:
+    parser = argparse.ArgumentParser(description="swmaps workflow runner")
+    parser.add_argument("--config", required=True, help="Path to TOML config file")
+    parser.add_argument(
+        "--loss_function",
+        default=None,
+        help="Override loss function (e.g. 'dice', 'focal', 'ce', 'hybrid')",
+    )
     args = parser.parse_args()
 
-    cfg = load_config(args.config)
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
-    )
+    with open(args.config, "rb") as f:
+        raw = tomllib.load(f)
 
     if args.loss_function:
-        cfg["loss_function"] = args.loss_function
-        cfg["segmentation_model_dir"] = (
-            f"{cfg['segmentation_model_dir']}_{args.loss_function}"
-        )
+        raw["loss"] = args.loss_function
 
-    if cfg.get("wipe_data_dir", True):
-        for dir_str in ["out_dir", "val_dir", "val_cdl_out"]:
-            path = cfg.get(dir_str, None)
-            if path:
-                path = Path(path)
-                if path.exists() and path.is_dir():
-                    logging.info(f"Clearing existing data in: {path}")
-                    shutil.rmtree(path)
+    cfg = WorkflowConfig.from_dict(raw)
+    dl = cfg.download
+    seg = cfg.segmentation
+    sal = cfg.salinity
+    trend = cfg.trend
 
-    base_out_dir = Path(cfg.get("out_dir", data_path("mosaics")))
+    base_out_dir = Path(dl.out_dir) if dl.out_dir else Path("data/outputs")
     base_out_dir.mkdir(parents=True, exist_ok=True)
 
-    # -----------------------------------------------------------
-    # Step 2 — Download imagery and datasets
-    # -----------------------------------------------------------
-    if cfg.get("skip_download", False):
-        logging.info("skip_download is True: Skipping GEE download.")
-    else:
-        # 1. Training Sites (Numbered Subdirectories)
-        lats = ensure_list(cfg.get("latitude"))
-        lons = ensure_list(cfg.get("longitude"))
-
-        if not lats or not lons:
-            geometry_path = cfg.get("geometry")
-            if geometry_path:
-                coords = _extract_coords_from_geojson(geometry_path)
-                if coords:
-                    lats = [coords[0]]
-                    lons = [coords[1]]
-                    logging.info(
-                        f"Extracted training coordinates from GeoJSON: lat={lats[0]}, lon={lons[0]}"
-                    )
-
-        if lats and lons:
-            for i, (lat, lon) in enumerate(zip(lats, lons), start=1):
-                site_dir = base_out_dir / str(i)
-                site_dir.mkdir(parents=True, exist_ok=True)
-                logging.info(f"--- Downloading Training Site {i}: {lat}, {lon} ---")
-
-                p_cfg = cfg.copy()
-                p_cfg.update(
-                    {"latitude": lat, "longitude": lon, "out_dir": str(site_dir)}
-                )
-                download_data(p_cfg)
-
-                if cfg.get("download_cdl", False):
-                    # Save CDL specifically as cdl_site_X.tif for pairing logic
-                    p_cfg["cdl_out"] = str(site_dir / f"cdl_site_{i}.tif")
-                    download_cdl(p_cfg)
-
-        # 2. Global Validation Site (Run Once)
-        if cfg.get("do_val", False):
-            val_dir = Path(cfg.get("val_dir", base_out_dir / "validation"))
-            val_dir.mkdir(parents=True, exist_ok=True)
-            logging.info("--- Downloading Global Validation Site ---")
-
-            v_cfg = cfg.copy()
-            v_cfg.update(
-                {
-                    "latitude": cfg.get("val_latitude"),
-                    "longitude": cfg.get("val_longitude"),
-                    "val_dir": str(val_dir),
-                    "val_cdl_out": str(val_dir / "val_cdl.tif"),
-                }
-            )
-            download_data(v_cfg, val=True)
-            if cfg.get("download_cdl", False):
-                download_cdl(v_cfg, val=True)
-
-    # -----------------------------------------------------------
-    # Step 2.5 — Segmentation (Training & Label Alignment)
-    # -----------------------------------------------------------
-    if cfg.get("train_segmentation", False):
-        logging.info("Beginning segmentation model training prep")
-        for dir_str in [
-            "segmentation_model_dir",
-            "segmentation_weights_path",
-            "segmentation_out_dir",
-        ]:
-            path = cfg.get(dir_str, None)
+    # Wipe output directories if configured
+    if raw.get("wipe_data_dir", False):
+        for dir_str in ["out_dir", "val_dir", "val_cdl_out"]:
+            path = raw.get(dir_str)
             if path:
                 path = Path(path)
                 if path.exists() and path.is_dir():
-                    logging.info(f"Clearing existing data in: {path}")
+                    logger.info("Clearing existing data in: %s", path)
                     shutil.rmtree(path)
 
-        logging.info("Preparing CDL labels and training")
-        from swmaps.datasets.cdl import align_cdl_to_imagery
+    # ------------------------------------------------------------------
+    # 1. Download imagery
+    # ------------------------------------------------------------------
+    dl_result = run_download(dl)
+    _log_result("download", dl_result)
 
-        model_type = cfg.get("model_type", "model").lower()
-        if model_type == "farseg":
-            from swmaps.models.farseg import FarSegModel
+    if seg.do_val and seg.val_start_date:
+        val_cfg = DownloadConfig(
+            start_date=seg.val_start_date,
+            end_date=seg.val_end_date,
+            mission=dl.mission,
+            geometry=seg.val_region,
+            out_dir=seg.val_dir,
+            buffer_km=dl.buffer_km,
+            cloud_filter=dl.cloud_filter,
+            days_before=dl.days_before,
+            days_after=dl.days_after,
+            samples_per_date=dl.samples_per_date,
+            save_png=dl.save_png,
+        )
+        val_dl_result = run_download(val_cfg)
+        _log_result("download_val", val_dl_result)
 
-            ModelClass = FarSegModel
-        elif model_type == "panopticon":
-            from swmaps.models.panopticon import PanopticonModel
+    cdl_result = run_cdl_download(dl)
+    _log_result("cdl", cdl_result)
 
-            ModelClass = PanopticonModel
-        # elif model_type == "unet":
-        #     from swmaps.models.unet import UNetModel
-        #     ModelClass = UNetModel
-        else:
-            raise ValueError(f"Unsupported model_type: {model_type}")
+    # ------------------------------------------------------------------
+    # 2. Segmentation training
+    # ------------------------------------------------------------------
+    if seg.train_segmentation:
 
-        # 1. Collect Training Pairs (Skip 'validation' folder)
-        training_pairs = []
+        # Clear existing segmentation dirs if present
+        for dir_str in ["segmentation_model_dir", "segmentation_out_dir"]:
+            path = raw.get(dir_str)
+            if path:
+                path = Path(path)
+                if path.exists() and path.is_dir():
+                    logger.info("Clearing existing data in: %s", path)
+                    shutil.rmtree(path)
+
+        model = get_model(
+            seg.model_type,
+            num_classes=seg.segmentation_num_classes,
+            segmentation_num_classes=seg.segmentation_num_classes,
+        )
+
         all_mosaics = sorted(base_out_dir.rglob("*_multiband.tif"))
+        training_pairs = []
+        val_pairs = []
 
-        logging.info(f"Training segmentation model with {len(all_mosaics)} mosaics")
         for mosaic in all_mosaics:
             mosaic_str = str(mosaic)
             if any(
                 x in mosaic_str for x in ["validation", "val", "aligned_cdl", "mask"]
             ):
                 continue
+            label_path = mosaic.with_name(f"aligned_cdl_{mosaic.name}")
+            if not label_path.exists():
+                continue
+            sat_id = satellite_id_from_mission(mission_from_path(mosaic))
+            training_pairs.append((mosaic, label_path, sat_id))
 
-            # Match imagery with the CDL in its specific subdirectory
-            site_cdls = list(mosaic.parents[1].glob("cdl_site_*.tif"))
-            if site_cdls:
-                label_path = mosaic.with_name(f"aligned_cdl_{mosaic.name}")
-                if not label_path.exists():
-                    align_cdl_to_imagery(site_cdls[0], mosaic, label_path)
-                sat_id = satellite_id_from_mission(mission_from_path(mosaic))
-                training_pairs.append((mosaic, label_path, sat_id))
-            else:
-                logging.warning(f"No CDL label found in folder: {mosaic.parent}")
-
-        # 2. Collect Validation Pairs (From global validation folder)
-        validation_pairs = []
-        if cfg.get("do_val", False):
-            val_root = Path(cfg.get("val_dir", base_out_dir / "validation"))
-            val_mosaics = sorted(val_root.rglob("*_multiband.tif"))
-            val_cdl_file = val_root / "val_cdl.tif"
-
-            for v_mosaic in val_mosaics:
-                mosaic_str = str(v_mosaic)
-                if any(x in mosaic_str for x in ["aligned_cdl", "mask"]):
+        if seg.do_val:
+            val_dir = Path(seg.val_dir) if seg.val_dir else base_out_dir / "validation"
+            for mosaic in sorted(val_dir.rglob("*_multiband.tif")):
+                if any(x in str(mosaic) for x in ["aligned_cdl", "mask"]):
                     continue
-                if val_cdl_file.exists():
-                    v_label = v_mosaic.with_name(f"aligned_cdl_{v_mosaic.name}")
-                    if not v_label.exists():
-                        align_cdl_to_imagery(val_cdl_file, v_mosaic, v_label)
+                label_path = mosaic.with_name(f"aligned_cdl_{mosaic.name}")
+                if label_path.exists():
                     sat_id = satellite_id_from_mission(mission_from_path(mosaic))
-                    validation_pairs.append((v_mosaic, v_label, sat_id))
-                else:
-                    logging.warning(f"No CDL label found in folder: {v_mosaic.parent}")
+                    val_pairs.append((mosaic, label_path, sat_id))
 
         if training_pairs:
-            logging.info(
-                f"Training segmentation model with {len(training_pairs)} pairs"
+            seg_model_dir = Path(
+                seg.segmentation_model_dir or str(base_out_dir / "model")
             )
-            seg_model_dir = Path(cfg["segmentation_model_dir"])
             seg_model_dir.mkdir(parents=True, exist_ok=True)
-
-            model_instance = ModelClass(
-                num_classes=cfg.get("segmentation_num_classes", 256),
-                in_channels=cfg.get("in_channels", 6),
-            )
-
-            model_instance.train_model(
+            model.train_model(
                 data_pairs=training_pairs,
                 out_dir=seg_model_dir,
-                label_map=CDL_TO_BINARY_CLASS,
-                val_pairs=validation_pairs if validation_pairs else None,
-                epochs=cfg.get("epochs", 50),
-                lr=cfg.get("lr", 1e-4),
-                batch_size=cfg.get("batch_size", 4),
-                loss_type=cfg.get("loss_function", "ce"),
-                lr_patience=cfg.get("lr_patience", 5),
-                stopping_patience=cfg.get("stopping_patience", 15),
+                val_pairs=val_pairs or None,
+                epochs=seg.epochs,
+                batch_size=seg.batch_size,
+                lr=seg.learning_rate,
+                loss_type=seg.loss,
             )
+            logger.info("[train] model saved to %s", seg_model_dir)
         else:
-            logging.warning("No training pairs! Skipping training...")
+            logger.warning("[train] no training pairs found - skipping.")
 
-        if validation_pairs:
-            logging.info("Running inference on validation set for visual inspection...")
-            seg_model_dir = Path(cfg["segmentation_model_dir"])
-            seg_model_dir.mkdir(parents=True, exist_ok=True)
-            val_out = seg_model_dir / "val_predictions"
-            val_out.mkdir(parents=True, exist_ok=True)
-
-            # Extract only the mosaic paths from the pairs
-            val_mosaics_only = [p[0] for p in validation_pairs]
-
-            run_segmentation(
-                mosaics=val_mosaics_only,
-                out_dir=val_out,
-                model_name=cfg.get("model_type", "model"),
-                weights_path=str(seg_model_dir / "best_model.pth"),
-                save_png=True,  # for visual debugging
-            )
-
-    # -----------------------------------------------------------
-    # Inference & Post-Processing
-    # -----------------------------------------------------------
-    if cfg.get("run_segmentation", False):
-        logging.info("Preparing to run segmentation model.")
+    # ------------------------------------------------------------------
+    # 3. Segmentation inference
+    # ------------------------------------------------------------------
+    if seg.run_segmentation:
         mosaics = [
             m
             for m in sorted(base_out_dir.rglob("*_multiband.tif"))
             if "aligned_cdl" not in str(m)
         ]
         if mosaics:
-            seg_out = Path(cfg["segmentation_out_dir"])
+            seg_out = Path(
+                seg.segmentation_out_dir or str(base_out_dir / "segmentation")
+            )
             seg_out.mkdir(parents=True, exist_ok=True)
             run_segmentation(
                 mosaics=mosaics,
                 out_dir=seg_out,
-                model_name=cfg.get("model_type", "model"),
-                weights_path=cfg.get("segmentation_weights_path"),
-                save_png=bool(cfg.get("segmentation_png", False)),
+                model_name=seg.model_type,
+                weights_path=seg.segmentation_weights_path,
+                save_png=seg.segmentation_png,
             )
+            logger.info("[inference] outputs written to %s", seg_out)
         else:
-            logging.warning("No mosaics found! Skipping inference...")
+            logger.warning("[inference] no mosaics found - skipping.")
 
-    if cfg.get("run_salinity_pipeline", False):
-        salinity_pipeline(
-            truth_download_list=cfg.get("truth_download_list"),
-            truth_dir=cfg.get("truth_dir"),
-            truth_file=cfg.get("truth_file"),
-        )
+    # ------------------------------------------------------------------
+    # 4. Salinity ground-truth pipeline
+    # ------------------------------------------------------------------
+    sal_pipeline_result = run_salinity_pipeline(sal)
+    _log_result("salinity_pipeline", sal_pipeline_result)
 
-    if cfg.get("run_salinity_classification", False):
-        for mosaic_path in sorted(base_out_dir.rglob("*.tif")):
-            if any(
-                x in mosaic_path.name for x in ["_score", "_class", "_mask", "aligned"]
-            ):
-                continue
-            if "landsat" in mosaic_path.name.lower():
-                SalinityHeuristicModel().estimate_salinity_from_mosaic(
-                    mosaic_path=mosaic_path,
-                    water_threshold=cfg.get("water_threshold", 0.2),
-                )
+    # ------------------------------------------------------------------
+    # 5. Per-mosaic salinity classification
+    # ------------------------------------------------------------------
+    sal_class_result = run_salinity_classification(sal, base_out_dir)
+    _log_result("salinity_classification", sal_class_result)
 
-    if cfg.get("run_water_trend", False):
-        generate_masks(input_dir=base_out_dir)
-        trend_heatmap(output_dir=cfg.get("trend_output_dir", base_out_dir))
+    # ------------------------------------------------------------------
+    # 6. Water masks + trend heatmap
+    # ------------------------------------------------------------------
+    if trend.run_water_trend:
+        mask_result = run_water_masks(base_out_dir)
+        _log_result("water_masks", mask_result)
 
-    logging.info("Workflow complete!")
+    trend_result = run_trend_heatmap(trend, output_dir=base_out_dir)
+    _log_result("trend_heatmap", trend_result)
+
+    logger.info("Workflow complete.")
 
 
 if __name__ == "__main__":

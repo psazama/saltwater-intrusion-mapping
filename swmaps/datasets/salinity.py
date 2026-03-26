@@ -138,7 +138,7 @@ def download_salinity_datasets(
 
         if not success:
             tqdm.write(
-                f"  [failed] {fname} after {max_retries} attempts — partial file kept at {tmp_dest}"
+                f"  [failed] {fname} after {max_retries} attempts - partial file kept at {tmp_dest}"
             )
 
     return downloaded_paths

@@ -2,9 +2,13 @@
 name = "swmaps"
 version = "0.1.0"
 dependencies = [
+    "albumentations",
     "dask",
+    "fastapi",
     "flask",
     "earthengine-api",
+    "httpx",
+    "hypertune",
     "numpy",
     "pandas",
     "psycopg2",
@@ -15,7 +19,9 @@ dependencies = [
     "shapely",
     "xarray",
     "scikit-learn",
+    "segmentation_models_pytorch",
     "tqdm",
+    "uvicorn",
     "xgboost",
 ]
 

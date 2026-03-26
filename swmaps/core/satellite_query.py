@@ -1,10 +1,17 @@
-"""
-Earth Engine based querying and downloading of satellite imagery.
+"""Earth Engine based querying and downloading of satellite imagery.
 
 This module replaces all STAC, AWS, rasterio-session, and per-band
-downloading logic with clean GEE-native helpers.
+downloading logic with clean GEE-native helpers. Downstream code receives
+local multiband GeoTIFFs regardless of which download path was taken.
 
-Downstream code simply receives local multiband GeoTIFFs, same as before.
+Public functions
+----------------
+:func:`initialize_ee` - safely initialise the Earth Engine client.
+:func:`query_gee_images` - query a mission's ImageCollection.
+:func:`get_best_image` - select the lowest-cloud-cover image(s).
+:func:`download_gee_multiband` - export a clipped multiband GeoTIFF.
+:func:`find_gee_coverage` - check which missions cover a DataFrame of locations.
+:func:`download_matching_gee_images` - download imagery matched to ground truth.
 """
 
 import os
@@ -53,17 +60,19 @@ def query_gee_images(
     date_range: str,
     cloud_filter: float | None = None,
 ):
-    """
-    Query a mission’s ImageCollection in GEE.
+    """Query a mission's ImageCollection in GEE.
 
     Args:
-        mission (str): Mission slug (sentinel-2, landsat-5, ...)
-        bbox (list): [minx, miny, maxx, maxy]
-        date_range (str): "YYYY-MM-DD/YYYY-MM-DD"
-        cloud_filter (float): Optional cloud threshold
+        mission: Mission slug, e.g. ``"sentinel-2"``, ``"landsat-5"``.
+        bbox: Bounding box as ``[minx, miny, maxx, maxy]`` in EPSG:4326.
+        date_range: Date range string ``"YYYY-MM-DD/YYYY-MM-DD"``.
+        cloud_filter: Optional maximum cloud cover percentage. Applied via
+            ``CLOUDY_PIXEL_PERCENTAGE`` for Sentinel-2 and ``CLOUD_COVER``
+            for Landsat.
 
     Returns:
-        (ee.ImageCollection, list[str])
+        tuple[ee.ImageCollection, list[str]]: Filtered collection and list
+        of band names for the mission.
     """
     initialize_ee()
 
@@ -86,15 +95,20 @@ def query_gee_images(
 
 
 def get_best_image(collection: ee.ImageCollection, mission: str, samples: int):
-    """Pick the 'best' image: lowest cloud cover, most recent.
+    """Select the best image(s) from a collection by cloud cover and recency.
+
+    Sorts by a composite key that prioritises low cloud cover then most
+    recent acquisition date.
 
     Args:
-        collection (ee.ImageCollection): The collection to search.
-        mission (str): Mission slug (e.g. "sentinel-2", "landsat-5").
-        samples (int): Number of samples to return
+        collection: Filtered GEE ImageCollection to search.
+        mission: Mission slug used to select the correct cloud-cover
+            property.
+        samples: Maximum number of images to return.
 
     Returns:
-        ee.Image | None: The selected image or None if no images exist.
+        list[ee.Image] | None: Up to *samples* images sorted best-first,
+        or ``None`` if the collection is empty.
     """
 
     # If the collection is empty, return None
@@ -141,9 +155,24 @@ def download_gee_multiband(
     out_dir: Path,
     scale: int = 10,
 ):
-    """
-    Export a clipped, multiband GeoTIFF for the given GEE image.
-    Automatically switches Sentinel-2 to async export if request is large.
+    """Export a clipped multiband GeoTIFF for a GEE image.
+
+    Estimates the download size and automatically switches to a tile-based
+    strategy for large Sentinel-2 requests (>30 MB). Tiles are downloaded
+    individually and stitched into a single output file. The downloaded
+    scene is registered in the imagery catalog via
+    :func:`~swmaps.infra.db.register_scene`.
+
+    Args:
+        image: GEE Image to export.
+        mission: Mission slug used for CRS and scale selection.
+        bands: Dict mapping logical band names to GEE band names.
+        bbox: Bounding box as ``[minx, miny, maxx, maxy]`` in EPSG:4326.
+        out_dir: Directory where the output GeoTIFF will be written.
+        scale: Output pixel resolution in metres. Defaults to ``10``.
+
+    Returns:
+        str: Path to the downloaded multiband GeoTIFF.
     """
     initialize_ee()
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -328,15 +357,16 @@ def download_gee_multiband(
 
 
 def _get_tile_grid(bbox: list[float], num_tiles: int):
-    """
-    Generate a grid of tile bounding boxes.
+    """Generate a regular grid of tile bounding boxes.
 
     Args:
-        bbox (list): [minx, miny, maxx, maxy]
-        num_tiles (int): Number of tiles per dimension (e.g., 2 means 2x2 = 4 tiles)
+        bbox: Region to tile as ``[minx, miny, maxx, maxy]``.
+        num_tiles: Number of tiles per dimension - ``2`` produces a 2×2
+            grid of 4 tiles, ``3`` produces 3×3 = 9 tiles.
 
     Returns:
-        list: List of tile bounding boxes
+        list[list[float]]: List of ``[minx, miny, maxx, maxy]`` bounding
+        boxes covering the input region without overlap.
     """
     minx, miny, maxx, maxy = bbox
     width = (maxx - minx) / num_tiles
@@ -362,19 +392,18 @@ def _download_tile(
     crs: str,
     tile_path: Path,
 ):
-    """
-    Download a single tile synchronously using getDownloadURL.
+    """Download a single tile synchronously using the GEE download URL API.
 
     Args:
-        image (ee.Image): The clipped and reprojected GEE image
-        bbox (list): Tile bounding box [minx, miny, maxx, maxy]
-        band_list (list): List of band names
-        scale (int): Resolution in meters
-        crs (str): Coordinate reference system
-        tile_path (Path): Output path for the tile
+        image: Clipped and reprojected GEE image.
+        bbox: Tile bounding box as ``[minx, miny, maxx, maxy]``.
+        band_list: List of GEE band names to include.
+        scale: Output pixel resolution in metres.
+        crs: Coordinate reference system string, e.g. ``"EPSG:32618"``.
+        tile_path: Destination path for the downloaded tile GeoTIFF.
 
     Returns:
-        str: Path to the downloaded tile
+        str: Path to the downloaded tile GeoTIFF.
     """
     region = ee.Geometry.BBox(*bbox)
     tile_img = image.clip(region)
@@ -400,15 +429,14 @@ def _download_tile(
 
 
 def _stitch_tiles(tile_paths: list[str], output_path: Path):
-    """
-    Merge tiles into a single output GeoTIFF using rasterio.
+    """Merge a list of tile GeoTIFFs into a single output GeoTIFF.
 
     Args:
-        tile_paths (list): List of paths to tile GeoTIFFs
-        output_path (Path): Output path for the stitched GeoTIFF
+        tile_paths: List of paths to tile GeoTIFFs to merge.
+        output_path: Destination path for the stitched output.
 
     Returns:
-        str: Path to the stitched output file
+        str: Path to the stitched output GeoTIFF.
     """
     # Use context managers to avoid keeping all tiles open
     with rasterio.open(tile_paths[0]) as first_tile:
@@ -462,11 +490,24 @@ def find_gee_coverage(
     days_after: int = 7,
     temporal_granularity: str = "M",
 ):
-    """
-    Mirror of the old STAC-based `find_satellite_coverage`, but using GEE.
+    """Check which satellite missions cover each location in a DataFrame.
+
+    Clusters the input points spatially and temporally, then queries GEE
+    for each cluster to determine which missions have imagery available.
+
+    Args:
+        df: DataFrame with ``latitude``, ``longitude``, and ``date`` columns.
+        missions: Mission slugs to check. Defaults to all three supported
+            missions.
+        buffer_km: Spatial buffer around each point in kilometres.
+        days_before: Temporal window before each date in days.
+        days_after: Temporal window after each date in days.
+        temporal_granularity: Pandas period string for temporal clustering,
+            e.g. ``"M"`` for monthly. Defaults to ``"M"``.
 
     Returns:
-        DataFrame with `covered_by` list per cluster.
+        pd.DataFrame: Input DataFrame with an added ``covered_by`` column
+        containing a list of mission slugs for each row.
     """
     initialize_ee()
 
@@ -556,10 +597,26 @@ def download_matching_gee_images(
     days_after: int = 7,
     samples: int = 1,
 ):
-    """
-    Replacement for the old STAC-based downloader.
+    """Download multiband GeoTIFFs matched to ground truth sample locations.
 
-    Produces MULTIBAND GeoTIFFs (one per cluster/mission).
+    For each row in *df* that has a non-empty ``covered_by`` list, downloads
+    one multiband GeoTIFF per mission per spatial/temporal cluster. Deduplicates
+    downloads within the same cluster.
+
+    Args:
+        df: DataFrame with ``latitude``, ``longitude``, ``date``,
+            ``cluster_id``, and ``covered_by`` columns - typically the output
+            of :func:`find_gee_coverage`.
+        missions: Mission slugs to download.
+        buffer_km: Spatial buffer around each point in kilometres.
+        output_dir: Directory where mosaics will be written.
+        days_before: Temporal window before each date in days.
+        days_after: Temporal window after each date in days.
+        samples: Maximum number of scenes per cluster. Defaults to ``1``.
+
+    Returns:
+        pd.DataFrame: Input DataFrame with an added ``downloaded_files``
+        column containing lists of downloaded GeoTIFF paths per row.
     """
     initialize_ee()
     output_dir = Path(output_dir) if output_dir else data_path("gee_downloads")

@@ -1,3 +1,15 @@
+"""Backfill utility for registering pre-existing GeoTIFF files in the imagery catalog.
+
+This module is intended to be run once as a one-off script when you have
+downloaded mosaics on disk that were not registered in the database at
+download time - for example, files downloaded before the DB tracking layer
+was added.
+
+Usage::
+
+    python -m swmaps.infra.backfill data/downloads/
+"""
+
 from pathlib import Path
 
 import rasterio
@@ -8,6 +20,20 @@ from swmaps.infra.db import get_connection, register_scene
 
 
 def _parse_date_from_filename(stem: str) -> str:
+    """Parse an ISO-8601 date string from a multiband GeoTIFF filename stem.
+
+    Supports two filename conventions:
+
+    - Sentinel-2: ``sentinel-2_YYYYMMDD...`` - date is the second token.
+    - Landsat: ``landsat-X_SCENE_ID_YYYYMMDD_...`` - date is the fourth token.
+
+    Args:
+        stem: Filename stem without extension, e.g.
+            ``"landsat-7_LE07_014033_19990806_multiband"``.
+
+    Returns:
+        str: ISO-8601 date string, e.g. ``"1999-08-06"``.
+    """
     parts = stem.split("_")
     if parts[0] == "sentinel-2":
         date_str = parts[1][:8]
@@ -16,7 +42,24 @@ def _parse_date_from_filename(stem: str) -> str:
     return f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:8]}"
 
 
-def backfill_directory(data_dir: str):
+def backfill_directory(data_dir: str) -> None:
+    """Register all multiband GeoTIFFs in a directory with the imagery catalog.
+
+    Searches *data_dir* recursively for ``*_multiband.tif`` files, skipping
+    any that look like aligned CDL products. For each file it:
+
+    1. Reads the CRS and bounds from the rasterio metadata.
+    2. Reprojects bounds to EPSG:4326 for storage and validation.
+    3. Infers the mission slug from the filename.
+    4. Calls :func:`~swmaps.infra.db.register_scene` to insert or upsert
+       the record.
+
+    Args:
+        data_dir: Root directory to search for multiband GeoTIFFs.
+
+    Returns:
+        None: Results are printed to stdout and written to the database.
+    """
     data_path = Path(data_dir)
     tifs = [
         p for p in data_path.rglob("*_multiband.tif") if "aligned_cdl" not in str(p)

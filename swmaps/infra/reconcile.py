@@ -1,9 +1,35 @@
+"""Filesystem reconciliation utility for the imagery catalog.
+
+Checks every registered scene in the database against the local filesystem
+and marks any records whose files no longer exist as ``"missing"``.
+
+Intended to be run periodically or after bulk file deletions to keep the
+catalog in sync with what is actually on disk.
+
+Usage::
+
+    python -m swmaps.infra.reconcile
+"""
+
 from pathlib import Path
 
 from swmaps.infra.db import get_connection
 
 
-def reconcile_filesystem():
+def reconcile_filesystem() -> None:
+    """Check all registered scenes and mark any with missing files.
+
+    Queries all imagery records from the database, checks whether at least
+    one of each record's ``file_locations`` paths exists on disk, and
+    prompts the user to mark missing records as ``"missing"`` in the catalog.
+
+    Args:
+        None
+
+    Returns:
+        None: Updates are applied directly to the database after user
+        confirmation.
+    """
     with get_connection() as conn:
         with conn.cursor() as cursor:
             cursor.execute("SELECT id, scene_id, file_locations FROM imagery")

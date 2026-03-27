@@ -9,6 +9,22 @@ services:
       - "5433:5432"
     volumes:
       - pgdata:/var/lib.postgresql/data
+
+  api:
+    build: .
+    command: uvicorn swmaps.api:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: swmaps
+      DB_USER: swmaps
+      DB_PASSWORD: swmaps
+    volumes:
+      - .:/app
+    depends_on:
+      - db
     
 volumes:
   pgdata:

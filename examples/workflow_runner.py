@@ -71,7 +71,7 @@ def main() -> None:
     sal = cfg.salinity
     trend = cfg.trend
 
-    base_out_dir = Path(dl.out_dir) if dl.out_dir else Path("data/outputs")
+    base_out_dir = Path(dl.out_dir) if dl.out_dir else Path("data/outputs").resolve()
     base_out_dir.mkdir(parents=True, exist_ok=True)
 
     # Wipe output directories if configured

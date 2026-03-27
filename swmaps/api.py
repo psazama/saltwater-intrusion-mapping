@@ -25,7 +25,8 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from swmaps.infra.db import (
     fetch_depth_profile,
@@ -79,6 +80,22 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+# Serve React build
+static_dir = Path(__file__).parent / "static"
+if static_dir.exists():
+    app.mount("/assets", StaticFiles(directory=static_dir / "assets"), name="assets")
+
+
+@app.get("/", include_in_schema=False)
+def serve_frontend():
+    """Serve the React frontend."""
+    index = static_dir / "index.html"
+    if not index.exists():
+        return JSONResponse(
+            {"message": "Frontend not built. Run npm run build in frontend/"}
+        )
+    return FileResponse(index)
 
 
 # ---------------------------------------------------------------------------
@@ -475,3 +492,46 @@ def trigger_workflow(cfg: WorkflowConfig) -> JSONResponse:
     results["trend"] = run_trend_heatmap(cfg.trend).to_dict()
 
     return JSONResponse(content=results)
+
+
+@app.get("/preview", tags=["scenes"])
+def preview_product(path: str = Query(..., description="Local file path to preview")):
+    """Serve a product PNG for preview in the science viewer."""
+    file_path = Path(path)
+
+    # If relative, resolve against the project data root
+    if not file_path.is_absolute():
+        from swmaps.config import settings
+
+        file_path = settings.data_root / file_path
+
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail=f"File not found: {path}")
+
+    # For TIF files, look for a companion PNG
+    if file_path.suffix.lower() == ".tif":
+        png_path = file_path.with_suffix(".png")
+        if png_path.exists():
+            file_path = png_path
+        else:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No PNG preview found for {path}. Run the pipeline with save_png=true.",
+            )
+
+    if file_path.suffix.lower() != ".png":
+        raise HTTPException(status_code=400, detail="Only PNG files can be previewed")
+
+    return FileResponse(file_path, media_type="image/png")
+
+
+@app.get("/sensors", tags=["status"])
+def list_sensors() -> dict:
+    """List all registered satellite mission slugs.
+
+    Returns:
+        dict: Mission slugs available for filtering.
+    """
+    from swmaps.core.missions import _MISSION_REGISTRY
+
+    return {"sensors": sorted(_MISSION_REGISTRY.keys())}

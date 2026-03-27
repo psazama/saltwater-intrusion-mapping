@@ -14,6 +14,24 @@ services:
         max-size: "100m"
         max-file: "5"
 
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: uvicorn swmaps.api:app --host 0.0.0.0 --port 8000 --workers 2
+    env_file:
+      - .env.prod
+    ports:
+      - "8000:8000"
+    volumes:
+      - /data/swmaps:/app/data
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+
   grafana:
     image: grafana/grafana:latest
     ports:
@@ -21,8 +39,11 @@ services:
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
       - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-clock-panel
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./deploy/grafana/provisioning:/etc/grafana/provisioning
+      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards
     restart: unless-stopped
 
 volumes:

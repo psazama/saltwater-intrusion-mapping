@@ -13,6 +13,8 @@ To add a new task:
 from __future__ import annotations
 
 from swmaps.pipeline.masks import generate_water_mask
+from swmaps.pipeline.salinity import run_salinity_classification
+from swmaps.pipeline.trend import run_trend_heatmap
 
 #: Registry of available pipeline tasks.
 #: Keys are task name strings passed via the ``TASK`` environment variable.
@@ -20,4 +22,6 @@ from swmaps.pipeline.masks import generate_water_mask
 #: :class:`~swmaps.schema.PipelineResult`.
 task_dict: dict[str, callable] = {
     "water_mask": generate_water_mask,
+    "salinity": run_salinity_classification,
+    "trend": run_trend_heatmap,
 }

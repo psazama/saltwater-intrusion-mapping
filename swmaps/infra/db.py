@@ -352,7 +352,8 @@ def fetch_scenes(
         params.append(date_to)
 
     sql = f"""
-        SELECT * FROM imagery
+        SELECT *, ST_AsText(location) as location_wkt
+        FROM imagery
         WHERE {" AND ".join(conditions)}
         ORDER BY acquisition_date DESC;
     """
@@ -371,7 +372,7 @@ def fetch_scene(conn, scene_id: str) -> dict | None:
     Returns:
         dict | None: The matching imagery row, or ``None`` if not found.
     """
-    sql = "SELECT * FROM imagery WHERE scene_id = %s;"
+    sql = "SELECT *, ST_AsText(location) as location_wkt FROM imagery WHERE scene_id = %s;"
     with conn.cursor() as cursor:
         cursor.execute(sql, (scene_id,))
         return cursor.fetchone()

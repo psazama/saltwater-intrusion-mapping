@@ -437,6 +437,7 @@ class SceneResponse(BaseModel):
     file_locations: List[str]
     ingest_timestamp: Optional[str] = None
     version_no: int = 1
+    location_wkt: Optional[str] = None
 
     @classmethod
     def from_row(cls, row: dict) -> SceneResponse:
@@ -460,6 +461,7 @@ class SceneResponse(BaseModel):
                 str(row["ingest_timestamp"]) if row.get("ingest_timestamp") else None
             ),
             version_no=row.get("version_no", 1),
+            location_wkt=row.get("location_wkt"),
         )
 
 

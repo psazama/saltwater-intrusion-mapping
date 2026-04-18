@@ -308,6 +308,7 @@ class SalinityConfig(BaseModel):
     truth_dir: Optional[str] = None
     truth_file: Optional[str] = None
     water_threshold: float = 0.2
+    save_png: bool = False
 
     @classmethod
     def from_dict(cls, d: dict) -> "SalinityConfig":
@@ -327,6 +328,7 @@ class TrendConfig(BaseModel):
             (e.g. ``"mask"`` or ``"segmentation"``).
     """
 
+    run_water_masks: bool = False
     run_water_trend: bool = False
     trend_output_dir: Optional[str] = None
     trend_class_value: int = 1

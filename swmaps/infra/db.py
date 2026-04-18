@@ -99,16 +99,20 @@ def track_pipeline_run(conn, scene_id: str, task: str, parameters: dict = None):
         # run record is automatically marked complete or failed
     """
     if conn is None:
-        yield None
+        yield {"output_paths": []}
         return
 
     run_rec = register_processing_run(conn, scene_id, task, parameters)
+    run_rec = dict(run_rec)
+    run_rec["output_paths"] = []
+
     try:
         yield run_rec
         update_processing_run(
             conn,
             run_rec["product_id"],
             status="complete",
+            output_paths=run_rec["output_paths"] or None,
         )
     except Exception as exc:
         update_processing_run(
@@ -116,6 +120,7 @@ def track_pipeline_run(conn, scene_id: str, task: str, parameters: dict = None):
             run_rec["product_id"],
             status="failed",
             error_message=str(exc),
+            output_paths=run_rec["output_paths"] or None,
         )
         raise
 

@@ -1,0 +1,51 @@
+# ---------------------------------------------------------------------
+# Salinity Only Example Workflow Configuration
+# Runs heuristic salinity classification on already-downloaded mosaics.
+# Assumes quickstart_download_only.toml has already been run.
+# ---------------------------------------------------------------------
+
+# -------------------------
+# Imagery date range
+# -------------------------
+start_date = "2018-04-01"
+end_date   = "2020-04-10"
+date_step = 120
+
+# -------------------------
+# Location(s) of interest
+# -------------------------
+latitude  = [38.75, 38.93]
+longitude = [-75.95, -76.16]
+
+# -------------------------
+# Mission / sensor
+# -------------------------
+mission = ["sentinel-2", "landsat-5", "landsat-7"]
+
+# -------------------------
+# Download settings — skip since we already have mosaics
+# -------------------------
+skip_download = true
+out_dir       = "data/outputs/quickstart_download_only"
+
+# -------------------------
+# CDL settings — skip
+# -------------------------
+download_cdl = false
+
+# -------------------------
+# Pipeline steps
+# -------------------------
+run_water_masks             = false
+run_water_trend             = false
+run_salinity_pipeline       = false
+run_salinity_classification = true
+run_segmentation            = false
+train_segmentation          = false
+
+# -------------------------
+# Salinity settings
+# -------------------------
+water_threshold = 0.2
+
+save_png = true

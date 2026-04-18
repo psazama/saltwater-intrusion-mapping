@@ -31,6 +31,7 @@ from pathlib import Path
 
 import numpy as np
 import rasterio
+from PIL import Image
 from rasterio.errors import RasterioError
 
 from swmaps.config import data_path
@@ -184,7 +185,7 @@ def run_salinity_classification(
         except ValueError:
             scene_id = mosaic_path.stem
 
-        with track_pipeline_run(conn, scene_id, "salinity"):
+        with track_pipeline_run(conn, scene_id, "salinity") as run:
             _write_band(score_path, profile, result["score"], dtype="float32")
             _write_band(
                 class_path,
@@ -199,6 +200,20 @@ def run_salinity_classification(
                 result["water_mask"].astype(np.float32),
                 dtype="float32",
             )
+            run["output_paths"] = [str(score_path), str(class_path), str(water_path)]
+            if cfg.save_png:
+                score_filled = np.nan_to_num(result["score"], nan=0.0)
+                score_png = (np.clip(score_filled, 0, 1) * 255).astype(np.uint8)
+                Image.fromarray(score_png, mode="L").save(
+                    score_path.with_suffix(".png")
+                )
+                output_paths.append(score_path.with_suffix(".png"))
+
+                class_png = (result["class_codes"] * 85).astype(np.uint8)
+                Image.fromarray(class_png, mode="L").save(
+                    class_path.with_suffix(".png")
+                )
+                output_paths.append(class_path.with_suffix(".png"))
 
         output_paths.extend([score_path, class_path, water_path])
         logger.info("Salinity products written for %s", mosaic_path.name)

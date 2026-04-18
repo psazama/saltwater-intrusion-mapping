@@ -64,9 +64,10 @@ def generate_water_mask(mosaic: str | Path, conn=None) -> PipelineResult:
     except ValueError:
         scene_id = mosaic.stem
 
-    with track_pipeline_run(conn, scene_id, "water_mask"):
+    with track_pipeline_run(conn, scene_id, "water_mask") as run:
         out_mask = mosaic.with_name(f"{mosaic.stem}_mask.tif")
         compute_ndwi(str(mosaic), mission, str(out_mask), display=False)
+        run["output_paths"] = [str(out_mask)]
 
     return PipelineResult.ok([out_mask], mission=mission)
 
@@ -132,7 +133,7 @@ def run_water_masks(
         except ValueError:
             scene_id = tif.stem
 
-        with track_pipeline_run(conn, scene_id, "water_mask"):
+        with track_pipeline_run(conn, scene_id, "water_mask") as run:
             out_mask = tif.with_name(f"{tif.stem}_mask.tif")
             compute_ndwi(
                 str(tif),
@@ -141,6 +142,9 @@ def run_water_masks(
                 display=False,
                 center_size=center_size,
             )
+            run["output_paths"] = [str(out_mask)]
+            if write_png:
+                run["output_paths"].append(str(out_mask.with_suffix(".png")))
         output_paths.append(out_mask)
 
         if write_png:

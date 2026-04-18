@@ -21,6 +21,7 @@ import tomllib
 from pathlib import Path
 
 from swmaps.datasets.cdl import run_cdl_download
+from swmaps.infra.db import get_connection
 from swmaps.models.dataset import mission_from_path, satellite_id_from_mission
 from swmaps.models.inference import run_segmentation
 from swmaps.models.model_factory import get_model
@@ -57,6 +58,12 @@ def main() -> None:
         default=None,
         help="Override loss function (e.g. 'dice', 'focal', 'ce', 'hybrid')",
     )
+    parser.add_argument(
+        "--track",
+        action="store_true",
+        default=False,
+        help="Register pipeline outputs in the database (requires DB connection).",
+    )
     args = parser.parse_args()
 
     with open(args.config, "rb") as f:
@@ -66,6 +73,14 @@ def main() -> None:
         raw["loss"] = args.loss_function
 
     cfg = WorkflowConfig.from_dict(raw)
+    db_conn = None
+    if args.track:
+        try:
+            db_conn = get_connection()
+            logger.info("DB tracking enabled.")
+        except Exception as exc:
+            logger.warning("DB connection failed - tracking disabled: %s", exc)
+
     dl = cfg.download
     seg = cfg.segmentation
     sal = cfg.salinity
@@ -208,20 +223,22 @@ def main() -> None:
     # ------------------------------------------------------------------
     # 5. Per-mosaic salinity classification
     # ------------------------------------------------------------------
-    sal_class_result = run_salinity_classification(sal, base_out_dir)
+    sal_class_result = run_salinity_classification(sal, base_out_dir, conn=db_conn)
     _log_result("salinity_classification", sal_class_result)
 
     # ------------------------------------------------------------------
     # 6. Water masks + trend heatmap
     # ------------------------------------------------------------------
-    if trend.run_water_trend:
-        mask_result = run_water_masks(base_out_dir)
+    if trend.run_water_masks or trend.run_water_trend:
+        mask_result = run_water_masks(base_out_dir, conn=db_conn)
         _log_result("water_masks", mask_result)
 
     trend_result = run_trend_heatmap(trend, output_dir=base_out_dir)
     _log_result("trend_heatmap", trend_result)
 
     logger.info("Workflow complete.")
+    if db_conn:
+        db_conn.close()
 
 
 if __name__ == "__main__":

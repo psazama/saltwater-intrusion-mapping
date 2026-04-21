@@ -25,6 +25,18 @@ services:
       - .:/app
     depends_on:
       - db
+
+  titiler:
+      image: ghcr.io/developmentseed/titiler:latest
+      ports:
+        - "8001:8000"
+      environment:
+        - WORKERS_PER_CORE=1
+        - HOST=0.0.0.0
+        - PORT=8000
+      volumes:
+        - .:/data
+      restart: unless-stopped
     
 volumes:
   pgdata:

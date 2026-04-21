@@ -12,7 +12,9 @@ defaulting to ``"eo-ml-data"`` for local development.
 import os
 from pathlib import Path
 
+import rasterio
 from google.cloud import storage
+from rasterio.enums import Resampling
 
 BUCKET_NAME = os.environ.get("GCS_BUCKET", "eo-ml-data")
 
@@ -132,3 +134,19 @@ def blob_exists(blob_path: str) -> bool:
     client = get_client()
     bucket = client.bucket(BUCKET_NAME)
     return bucket.blob(blob_path).exists()
+
+
+def add_overviews(path: Path) -> None:
+    """Add overviews to a GeoTIFF for efficient tile serving.
+
+    Adds overview levels 2, 4, 8, 16, 32 using average resampling.
+    Safe to call on files that already have overviews -- existing ones
+    are replaced.
+
+    Args:
+        path: Path to an existing GeoTIFF.
+    """
+
+    with rasterio.open(path, "r+") as dst:
+        dst.build_overviews([2, 4, 8, 16, 32], Resampling.average)
+        dst.update_tags(ns="rio_overview", resampling="average")

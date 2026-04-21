@@ -1,19 +1,11 @@
 import { MapContainer, TileLayer, Rectangle, Tooltip, useMap } from 'react-leaflet'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
+import L from 'leaflet'
 
 const SENSOR_COLORS = {
   'sentinel-2': '#4a90e2',
   'landsat-5': '#e2844a',
   'landsat-7': '#4ae2a0',
-}
-
-function FitBounds({ scenes }) {
-  const map = useMap()
-  useEffect(() => {
-    if (!scenes.length) return
-    // Fit map to scene extents on first load
-  }, [scenes])
-  return null
 }
 
 function parseBbox(wkt) {
@@ -28,7 +20,50 @@ function parseBbox(wkt) {
   ]
 }
 
-export default function SceneMap({ scenes, selectedSceneId, onSelectScene }) {
+function ProductTileLayer({ selectedProduct, titilerUrl }) {
+  const map = useMap()
+  const layerRef = useRef(null)
+
+  useEffect(() => {
+    // Remove existing layer
+    if (layerRef.current) {
+      map.removeLayer(layerRef.current)
+      layerRef.current = null
+    }
+
+    if (!selectedProduct) {
+      console.log('[TileLayer] no product selected')
+      return
+    }
+
+    const tifPath = selectedProduct.output_paths?.find((p) => p.endsWith('.tif'))
+    console.log('[TileLayer] selectedProduct:', selectedProduct)
+    console.log('[TileLayer] tifPath:', tifPath)
+    if (!tifPath) {
+      console.log('[TileLayer] no tif path found in', selectedProduct.output_paths)
+      return
+    }
+
+    const encodedPath = encodeURIComponent(`/data/${tifPath}`)
+    const tilesUrl = `/tiles/cog/tiles/{z}/{x}/{y}.png?url=${encodedPath}&rescale=0,1&colormap_name=blues`
+    console.log('[TileLayer] tilesUrl:', tilesUrl)
+
+    layerRef.current = L.tileLayer(tilesUrl, { opacity: 0.7 })
+    layerRef.current.addTo(map)
+
+    return () => {
+      if (layerRef.current) {
+        map.removeLayer(layerRef.current)
+        layerRef.current = null
+      }
+    }
+  }, [selectedProduct, titilerUrl, map])
+
+  return null
+}
+
+export default function SceneMap({ scenes, selectedSceneId, onSelectScene, selectedProduct, titilerUrl }) {
+  const selectedScene = scenes.find((s) => s.scene_id === selectedSceneId)
   return (
     <MapContainer
       center={[38.5, -76.0]}
@@ -66,6 +101,7 @@ export default function SceneMap({ scenes, selectedSceneId, onSelectScene }) {
           </Rectangle>
         )
       })}
+      <ProductTileLayer selectedProduct={selectedProduct} titilerUrl={titilerUrl} />
     </MapContainer>
   )
 }

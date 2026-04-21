@@ -25,6 +25,7 @@ from swmaps.core.indices import compute_ndwi
 from swmaps.core.missions import get_mission_from_path, scene_id_from_path
 from swmaps.core.trend import check_image_for_nans, check_image_for_valid_signal
 from swmaps.infra.db import track_pipeline_run
+from swmaps.infra.storage import add_overviews
 from swmaps.schema import PipelineResult
 
 logger = logging.getLogger(__name__)
@@ -67,6 +68,7 @@ def generate_water_mask(mosaic: str | Path, conn=None) -> PipelineResult:
     with track_pipeline_run(conn, scene_id, "water_mask") as run:
         out_mask = mosaic.with_name(f"{mosaic.stem}_mask.tif")
         compute_ndwi(str(mosaic), mission, str(out_mask), display=False)
+        add_overviews(out_mask)
         run["output_paths"] = [str(out_mask)]
 
     return PipelineResult.ok([out_mask], mission=mission)
@@ -142,18 +144,19 @@ def run_water_masks(
                 display=False,
                 center_size=center_size,
             )
+            add_overviews(out_mask)
             run["output_paths"] = [str(out_mask)]
-            if write_png:
-                run["output_paths"].append(str(out_mask.with_suffix(".png")))
-        output_paths.append(out_mask)
 
-        if write_png:
-            png_path = out_mask.with_suffix(".png")
-            with rasterio.open(out_mask) as src:
-                mask_arr = src.read(1)
-            mask_png = np.where(mask_arr > 0, 255, 0).astype(np.uint8)
-            Image.fromarray(mask_png, mode="L").save(png_path)
-            output_paths.append(png_path)
+            if write_png:
+                png_path = out_mask.with_suffix(".png")
+                with rasterio.open(out_mask) as src:
+                    mask_arr = src.read(1)
+                mask_png = np.where(mask_arr > 0, 255, 0).astype(np.uint8)
+                Image.fromarray(mask_png, mode="L").save(png_path)
+                run["output_paths"].append(str(png_path))
+                output_paths.append(png_path)
+
+        output_paths.append(out_mask)
 
     logger.info(
         "Water masks: %d generated, %d skipped.",

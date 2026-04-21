@@ -1,9 +1,13 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { productImageUrl } from '../api/client'
 
-export default function ProductPanel({ sceneId, products, compareMode }) {
+export default function ProductPanel({ sceneId, products, compareMode, tasks, onSelectProduct }) {
   const [activeTab, setActiveTab] = useState('products')
   const [selected, setSelected] = useState([])
+
+  useEffect(() => {
+    setSelected([])
+  }, [sceneId])
 
   const previewProducts = (products || []).filter((p) =>
     p.output_paths?.some((path) =>
@@ -12,13 +16,16 @@ export default function ProductPanel({ sceneId, products, compareMode }) {
   )
 
   function toggleSelect(product) {
-    setSelected((prev) => {
-      if (prev.find((p) => p.product_id === product.product_id)) {
-        return prev.filter((p) => p.product_id !== product.product_id)
-      }
-      if (compareMode && prev.length >= 2) return prev
-      return [...prev, product]
-    })
+    const isAlreadySelected = selected.find((p) => p.product_id === product.product_id)
+    
+    if (isAlreadySelected) {
+      onSelectProduct?.(null)
+      setSelected((prev) => prev.filter((p) => p.product_id !== product.product_id))
+    } else {
+      if (compareMode && selected.length >= 2) return
+      onSelectProduct?.(product)
+      setSelected((prev) => [...prev, product])
+    }
   }
 
   if (!sceneId) return null

@@ -2,19 +2,19 @@ import { useState, useEffect, useCallback } from 'react'
 import SceneMap from './components/SceneMap'
 import SceneList from './components/SceneList'
 import ProductPanel from './components/ProductPanel'
-import { fetchScenes, fetchSceneProducts, fetchTasks, fetchSensors } from './api/client'
-
-const SENSORS = ['', 'sentinel-2', 'landsat-5', 'landsat-7']
+import { fetchScenes, fetchSceneProducts, fetchTasks, fetchSensors, fetchConfig } from './api/client'
 
 export default function App() {
   const [scenes, setScenes] = useState([])
   const [products, setProducts] = useState({})
   const [selectedSceneId, setSelectedSceneId] = useState(null)
   const [compareMode, setCompareMode] = useState(false)
+  const [selectedProduct, setSelectedProduct] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [tasks, setTasks] = useState([])
   const [sensors, setSensors] = useState([])
+  const [titilerUrl, setTitilerUrl] = useState('http://localhost:8001')
 
   // Filters
   const [bbox, setBbox] = useState('-76.5,37.5,-74.5,39.5')
@@ -38,12 +38,14 @@ export default function App() {
 
   useEffect(() => {
     loadScenes()
+    fetchConfig().then((data) => setTitilerUrl(data.titiler_url)).catch(console.error)
     fetchTasks().then((data) => setTasks(data.tasks)).catch(console.error)
     fetchSensors().then((data) => setSensors(['', ...data.sensors])).catch(console.error)
   }, [])
 
   async function handleSelectScene(sceneId) {
     setSelectedSceneId(sceneId)
+    setSelectedProduct(null)
     if (!products[sceneId]) {
       try {
         const data = await fetchSceneProducts(sceneId)
@@ -106,6 +108,8 @@ export default function App() {
             scenes={scenes}
             selectedSceneId={selectedSceneId}
             onSelectScene={handleSelectScene}
+            selectedProduct={selectedProduct}
+            titilerUrl={titilerUrl}
           />
           {loading && (
             <div style={{
@@ -134,6 +138,7 @@ export default function App() {
         products={products[selectedSceneId]}
         compareMode={compareMode}
         tasks={tasks}
+        onSelectProduct={setSelectedProduct}
       />
     </div>
   )

@@ -50,3 +50,7 @@ export async function fetchTasks() {
 export async function fetchSensors() {
   return get('/sensors')
 }
+
+export async function fetchConfig() {
+  return get('/config')
+}

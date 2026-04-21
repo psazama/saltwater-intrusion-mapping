@@ -20,6 +20,7 @@ Redoc is available at ``http://localhost:8000/redoc``.
 from __future__ import annotations
 
 import logging
+import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
@@ -535,3 +536,15 @@ def list_sensors() -> dict:
     from swmaps.core.missions import _MISSION_REGISTRY
 
     return {"sensors": sorted(_MISSION_REGISTRY.keys())}
+
+
+@app.get("/config", tags=["status"])
+def get_config() -> dict:
+    """Return runtime configuration for the frontend.
+
+    Returns:
+        dict: Frontend config including the TiTiler base URL.
+    """
+    return {
+        "titiler_url": os.environ.get("TITILER_URL", "http://localhost:8001"),
+    }

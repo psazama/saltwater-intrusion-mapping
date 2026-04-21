@@ -122,6 +122,7 @@ def track_pipeline_run(conn, scene_id: str, task: str, parameters: dict = None):
             error_message=str(exc),
             output_paths=run_rec["output_paths"] or None,
         )
+        conn.commit()
         raise
 
 

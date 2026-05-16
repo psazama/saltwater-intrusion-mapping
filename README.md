@@ -19,6 +19,11 @@ This repository integrates Google Earth Engine (GEE) data acquisition, supervise
 ---
 
 ## 📝 Changelog
+### 0.1.2 (May 2026)
+
+#### Added
+- **Results Viewer:**
+
 ### 0.1.1 (March 2026)
 
 #### Added
@@ -96,6 +101,35 @@ This workflow will:
 * Save georeferenced prediction rasters and optional PNG previews
 
 ---
+### 5. View Results
+
+The Science Visualizer tool supports viewing and searching created products. To use the viewing tool run the following:
+
+Terminal 1:
+```
+docker compose up titiler -d
+docker compose up db -d
+cd swmaps/frontend
+npm run dev
+```
+
+Terminal 2:
+```
+uvicorn swmaps.api:app --reload
+```
+
+In your browser navigate to `http://localhost:5173/` (or the address provided by your `npm run dev` result)
+
+These steps will:
+
+* Launch the Docker-wrapped TiTiler tiling service
+* Launch the Docker-wrapped product database
+* Launch the Science Visualizer frontend
+* Launch the swmaps API server
+
+![The Science Viewer application](docs/viewer_sample.png)
+
+
 
 ## 📂 Repository Structure
 

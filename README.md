@@ -61,7 +61,6 @@ Build the database to store the processing products:
 ```
 docker compose up db -d
 python swmaps/infra/migrate.py
-
 ```
 
 ---
@@ -91,6 +90,7 @@ Generate the salinity predictions using a heuristic spectral classification appr
 python examples/workflow_runner.py --config examples/quickstart_salinity_only.toml --track
 ```
 
+---
 
 ### 4. Model Building
 #### Machine Learning Segmentation Training + Inference 
@@ -108,8 +108,6 @@ This workflow will:
 * Train a FarSeg segmentation model
 * Run inference on trained model outputs
 
-
----
 
 #### Run Inference with a Pre-trained Model Example
 

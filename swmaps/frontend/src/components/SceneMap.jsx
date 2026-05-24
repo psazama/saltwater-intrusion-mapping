@@ -45,10 +45,10 @@ function ProductTileLayer({ selectedProduct, titilerUrl }) {
     }
 
     const encodedPath = encodeURIComponent(`/data/${tifPath}`)
-    const tilesUrl = `/tiles/cog/tiles/{z}/{x}/{y}.png?url=${encodedPath}&rescale=0,1&colormap_name=blues`
+    const tilesUrl = `/tiles/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?url=${encodedPath}&rescale=0,1&colormap_name=blues`
     console.log('[TileLayer] tilesUrl:', tilesUrl)
 
-    layerRef.current = L.tileLayer(tilesUrl, { opacity: 0.7 })
+    layerRef.current = L.tileLayer(tilesUrl, { opacity: 0.2 })
     layerRef.current.addTo(map)
 
     return () => {
@@ -86,7 +86,7 @@ export default function SceneMap({ scenes, selectedSceneId, onSelectScene, selec
             pathOptions={{
               color,
               weight: isSelected ? 3 : 1,
-              fillOpacity: isSelected ? 0.3 : 0.1,
+              fillOpacity: 0.0,
             }}
             eventHandlers={{
               click: () => onSelectScene(scene.scene_id),

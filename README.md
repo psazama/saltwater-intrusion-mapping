@@ -130,6 +130,8 @@ The Science Visualizer tool supports viewing and searching created products. Pop
 
 Terminal 1:
 ```
+docker compose up db -d
+export $(cat .env.local.example | xargs) && python swmaps/infra/migrate.py
 docker compose up titiler -d
 cd swmaps/frontend
 npm run dev

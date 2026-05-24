@@ -25,8 +25,9 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse, JSONResponse
+import httpx
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from swmaps.infra.db import (
@@ -57,6 +58,7 @@ from swmaps.schema import (
 )
 
 logger = logging.getLogger(__name__)
+TITILER_URL = os.environ.get("TITILER_URL", "http://localhost:8001")
 
 
 # ---------------------------------------------------------------------------
@@ -548,3 +550,22 @@ def get_config() -> dict:
     return {
         "titiler_url": os.environ.get("TITILER_URL", "http://localhost:8001"),
     }
+
+
+# ---------------------------------------------------------------------------
+# Titiler tile endpoints
+# ---------------------------------------------------------------------------
+
+
+@app.get("/tiles/{path:path}", tags=["tiles"])
+async def proxy_tiles(path: str, request: Request):
+    """Proxy tile requests to TiTiler."""
+    params = dict(request.query_params)
+    url = f"{TITILER_URL}/{path}"
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url, params=params)
+    return Response(
+        content=response.content,
+        status_code=response.status_code,
+        media_type=response.headers.get("content-type", "image/png"),
+    )

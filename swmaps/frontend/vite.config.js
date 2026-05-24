@@ -14,8 +14,8 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/api/, ''),
       },
       '/tiles': {
-      target: 'http://localhost:8001',
-      rewrite: (path) => path.replace(/^\/tiles/, ''),
+        target: 'http://localhost:8000',
+        rewrite: (path) => path,
       },
     },
   },

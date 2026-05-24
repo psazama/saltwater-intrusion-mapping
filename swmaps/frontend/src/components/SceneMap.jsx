@@ -1,4 +1,4 @@
-import { MapContainer, TileLayer, Rectangle, Tooltip, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Rectangle, useMap } from 'react-leaflet'
 import { useEffect, useRef } from 'react'
 import L from 'leaflet'
 
@@ -20,6 +20,24 @@ function parseBbox(wkt) {
   ]
 }
 
+// Compute the union bounding box across all scenes
+function unionBounds(scenes) {
+  const allBounds = scenes
+    .map((s) => parseBbox(s.location_wkt || ''))
+    .filter(Boolean)
+  if (!allBounds.length) return null
+
+  let minLat = Infinity, minLon = Infinity
+  let maxLat = -Infinity, maxLon = -Infinity
+  for (const [[sLat, sLon], [nLat, nLon]] of allBounds) {
+    minLat = Math.min(minLat, sLat)
+    minLon = Math.min(minLon, sLon)
+    maxLat = Math.max(maxLat, nLat)
+    maxLon = Math.max(maxLon, nLon)
+  }
+  return [[minLat, minLon], [maxLat, maxLon]]
+}
+
 function ProductTileLayer({ selectedProduct, titilerUrl }) {
   const map = useMap()
   const layerRef = useRef(null)
@@ -32,21 +50,16 @@ function ProductTileLayer({ selectedProduct, titilerUrl }) {
     }
 
     if (!selectedProduct) {
-      console.log('[TileLayer] no product selected')
       return
     }
 
     const tifPath = selectedProduct.output_paths?.find((p) => p.endsWith('.tif'))
-    console.log('[TileLayer] selectedProduct:', selectedProduct)
-    console.log('[TileLayer] tifPath:', tifPath)
     if (!tifPath) {
-      console.log('[TileLayer] no tif path found in', selectedProduct.output_paths)
       return
     }
 
     const encodedPath = encodeURIComponent(`/data/${tifPath}`)
     const tilesUrl = `/tiles/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?url=${encodedPath}&rescale=0,1&colormap_name=blues`
-    console.log('[TileLayer] tilesUrl:', tilesUrl)
 
     layerRef.current = L.tileLayer(tilesUrl, { opacity: 0.2 })
     layerRef.current.addTo(map)
@@ -62,8 +75,17 @@ function ProductTileLayer({ selectedProduct, titilerUrl }) {
   return null
 }
 
-export default function SceneMap({ scenes, selectedSceneId, onSelectScene, selectedProduct, titilerUrl }) {
+export default function SceneMap({ 
+  scenes, 
+  selectedSceneId, 
+  hoveredSceneId,
+  selectedProduct, 
+  titilerUrl }) {
+
+  const aggregate = unionBounds(scenes)
+  const hoveredScene = scenes.find((s) => s.scene_id === hoveredSceneId)
   const selectedScene = scenes.find((s) => s.scene_id === selectedSceneId)
+
   return (
     <MapContainer
       center={[38.5, -76.0]}
@@ -74,33 +96,54 @@ export default function SceneMap({ scenes, selectedSceneId, onSelectScene, selec
         attribution='&copy; OpenStreetMap contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
-      {scenes.map((scene) => {
-        const bounds = parseBbox(scene.location_wkt || '')
+
+      {/* 1. Aggregate extent — light dashed outline, always shown */}
+      {aggregate && (
+        <Rectangle
+          bounds={aggregate}
+          pathOptions={{
+            color: '#888',
+            weight: 1,
+            dashArray: '4',
+            fill: false,
+          }}
+          interactive={false}
+        />
+      )}
+
+      {/* 2. Hovered scene — medium highlight */}
+      {hoveredScene && hoveredScene.scene_id !== selectedSceneId && (() => {
+        const bounds = parseBbox(hoveredScene.location_wkt || '')
         if (!bounds) return null
-        const color = SENSOR_COLORS[scene.sensor] || '#999'
-        const isSelected = scene.scene_id === selectedSceneId
         return (
           <Rectangle
-            key={scene.scene_id}
             bounds={bounds}
             pathOptions={{
-              color,
-              weight: isSelected ? 3 : 1,
-              fillOpacity: 0.0,
+              color: SENSOR_COLORS[hoveredScene.sensor] || '#999',
+              weight: 2,
+              fillOpacity: 0.1,
             }}
-            eventHandlers={{
-              click: () => onSelectScene(scene.scene_id),
-            }}
-          >
-            <Tooltip>
-              <div style={{ fontSize: 11 }}>
-                <div>{scene.scene_id}</div>
-                <div>{scene.sensor} · {scene.acquisition_date}</div>
-              </div>
-            </Tooltip>
-          </Rectangle>
+            interactive={false}
+          />
         )
-      })}
+      })()}
+
+      {/* 3. Selected scene — prominent */}
+      {selectedScene && (() => {
+        const bounds = parseBbox(selectedScene.location_wkt || '')
+        if (!bounds) return null
+        return (
+          <Rectangle
+            bounds={bounds}
+            pathOptions={{
+              color: SENSOR_COLORS[selectedScene.sensor] || '#999',
+              weight: 3,
+              fillOpacity: 0.05,
+            }}
+          />
+        )
+      })()}
+
       <ProductTileLayer selectedProduct={selectedProduct} titilerUrl={titilerUrl} />
     </MapContainer>
   )

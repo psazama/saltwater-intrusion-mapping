@@ -10,6 +10,7 @@ export default function App() {
   const [selectedSceneId, setSelectedSceneId] = useState(null)
   const [compareMode, setCompareMode] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState(null)
+  const [hoveredSceneId, setHoveredSceneId] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [tasks, setTasks] = useState([])
@@ -107,6 +108,7 @@ export default function App() {
           <SceneMap
             scenes={scenes}
             selectedSceneId={selectedSceneId}
+            hoveredSceneId={hoveredSceneId}
             onSelectScene={handleSelectScene}
             selectedProduct={selectedProduct}
             titilerUrl={titilerUrl}
@@ -129,6 +131,7 @@ export default function App() {
           onSelectScene={handleSelectScene}
           compareMode={compareMode}
           onToggleCompare={() => setCompareMode((m) => !m)}
+          onHoverScene={setHoveredSceneId}
           tasks={tasks}
         />
       </div>

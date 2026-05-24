@@ -26,6 +26,7 @@ export default function SceneList({
   products,
   selectedSceneId,
   onSelectScene,
+  onHoverScene,
   compareMode,
   onToggleCompare,
   tasks,
@@ -52,6 +53,8 @@ export default function SceneList({
             key={scene.scene_id}
             className={`scene-item ${scene.scene_id === selectedSceneId ? 'selected' : ''}`}
             onClick={() => onSelectScene(scene.scene_id)}
+            onMouseEnter={() => onHoverScene?.(scene.scene_id)}
+            onMouseLeave={() => onHoverScene?.(null)}
           >
             <div className="scene-id">{scene.scene_id}</div>
             <div className="scene-meta">

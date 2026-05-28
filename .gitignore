@@ -95,6 +95,7 @@ __pycache__/
 *.so
 
 # Distribution / packaging
+startup.sh
 .Python
 build/
 develop-eggs/

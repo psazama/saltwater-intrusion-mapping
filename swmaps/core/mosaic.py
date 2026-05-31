@@ -198,6 +198,9 @@ def process_date(
             scale=mission_info.gee_scale,
         )
 
+        if not output_path:
+            continue
+
         output_paths.append(output_path)
         print(f"[GEE] Wrote mosaic to: {output_path}")
 

@@ -278,84 +278,87 @@ continues to work unchanged.</p>
 </span><span id="L-198"><a href="#L-198"><span class="linenos">198</span></a>            <span class="n">scale</span><span class="o">=</span><span class="n">mission_info</span><span class="o">.</span><span class="n">gee_scale</span><span class="p">,</span>
 </span><span id="L-199"><a href="#L-199"><span class="linenos">199</span></a>        <span class="p">)</span>
 </span><span id="L-200"><a href="#L-200"><span class="linenos">200</span></a>
-</span><span id="L-201"><a href="#L-201"><span class="linenos">201</span></a>        <span class="n">output_paths</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">output_path</span><span class="p">)</span>
-</span><span id="L-202"><a href="#L-202"><span class="linenos">202</span></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[GEE] Wrote mosaic to: </span><span class="si">{</span><span class="n">output_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</span><span id="L-201"><a href="#L-201"><span class="linenos">201</span></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">output_path</span><span class="p">:</span>
+</span><span id="L-202"><a href="#L-202"><span class="linenos">202</span></a>            <span class="k">continue</span>
 </span><span id="L-203"><a href="#L-203"><span class="linenos">203</span></a>
-</span><span id="L-204"><a href="#L-204"><span class="linenos">204</span></a>        <span class="k">if</span> <span class="n">save_png</span> <span class="ow">and</span> <span class="n">rgb_bands</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-</span><span id="L-205"><a href="#L-205"><span class="linenos">205</span></a>            <span class="n">png_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">output_path</span><span class="p">)</span><span class="o">.</span><span class="n">with_suffix</span><span class="p">(</span><span class="s2">&quot;.png&quot;</span><span class="p">)</span>
-</span><span id="L-206"><a href="#L-206"><span class="linenos">206</span></a>            <span class="n">_write_rgb_png_from_tif</span><span class="p">(</span>
-</span><span id="L-207"><a href="#L-207"><span class="linenos">207</span></a>                <span class="n">tif_path</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="n">output_path</span><span class="p">),</span>
-</span><span id="L-208"><a href="#L-208"><span class="linenos">208</span></a>                <span class="n">png_path</span><span class="o">=</span><span class="n">png_path</span><span class="p">,</span>
-</span><span id="L-209"><a href="#L-209"><span class="linenos">209</span></a>                <span class="n">rgb_bands</span><span class="o">=</span><span class="n">rgb_bands</span><span class="p">,</span>
-</span><span id="L-210"><a href="#L-210"><span class="linenos">210</span></a>            <span class="p">)</span>
-</span><span id="L-211"><a href="#L-211"><span class="linenos">211</span></a>            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[GEE] Wrote RGB preview to: </span><span class="si">{</span><span class="n">png_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-</span><span id="L-212"><a href="#L-212"><span class="linenos">212</span></a>    <span class="k">return</span> <span class="n">output_paths</span>
-</span><span id="L-213"><a href="#L-213"><span class="linenos">213</span></a>
-</span><span id="L-214"><a href="#L-214"><span class="linenos">214</span></a>
-</span><span id="L-215"><a href="#L-215"><span class="linenos">215</span></a><span class="c1"># ---------------------------------------------------------------------</span>
-</span><span id="L-216"><a href="#L-216"><span class="linenos">216</span></a><span class="c1"># Batch processing for many dates/locations (optional API)</span>
-</span><span id="L-217"><a href="#L-217"><span class="linenos">217</span></a><span class="c1"># ---------------------------------------------------------------------</span>
-</span><span id="L-218"><a href="#L-218"><span class="linenos">218</span></a>
-</span><span id="L-219"><a href="#L-219"><span class="linenos">219</span></a>
-</span><span id="L-220"><a href="#L-220"><span class="linenos">220</span></a><span class="k">def</span><span class="w"> </span><span class="nf">process_multiple</span><span class="p">(</span>
-</span><span id="L-221"><a href="#L-221"><span class="linenos">221</span></a>    <span class="n">df</span><span class="p">,</span>
-</span><span id="L-222"><a href="#L-222"><span class="linenos">222</span></a>    <span class="n">lat_col</span><span class="o">=</span><span class="s2">&quot;latitude&quot;</span><span class="p">,</span>
-</span><span id="L-223"><a href="#L-223"><span class="linenos">223</span></a>    <span class="n">lon_col</span><span class="o">=</span><span class="s2">&quot;longitude&quot;</span><span class="p">,</span>
-</span><span id="L-224"><a href="#L-224"><span class="linenos">224</span></a>    <span class="n">date_col</span><span class="o">=</span><span class="s2">&quot;date&quot;</span><span class="p">,</span>
-</span><span id="L-225"><a href="#L-225"><span class="linenos">225</span></a>    <span class="n">mission</span><span class="o">=</span><span class="s2">&quot;sentinel-2&quot;</span><span class="p">,</span>
-</span><span id="L-226"><a href="#L-226"><span class="linenos">226</span></a>    <span class="n">buffer_km</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
-</span><span id="L-227"><a href="#L-227"><span class="linenos">227</span></a>    <span class="n">out_dir</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-</span><span id="L-228"><a href="#L-228"><span class="linenos">228</span></a>    <span class="n">days_before</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span>
-</span><span id="L-229"><a href="#L-229"><span class="linenos">229</span></a>    <span class="n">days_after</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span>
-</span><span id="L-230"><a href="#L-230"><span class="linenos">230</span></a>    <span class="n">cloud_filter</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span>
-</span><span id="L-231"><a href="#L-231"><span class="linenos">231</span></a>    <span class="n">samples</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
-</span><span id="L-232"><a href="#L-232"><span class="linenos">232</span></a>    <span class="n">save_png</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-</span><span id="L-233"><a href="#L-233"><span class="linenos">233</span></a><span class="p">):</span>
-</span><span id="L-234"><a href="#L-234"><span class="linenos">234</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Apply :func:`process_date` to every row of a DataFrame.</span>
-</span><span id="L-235"><a href="#L-235"><span class="linenos">235</span></a>
-</span><span id="L-236"><a href="#L-236"><span class="linenos">236</span></a><span class="sd">    Args:</span>
-</span><span id="L-237"><a href="#L-237"><span class="linenos">237</span></a><span class="sd">        df: DataFrame with at minimum *lat_col*, *lon_col*, and *date_col*</span>
-</span><span id="L-238"><a href="#L-238"><span class="linenos">238</span></a><span class="sd">            columns.</span>
-</span><span id="L-239"><a href="#L-239"><span class="linenos">239</span></a><span class="sd">        lat_col: Name of the latitude column. Defaults to ``&quot;latitude&quot;``.</span>
-</span><span id="L-240"><a href="#L-240"><span class="linenos">240</span></a><span class="sd">        lon_col: Name of the longitude column. Defaults to ``&quot;longitude&quot;``.</span>
-</span><span id="L-241"><a href="#L-241"><span class="linenos">241</span></a><span class="sd">        date_col: Name of the date column. Defaults to ``&quot;date&quot;``.</span>
-</span><span id="L-242"><a href="#L-242"><span class="linenos">242</span></a><span class="sd">        mission: Mission slug. Defaults to ``&quot;sentinel-2&quot;``.</span>
-</span><span id="L-243"><a href="#L-243"><span class="linenos">243</span></a><span class="sd">        buffer_km: Bounding-box half-width in kilometres. Defaults to</span>
-</span><span id="L-244"><a href="#L-244"><span class="linenos">244</span></a><span class="sd">            ``1.0``.</span>
-</span><span id="L-245"><a href="#L-245"><span class="linenos">245</span></a><span class="sd">        out_dir: Output directory for downloaded mosaics.</span>
-</span><span id="L-246"><a href="#L-246"><span class="linenos">246</span></a><span class="sd">        days_before: Temporal window before each date in days. Defaults to</span>
-</span><span id="L-247"><a href="#L-247"><span class="linenos">247</span></a><span class="sd">            ``7``.</span>
-</span><span id="L-248"><a href="#L-248"><span class="linenos">248</span></a><span class="sd">        days_after: Temporal window after each date in days. Defaults to</span>
-</span><span id="L-249"><a href="#L-249"><span class="linenos">249</span></a><span class="sd">            ``7``.</span>
-</span><span id="L-250"><a href="#L-250"><span class="linenos">250</span></a><span class="sd">        cloud_filter: Maximum allowed cloud cover percentage. Defaults to</span>
-</span><span id="L-251"><a href="#L-251"><span class="linenos">251</span></a><span class="sd">            ``30``.</span>
-</span><span id="L-252"><a href="#L-252"><span class="linenos">252</span></a><span class="sd">        samples: Maximum scenes per date. Defaults to ``1``.</span>
-</span><span id="L-253"><a href="#L-253"><span class="linenos">253</span></a><span class="sd">        save_png: Whether to write RGB PNG previews. Defaults to ``False``.</span>
-</span><span id="L-254"><a href="#L-254"><span class="linenos">254</span></a>
-</span><span id="L-255"><a href="#L-255"><span class="linenos">255</span></a><span class="sd">    Returns:</span>
-</span><span id="L-256"><a href="#L-256"><span class="linenos">256</span></a><span class="sd">        list: List of output paths (one per row), with ``None`` entries</span>
-</span><span id="L-257"><a href="#L-257"><span class="linenos">257</span></a><span class="sd">        where no imagery was found.</span>
-</span><span id="L-258"><a href="#L-258"><span class="linenos">258</span></a><span class="sd">    &quot;&quot;&quot;</span>
-</span><span id="L-259"><a href="#L-259"><span class="linenos">259</span></a>    <span class="n">results</span> <span class="o">=</span> <span class="p">[]</span>
-</span><span id="L-260"><a href="#L-260"><span class="linenos">260</span></a>    <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">iterrows</span><span class="p">(),</span> <span class="n">total</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">)):</span>
-</span><span id="L-261"><a href="#L-261"><span class="linenos">261</span></a>        <span class="n">lat</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="n">lat_col</span><span class="p">]</span>
-</span><span id="L-262"><a href="#L-262"><span class="linenos">262</span></a>        <span class="n">lon</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="n">lon_col</span><span class="p">]</span>
-</span><span id="L-263"><a href="#L-263"><span class="linenos">263</span></a>        <span class="n">date</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="n">date_col</span><span class="p">]</span>
-</span><span id="L-264"><a href="#L-264"><span class="linenos">264</span></a>        <span class="n">path</span> <span class="o">=</span> <span class="n">process_date</span><span class="p">(</span>
-</span><span id="L-265"><a href="#L-265"><span class="linenos">265</span></a>            <span class="n">lat</span><span class="o">=</span><span class="n">lat</span><span class="p">,</span>
-</span><span id="L-266"><a href="#L-266"><span class="linenos">266</span></a>            <span class="n">lon</span><span class="o">=</span><span class="n">lon</span><span class="p">,</span>
-</span><span id="L-267"><a href="#L-267"><span class="linenos">267</span></a>            <span class="n">date</span><span class="o">=</span><span class="n">date</span><span class="p">,</span>
-</span><span id="L-268"><a href="#L-268"><span class="linenos">268</span></a>            <span class="n">mission</span><span class="o">=</span><span class="n">mission</span><span class="p">,</span>
-</span><span id="L-269"><a href="#L-269"><span class="linenos">269</span></a>            <span class="n">buffer_km</span><span class="o">=</span><span class="n">buffer_km</span><span class="p">,</span>
-</span><span id="L-270"><a href="#L-270"><span class="linenos">270</span></a>            <span class="n">out_dir</span><span class="o">=</span><span class="n">out_dir</span><span class="p">,</span>
-</span><span id="L-271"><a href="#L-271"><span class="linenos">271</span></a>            <span class="n">days_before</span><span class="o">=</span><span class="n">days_before</span><span class="p">,</span>
-</span><span id="L-272"><a href="#L-272"><span class="linenos">272</span></a>            <span class="n">days_after</span><span class="o">=</span><span class="n">days_after</span><span class="p">,</span>
-</span><span id="L-273"><a href="#L-273"><span class="linenos">273</span></a>            <span class="n">cloud_filter</span><span class="o">=</span><span class="n">cloud_filter</span><span class="p">,</span>
-</span><span id="L-274"><a href="#L-274"><span class="linenos">274</span></a>            <span class="n">samples</span><span class="o">=</span><span class="n">samples</span><span class="p">,</span>
-</span><span id="L-275"><a href="#L-275"><span class="linenos">275</span></a>            <span class="n">save_png</span><span class="o">=</span><span class="n">save_png</span><span class="p">,</span>
-</span><span id="L-276"><a href="#L-276"><span class="linenos">276</span></a>        <span class="p">)</span>
-</span><span id="L-277"><a href="#L-277"><span class="linenos">277</span></a>        <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
-</span><span id="L-278"><a href="#L-278"><span class="linenos">278</span></a>    <span class="k">return</span> <span class="n">results</span>
+</span><span id="L-204"><a href="#L-204"><span class="linenos">204</span></a>        <span class="n">output_paths</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">output_path</span><span class="p">)</span>
+</span><span id="L-205"><a href="#L-205"><span class="linenos">205</span></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[GEE] Wrote mosaic to: </span><span class="si">{</span><span class="n">output_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</span><span id="L-206"><a href="#L-206"><span class="linenos">206</span></a>
+</span><span id="L-207"><a href="#L-207"><span class="linenos">207</span></a>        <span class="k">if</span> <span class="n">save_png</span> <span class="ow">and</span> <span class="n">rgb_bands</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="L-208"><a href="#L-208"><span class="linenos">208</span></a>            <span class="n">png_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">output_path</span><span class="p">)</span><span class="o">.</span><span class="n">with_suffix</span><span class="p">(</span><span class="s2">&quot;.png&quot;</span><span class="p">)</span>
+</span><span id="L-209"><a href="#L-209"><span class="linenos">209</span></a>            <span class="n">_write_rgb_png_from_tif</span><span class="p">(</span>
+</span><span id="L-210"><a href="#L-210"><span class="linenos">210</span></a>                <span class="n">tif_path</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="n">output_path</span><span class="p">),</span>
+</span><span id="L-211"><a href="#L-211"><span class="linenos">211</span></a>                <span class="n">png_path</span><span class="o">=</span><span class="n">png_path</span><span class="p">,</span>
+</span><span id="L-212"><a href="#L-212"><span class="linenos">212</span></a>                <span class="n">rgb_bands</span><span class="o">=</span><span class="n">rgb_bands</span><span class="p">,</span>
+</span><span id="L-213"><a href="#L-213"><span class="linenos">213</span></a>            <span class="p">)</span>
+</span><span id="L-214"><a href="#L-214"><span class="linenos">214</span></a>            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[GEE] Wrote RGB preview to: </span><span class="si">{</span><span class="n">png_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</span><span id="L-215"><a href="#L-215"><span class="linenos">215</span></a>    <span class="k">return</span> <span class="n">output_paths</span>
+</span><span id="L-216"><a href="#L-216"><span class="linenos">216</span></a>
+</span><span id="L-217"><a href="#L-217"><span class="linenos">217</span></a>
+</span><span id="L-218"><a href="#L-218"><span class="linenos">218</span></a><span class="c1"># ---------------------------------------------------------------------</span>
+</span><span id="L-219"><a href="#L-219"><span class="linenos">219</span></a><span class="c1"># Batch processing for many dates/locations (optional API)</span>
+</span><span id="L-220"><a href="#L-220"><span class="linenos">220</span></a><span class="c1"># ---------------------------------------------------------------------</span>
+</span><span id="L-221"><a href="#L-221"><span class="linenos">221</span></a>
+</span><span id="L-222"><a href="#L-222"><span class="linenos">222</span></a>
+</span><span id="L-223"><a href="#L-223"><span class="linenos">223</span></a><span class="k">def</span><span class="w"> </span><span class="nf">process_multiple</span><span class="p">(</span>
+</span><span id="L-224"><a href="#L-224"><span class="linenos">224</span></a>    <span class="n">df</span><span class="p">,</span>
+</span><span id="L-225"><a href="#L-225"><span class="linenos">225</span></a>    <span class="n">lat_col</span><span class="o">=</span><span class="s2">&quot;latitude&quot;</span><span class="p">,</span>
+</span><span id="L-226"><a href="#L-226"><span class="linenos">226</span></a>    <span class="n">lon_col</span><span class="o">=</span><span class="s2">&quot;longitude&quot;</span><span class="p">,</span>
+</span><span id="L-227"><a href="#L-227"><span class="linenos">227</span></a>    <span class="n">date_col</span><span class="o">=</span><span class="s2">&quot;date&quot;</span><span class="p">,</span>
+</span><span id="L-228"><a href="#L-228"><span class="linenos">228</span></a>    <span class="n">mission</span><span class="o">=</span><span class="s2">&quot;sentinel-2&quot;</span><span class="p">,</span>
+</span><span id="L-229"><a href="#L-229"><span class="linenos">229</span></a>    <span class="n">buffer_km</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+</span><span id="L-230"><a href="#L-230"><span class="linenos">230</span></a>    <span class="n">out_dir</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+</span><span id="L-231"><a href="#L-231"><span class="linenos">231</span></a>    <span class="n">days_before</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span>
+</span><span id="L-232"><a href="#L-232"><span class="linenos">232</span></a>    <span class="n">days_after</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span>
+</span><span id="L-233"><a href="#L-233"><span class="linenos">233</span></a>    <span class="n">cloud_filter</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span>
+</span><span id="L-234"><a href="#L-234"><span class="linenos">234</span></a>    <span class="n">samples</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+</span><span id="L-235"><a href="#L-235"><span class="linenos">235</span></a>    <span class="n">save_png</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+</span><span id="L-236"><a href="#L-236"><span class="linenos">236</span></a><span class="p">):</span>
+</span><span id="L-237"><a href="#L-237"><span class="linenos">237</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Apply :func:`process_date` to every row of a DataFrame.</span>
+</span><span id="L-238"><a href="#L-238"><span class="linenos">238</span></a>
+</span><span id="L-239"><a href="#L-239"><span class="linenos">239</span></a><span class="sd">    Args:</span>
+</span><span id="L-240"><a href="#L-240"><span class="linenos">240</span></a><span class="sd">        df: DataFrame with at minimum *lat_col*, *lon_col*, and *date_col*</span>
+</span><span id="L-241"><a href="#L-241"><span class="linenos">241</span></a><span class="sd">            columns.</span>
+</span><span id="L-242"><a href="#L-242"><span class="linenos">242</span></a><span class="sd">        lat_col: Name of the latitude column. Defaults to ``&quot;latitude&quot;``.</span>
+</span><span id="L-243"><a href="#L-243"><span class="linenos">243</span></a><span class="sd">        lon_col: Name of the longitude column. Defaults to ``&quot;longitude&quot;``.</span>
+</span><span id="L-244"><a href="#L-244"><span class="linenos">244</span></a><span class="sd">        date_col: Name of the date column. Defaults to ``&quot;date&quot;``.</span>
+</span><span id="L-245"><a href="#L-245"><span class="linenos">245</span></a><span class="sd">        mission: Mission slug. Defaults to ``&quot;sentinel-2&quot;``.</span>
+</span><span id="L-246"><a href="#L-246"><span class="linenos">246</span></a><span class="sd">        buffer_km: Bounding-box half-width in kilometres. Defaults to</span>
+</span><span id="L-247"><a href="#L-247"><span class="linenos">247</span></a><span class="sd">            ``1.0``.</span>
+</span><span id="L-248"><a href="#L-248"><span class="linenos">248</span></a><span class="sd">        out_dir: Output directory for downloaded mosaics.</span>
+</span><span id="L-249"><a href="#L-249"><span class="linenos">249</span></a><span class="sd">        days_before: Temporal window before each date in days. Defaults to</span>
+</span><span id="L-250"><a href="#L-250"><span class="linenos">250</span></a><span class="sd">            ``7``.</span>
+</span><span id="L-251"><a href="#L-251"><span class="linenos">251</span></a><span class="sd">        days_after: Temporal window after each date in days. Defaults to</span>
+</span><span id="L-252"><a href="#L-252"><span class="linenos">252</span></a><span class="sd">            ``7``.</span>
+</span><span id="L-253"><a href="#L-253"><span class="linenos">253</span></a><span class="sd">        cloud_filter: Maximum allowed cloud cover percentage. Defaults to</span>
+</span><span id="L-254"><a href="#L-254"><span class="linenos">254</span></a><span class="sd">            ``30``.</span>
+</span><span id="L-255"><a href="#L-255"><span class="linenos">255</span></a><span class="sd">        samples: Maximum scenes per date. Defaults to ``1``.</span>
+</span><span id="L-256"><a href="#L-256"><span class="linenos">256</span></a><span class="sd">        save_png: Whether to write RGB PNG previews. Defaults to ``False``.</span>
+</span><span id="L-257"><a href="#L-257"><span class="linenos">257</span></a>
+</span><span id="L-258"><a href="#L-258"><span class="linenos">258</span></a><span class="sd">    Returns:</span>
+</span><span id="L-259"><a href="#L-259"><span class="linenos">259</span></a><span class="sd">        list: List of output paths (one per row), with ``None`` entries</span>
+</span><span id="L-260"><a href="#L-260"><span class="linenos">260</span></a><span class="sd">        where no imagery was found.</span>
+</span><span id="L-261"><a href="#L-261"><span class="linenos">261</span></a><span class="sd">    &quot;&quot;&quot;</span>
+</span><span id="L-262"><a href="#L-262"><span class="linenos">262</span></a>    <span class="n">results</span> <span class="o">=</span> <span class="p">[]</span>
+</span><span id="L-263"><a href="#L-263"><span class="linenos">263</span></a>    <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">iterrows</span><span class="p">(),</span> <span class="n">total</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">)):</span>
+</span><span id="L-264"><a href="#L-264"><span class="linenos">264</span></a>        <span class="n">lat</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="n">lat_col</span><span class="p">]</span>
+</span><span id="L-265"><a href="#L-265"><span class="linenos">265</span></a>        <span class="n">lon</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="n">lon_col</span><span class="p">]</span>
+</span><span id="L-266"><a href="#L-266"><span class="linenos">266</span></a>        <span class="n">date</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="n">date_col</span><span class="p">]</span>
+</span><span id="L-267"><a href="#L-267"><span class="linenos">267</span></a>        <span class="n">path</span> <span class="o">=</span> <span class="n">process_date</span><span class="p">(</span>
+</span><span id="L-268"><a href="#L-268"><span class="linenos">268</span></a>            <span class="n">lat</span><span class="o">=</span><span class="n">lat</span><span class="p">,</span>
+</span><span id="L-269"><a href="#L-269"><span class="linenos">269</span></a>            <span class="n">lon</span><span class="o">=</span><span class="n">lon</span><span class="p">,</span>
+</span><span id="L-270"><a href="#L-270"><span class="linenos">270</span></a>            <span class="n">date</span><span class="o">=</span><span class="n">date</span><span class="p">,</span>
+</span><span id="L-271"><a href="#L-271"><span class="linenos">271</span></a>            <span class="n">mission</span><span class="o">=</span><span class="n">mission</span><span class="p">,</span>
+</span><span id="L-272"><a href="#L-272"><span class="linenos">272</span></a>            <span class="n">buffer_km</span><span class="o">=</span><span class="n">buffer_km</span><span class="p">,</span>
+</span><span id="L-273"><a href="#L-273"><span class="linenos">273</span></a>            <span class="n">out_dir</span><span class="o">=</span><span class="n">out_dir</span><span class="p">,</span>
+</span><span id="L-274"><a href="#L-274"><span class="linenos">274</span></a>            <span class="n">days_before</span><span class="o">=</span><span class="n">days_before</span><span class="p">,</span>
+</span><span id="L-275"><a href="#L-275"><span class="linenos">275</span></a>            <span class="n">days_after</span><span class="o">=</span><span class="n">days_after</span><span class="p">,</span>
+</span><span id="L-276"><a href="#L-276"><span class="linenos">276</span></a>            <span class="n">cloud_filter</span><span class="o">=</span><span class="n">cloud_filter</span><span class="p">,</span>
+</span><span id="L-277"><a href="#L-277"><span class="linenos">277</span></a>            <span class="n">samples</span><span class="o">=</span><span class="n">samples</span><span class="p">,</span>
+</span><span id="L-278"><a href="#L-278"><span class="linenos">278</span></a>            <span class="n">save_png</span><span class="o">=</span><span class="n">save_png</span><span class="p">,</span>
+</span><span id="L-279"><a href="#L-279"><span class="linenos">279</span></a>        <span class="p">)</span>
+</span><span id="L-280"><a href="#L-280"><span class="linenos">280</span></a>        <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+</span><span id="L-281"><a href="#L-281"><span class="linenos">281</span></a>    <span class="k">return</span> <span class="n">results</span>
 </span></pre></div>
 
 
@@ -513,18 +516,21 @@ continues to work unchanged.</p>
 </span><span id="process_date-199"><a href="#process_date-199"><span class="linenos">199</span></a>            <span class="n">scale</span><span class="o">=</span><span class="n">mission_info</span><span class="o">.</span><span class="n">gee_scale</span><span class="p">,</span>
 </span><span id="process_date-200"><a href="#process_date-200"><span class="linenos">200</span></a>        <span class="p">)</span>
 </span><span id="process_date-201"><a href="#process_date-201"><span class="linenos">201</span></a>
-</span><span id="process_date-202"><a href="#process_date-202"><span class="linenos">202</span></a>        <span class="n">output_paths</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">output_path</span><span class="p">)</span>
-</span><span id="process_date-203"><a href="#process_date-203"><span class="linenos">203</span></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[GEE] Wrote mosaic to: </span><span class="si">{</span><span class="n">output_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</span><span id="process_date-202"><a href="#process_date-202"><span class="linenos">202</span></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">output_path</span><span class="p">:</span>
+</span><span id="process_date-203"><a href="#process_date-203"><span class="linenos">203</span></a>            <span class="k">continue</span>
 </span><span id="process_date-204"><a href="#process_date-204"><span class="linenos">204</span></a>
-</span><span id="process_date-205"><a href="#process_date-205"><span class="linenos">205</span></a>        <span class="k">if</span> <span class="n">save_png</span> <span class="ow">and</span> <span class="n">rgb_bands</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-</span><span id="process_date-206"><a href="#process_date-206"><span class="linenos">206</span></a>            <span class="n">png_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">output_path</span><span class="p">)</span><span class="o">.</span><span class="n">with_suffix</span><span class="p">(</span><span class="s2">&quot;.png&quot;</span><span class="p">)</span>
-</span><span id="process_date-207"><a href="#process_date-207"><span class="linenos">207</span></a>            <span class="n">_write_rgb_png_from_tif</span><span class="p">(</span>
-</span><span id="process_date-208"><a href="#process_date-208"><span class="linenos">208</span></a>                <span class="n">tif_path</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="n">output_path</span><span class="p">),</span>
-</span><span id="process_date-209"><a href="#process_date-209"><span class="linenos">209</span></a>                <span class="n">png_path</span><span class="o">=</span><span class="n">png_path</span><span class="p">,</span>
-</span><span id="process_date-210"><a href="#process_date-210"><span class="linenos">210</span></a>                <span class="n">rgb_bands</span><span class="o">=</span><span class="n">rgb_bands</span><span class="p">,</span>
-</span><span id="process_date-211"><a href="#process_date-211"><span class="linenos">211</span></a>            <span class="p">)</span>
-</span><span id="process_date-212"><a href="#process_date-212"><span class="linenos">212</span></a>            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[GEE] Wrote RGB preview to: </span><span class="si">{</span><span class="n">png_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-</span><span id="process_date-213"><a href="#process_date-213"><span class="linenos">213</span></a>    <span class="k">return</span> <span class="n">output_paths</span>
+</span><span id="process_date-205"><a href="#process_date-205"><span class="linenos">205</span></a>        <span class="n">output_paths</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">output_path</span><span class="p">)</span>
+</span><span id="process_date-206"><a href="#process_date-206"><span class="linenos">206</span></a>        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[GEE] Wrote mosaic to: </span><span class="si">{</span><span class="n">output_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</span><span id="process_date-207"><a href="#process_date-207"><span class="linenos">207</span></a>
+</span><span id="process_date-208"><a href="#process_date-208"><span class="linenos">208</span></a>        <span class="k">if</span> <span class="n">save_png</span> <span class="ow">and</span> <span class="n">rgb_bands</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="process_date-209"><a href="#process_date-209"><span class="linenos">209</span></a>            <span class="n">png_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">output_path</span><span class="p">)</span><span class="o">.</span><span class="n">with_suffix</span><span class="p">(</span><span class="s2">&quot;.png&quot;</span><span class="p">)</span>
+</span><span id="process_date-210"><a href="#process_date-210"><span class="linenos">210</span></a>            <span class="n">_write_rgb_png_from_tif</span><span class="p">(</span>
+</span><span id="process_date-211"><a href="#process_date-211"><span class="linenos">211</span></a>                <span class="n">tif_path</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="n">output_path</span><span class="p">),</span>
+</span><span id="process_date-212"><a href="#process_date-212"><span class="linenos">212</span></a>                <span class="n">png_path</span><span class="o">=</span><span class="n">png_path</span><span class="p">,</span>
+</span><span id="process_date-213"><a href="#process_date-213"><span class="linenos">213</span></a>                <span class="n">rgb_bands</span><span class="o">=</span><span class="n">rgb_bands</span><span class="p">,</span>
+</span><span id="process_date-214"><a href="#process_date-214"><span class="linenos">214</span></a>            <span class="p">)</span>
+</span><span id="process_date-215"><a href="#process_date-215"><span class="linenos">215</span></a>            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[GEE] Wrote RGB preview to: </span><span class="si">{</span><span class="n">png_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</span><span id="process_date-216"><a href="#process_date-216"><span class="linenos">216</span></a>    <span class="k">return</span> <span class="n">output_paths</span>
 </span></pre></div>
 
 
@@ -572,65 +578,65 @@ Optionally writes an RGB PNG preview alongside the raster.</p>
 
     </div>
     <a class="headerlink" href="#process_multiple"></a>
-            <div class="pdoc-code codehilite"><pre><span></span><span id="process_multiple-221"><a href="#process_multiple-221"><span class="linenos">221</span></a><span class="k">def</span><span class="w"> </span><span class="nf">process_multiple</span><span class="p">(</span>
-</span><span id="process_multiple-222"><a href="#process_multiple-222"><span class="linenos">222</span></a>    <span class="n">df</span><span class="p">,</span>
-</span><span id="process_multiple-223"><a href="#process_multiple-223"><span class="linenos">223</span></a>    <span class="n">lat_col</span><span class="o">=</span><span class="s2">&quot;latitude&quot;</span><span class="p">,</span>
-</span><span id="process_multiple-224"><a href="#process_multiple-224"><span class="linenos">224</span></a>    <span class="n">lon_col</span><span class="o">=</span><span class="s2">&quot;longitude&quot;</span><span class="p">,</span>
-</span><span id="process_multiple-225"><a href="#process_multiple-225"><span class="linenos">225</span></a>    <span class="n">date_col</span><span class="o">=</span><span class="s2">&quot;date&quot;</span><span class="p">,</span>
-</span><span id="process_multiple-226"><a href="#process_multiple-226"><span class="linenos">226</span></a>    <span class="n">mission</span><span class="o">=</span><span class="s2">&quot;sentinel-2&quot;</span><span class="p">,</span>
-</span><span id="process_multiple-227"><a href="#process_multiple-227"><span class="linenos">227</span></a>    <span class="n">buffer_km</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
-</span><span id="process_multiple-228"><a href="#process_multiple-228"><span class="linenos">228</span></a>    <span class="n">out_dir</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-</span><span id="process_multiple-229"><a href="#process_multiple-229"><span class="linenos">229</span></a>    <span class="n">days_before</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span>
-</span><span id="process_multiple-230"><a href="#process_multiple-230"><span class="linenos">230</span></a>    <span class="n">days_after</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span>
-</span><span id="process_multiple-231"><a href="#process_multiple-231"><span class="linenos">231</span></a>    <span class="n">cloud_filter</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span>
-</span><span id="process_multiple-232"><a href="#process_multiple-232"><span class="linenos">232</span></a>    <span class="n">samples</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
-</span><span id="process_multiple-233"><a href="#process_multiple-233"><span class="linenos">233</span></a>    <span class="n">save_png</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-</span><span id="process_multiple-234"><a href="#process_multiple-234"><span class="linenos">234</span></a><span class="p">):</span>
-</span><span id="process_multiple-235"><a href="#process_multiple-235"><span class="linenos">235</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Apply :func:`process_date` to every row of a DataFrame.</span>
-</span><span id="process_multiple-236"><a href="#process_multiple-236"><span class="linenos">236</span></a>
-</span><span id="process_multiple-237"><a href="#process_multiple-237"><span class="linenos">237</span></a><span class="sd">    Args:</span>
-</span><span id="process_multiple-238"><a href="#process_multiple-238"><span class="linenos">238</span></a><span class="sd">        df: DataFrame with at minimum *lat_col*, *lon_col*, and *date_col*</span>
-</span><span id="process_multiple-239"><a href="#process_multiple-239"><span class="linenos">239</span></a><span class="sd">            columns.</span>
-</span><span id="process_multiple-240"><a href="#process_multiple-240"><span class="linenos">240</span></a><span class="sd">        lat_col: Name of the latitude column. Defaults to ``&quot;latitude&quot;``.</span>
-</span><span id="process_multiple-241"><a href="#process_multiple-241"><span class="linenos">241</span></a><span class="sd">        lon_col: Name of the longitude column. Defaults to ``&quot;longitude&quot;``.</span>
-</span><span id="process_multiple-242"><a href="#process_multiple-242"><span class="linenos">242</span></a><span class="sd">        date_col: Name of the date column. Defaults to ``&quot;date&quot;``.</span>
-</span><span id="process_multiple-243"><a href="#process_multiple-243"><span class="linenos">243</span></a><span class="sd">        mission: Mission slug. Defaults to ``&quot;sentinel-2&quot;``.</span>
-</span><span id="process_multiple-244"><a href="#process_multiple-244"><span class="linenos">244</span></a><span class="sd">        buffer_km: Bounding-box half-width in kilometres. Defaults to</span>
-</span><span id="process_multiple-245"><a href="#process_multiple-245"><span class="linenos">245</span></a><span class="sd">            ``1.0``.</span>
-</span><span id="process_multiple-246"><a href="#process_multiple-246"><span class="linenos">246</span></a><span class="sd">        out_dir: Output directory for downloaded mosaics.</span>
-</span><span id="process_multiple-247"><a href="#process_multiple-247"><span class="linenos">247</span></a><span class="sd">        days_before: Temporal window before each date in days. Defaults to</span>
-</span><span id="process_multiple-248"><a href="#process_multiple-248"><span class="linenos">248</span></a><span class="sd">            ``7``.</span>
-</span><span id="process_multiple-249"><a href="#process_multiple-249"><span class="linenos">249</span></a><span class="sd">        days_after: Temporal window after each date in days. Defaults to</span>
-</span><span id="process_multiple-250"><a href="#process_multiple-250"><span class="linenos">250</span></a><span class="sd">            ``7``.</span>
-</span><span id="process_multiple-251"><a href="#process_multiple-251"><span class="linenos">251</span></a><span class="sd">        cloud_filter: Maximum allowed cloud cover percentage. Defaults to</span>
-</span><span id="process_multiple-252"><a href="#process_multiple-252"><span class="linenos">252</span></a><span class="sd">            ``30``.</span>
-</span><span id="process_multiple-253"><a href="#process_multiple-253"><span class="linenos">253</span></a><span class="sd">        samples: Maximum scenes per date. Defaults to ``1``.</span>
-</span><span id="process_multiple-254"><a href="#process_multiple-254"><span class="linenos">254</span></a><span class="sd">        save_png: Whether to write RGB PNG previews. Defaults to ``False``.</span>
-</span><span id="process_multiple-255"><a href="#process_multiple-255"><span class="linenos">255</span></a>
-</span><span id="process_multiple-256"><a href="#process_multiple-256"><span class="linenos">256</span></a><span class="sd">    Returns:</span>
-</span><span id="process_multiple-257"><a href="#process_multiple-257"><span class="linenos">257</span></a><span class="sd">        list: List of output paths (one per row), with ``None`` entries</span>
-</span><span id="process_multiple-258"><a href="#process_multiple-258"><span class="linenos">258</span></a><span class="sd">        where no imagery was found.</span>
-</span><span id="process_multiple-259"><a href="#process_multiple-259"><span class="linenos">259</span></a><span class="sd">    &quot;&quot;&quot;</span>
-</span><span id="process_multiple-260"><a href="#process_multiple-260"><span class="linenos">260</span></a>    <span class="n">results</span> <span class="o">=</span> <span class="p">[]</span>
-</span><span id="process_multiple-261"><a href="#process_multiple-261"><span class="linenos">261</span></a>    <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">iterrows</span><span class="p">(),</span> <span class="n">total</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">)):</span>
-</span><span id="process_multiple-262"><a href="#process_multiple-262"><span class="linenos">262</span></a>        <span class="n">lat</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="n">lat_col</span><span class="p">]</span>
-</span><span id="process_multiple-263"><a href="#process_multiple-263"><span class="linenos">263</span></a>        <span class="n">lon</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="n">lon_col</span><span class="p">]</span>
-</span><span id="process_multiple-264"><a href="#process_multiple-264"><span class="linenos">264</span></a>        <span class="n">date</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="n">date_col</span><span class="p">]</span>
-</span><span id="process_multiple-265"><a href="#process_multiple-265"><span class="linenos">265</span></a>        <span class="n">path</span> <span class="o">=</span> <span class="n">process_date</span><span class="p">(</span>
-</span><span id="process_multiple-266"><a href="#process_multiple-266"><span class="linenos">266</span></a>            <span class="n">lat</span><span class="o">=</span><span class="n">lat</span><span class="p">,</span>
-</span><span id="process_multiple-267"><a href="#process_multiple-267"><span class="linenos">267</span></a>            <span class="n">lon</span><span class="o">=</span><span class="n">lon</span><span class="p">,</span>
-</span><span id="process_multiple-268"><a href="#process_multiple-268"><span class="linenos">268</span></a>            <span class="n">date</span><span class="o">=</span><span class="n">date</span><span class="p">,</span>
-</span><span id="process_multiple-269"><a href="#process_multiple-269"><span class="linenos">269</span></a>            <span class="n">mission</span><span class="o">=</span><span class="n">mission</span><span class="p">,</span>
-</span><span id="process_multiple-270"><a href="#process_multiple-270"><span class="linenos">270</span></a>            <span class="n">buffer_km</span><span class="o">=</span><span class="n">buffer_km</span><span class="p">,</span>
-</span><span id="process_multiple-271"><a href="#process_multiple-271"><span class="linenos">271</span></a>            <span class="n">out_dir</span><span class="o">=</span><span class="n">out_dir</span><span class="p">,</span>
-</span><span id="process_multiple-272"><a href="#process_multiple-272"><span class="linenos">272</span></a>            <span class="n">days_before</span><span class="o">=</span><span class="n">days_before</span><span class="p">,</span>
-</span><span id="process_multiple-273"><a href="#process_multiple-273"><span class="linenos">273</span></a>            <span class="n">days_after</span><span class="o">=</span><span class="n">days_after</span><span class="p">,</span>
-</span><span id="process_multiple-274"><a href="#process_multiple-274"><span class="linenos">274</span></a>            <span class="n">cloud_filter</span><span class="o">=</span><span class="n">cloud_filter</span><span class="p">,</span>
-</span><span id="process_multiple-275"><a href="#process_multiple-275"><span class="linenos">275</span></a>            <span class="n">samples</span><span class="o">=</span><span class="n">samples</span><span class="p">,</span>
-</span><span id="process_multiple-276"><a href="#process_multiple-276"><span class="linenos">276</span></a>            <span class="n">save_png</span><span class="o">=</span><span class="n">save_png</span><span class="p">,</span>
-</span><span id="process_multiple-277"><a href="#process_multiple-277"><span class="linenos">277</span></a>        <span class="p">)</span>
-</span><span id="process_multiple-278"><a href="#process_multiple-278"><span class="linenos">278</span></a>        <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
-</span><span id="process_multiple-279"><a href="#process_multiple-279"><span class="linenos">279</span></a>    <span class="k">return</span> <span class="n">results</span>
+            <div class="pdoc-code codehilite"><pre><span></span><span id="process_multiple-224"><a href="#process_multiple-224"><span class="linenos">224</span></a><span class="k">def</span><span class="w"> </span><span class="nf">process_multiple</span><span class="p">(</span>
+</span><span id="process_multiple-225"><a href="#process_multiple-225"><span class="linenos">225</span></a>    <span class="n">df</span><span class="p">,</span>
+</span><span id="process_multiple-226"><a href="#process_multiple-226"><span class="linenos">226</span></a>    <span class="n">lat_col</span><span class="o">=</span><span class="s2">&quot;latitude&quot;</span><span class="p">,</span>
+</span><span id="process_multiple-227"><a href="#process_multiple-227"><span class="linenos">227</span></a>    <span class="n">lon_col</span><span class="o">=</span><span class="s2">&quot;longitude&quot;</span><span class="p">,</span>
+</span><span id="process_multiple-228"><a href="#process_multiple-228"><span class="linenos">228</span></a>    <span class="n">date_col</span><span class="o">=</span><span class="s2">&quot;date&quot;</span><span class="p">,</span>
+</span><span id="process_multiple-229"><a href="#process_multiple-229"><span class="linenos">229</span></a>    <span class="n">mission</span><span class="o">=</span><span class="s2">&quot;sentinel-2&quot;</span><span class="p">,</span>
+</span><span id="process_multiple-230"><a href="#process_multiple-230"><span class="linenos">230</span></a>    <span class="n">buffer_km</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+</span><span id="process_multiple-231"><a href="#process_multiple-231"><span class="linenos">231</span></a>    <span class="n">out_dir</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+</span><span id="process_multiple-232"><a href="#process_multiple-232"><span class="linenos">232</span></a>    <span class="n">days_before</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span>
+</span><span id="process_multiple-233"><a href="#process_multiple-233"><span class="linenos">233</span></a>    <span class="n">days_after</span><span class="o">=</span><span class="mi">7</span><span class="p">,</span>
+</span><span id="process_multiple-234"><a href="#process_multiple-234"><span class="linenos">234</span></a>    <span class="n">cloud_filter</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span>
+</span><span id="process_multiple-235"><a href="#process_multiple-235"><span class="linenos">235</span></a>    <span class="n">samples</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+</span><span id="process_multiple-236"><a href="#process_multiple-236"><span class="linenos">236</span></a>    <span class="n">save_png</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+</span><span id="process_multiple-237"><a href="#process_multiple-237"><span class="linenos">237</span></a><span class="p">):</span>
+</span><span id="process_multiple-238"><a href="#process_multiple-238"><span class="linenos">238</span></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;Apply :func:`process_date` to every row of a DataFrame.</span>
+</span><span id="process_multiple-239"><a href="#process_multiple-239"><span class="linenos">239</span></a>
+</span><span id="process_multiple-240"><a href="#process_multiple-240"><span class="linenos">240</span></a><span class="sd">    Args:</span>
+</span><span id="process_multiple-241"><a href="#process_multiple-241"><span class="linenos">241</span></a><span class="sd">        df: DataFrame with at minimum *lat_col*, *lon_col*, and *date_col*</span>
+</span><span id="process_multiple-242"><a href="#process_multiple-242"><span class="linenos">242</span></a><span class="sd">            columns.</span>
+</span><span id="process_multiple-243"><a href="#process_multiple-243"><span class="linenos">243</span></a><span class="sd">        lat_col: Name of the latitude column. Defaults to ``&quot;latitude&quot;``.</span>
+</span><span id="process_multiple-244"><a href="#process_multiple-244"><span class="linenos">244</span></a><span class="sd">        lon_col: Name of the longitude column. Defaults to ``&quot;longitude&quot;``.</span>
+</span><span id="process_multiple-245"><a href="#process_multiple-245"><span class="linenos">245</span></a><span class="sd">        date_col: Name of the date column. Defaults to ``&quot;date&quot;``.</span>
+</span><span id="process_multiple-246"><a href="#process_multiple-246"><span class="linenos">246</span></a><span class="sd">        mission: Mission slug. Defaults to ``&quot;sentinel-2&quot;``.</span>
+</span><span id="process_multiple-247"><a href="#process_multiple-247"><span class="linenos">247</span></a><span class="sd">        buffer_km: Bounding-box half-width in kilometres. Defaults to</span>
+</span><span id="process_multiple-248"><a href="#process_multiple-248"><span class="linenos">248</span></a><span class="sd">            ``1.0``.</span>
+</span><span id="process_multiple-249"><a href="#process_multiple-249"><span class="linenos">249</span></a><span class="sd">        out_dir: Output directory for downloaded mosaics.</span>
+</span><span id="process_multiple-250"><a href="#process_multiple-250"><span class="linenos">250</span></a><span class="sd">        days_before: Temporal window before each date in days. Defaults to</span>
+</span><span id="process_multiple-251"><a href="#process_multiple-251"><span class="linenos">251</span></a><span class="sd">            ``7``.</span>
+</span><span id="process_multiple-252"><a href="#process_multiple-252"><span class="linenos">252</span></a><span class="sd">        days_after: Temporal window after each date in days. Defaults to</span>
+</span><span id="process_multiple-253"><a href="#process_multiple-253"><span class="linenos">253</span></a><span class="sd">            ``7``.</span>
+</span><span id="process_multiple-254"><a href="#process_multiple-254"><span class="linenos">254</span></a><span class="sd">        cloud_filter: Maximum allowed cloud cover percentage. Defaults to</span>
+</span><span id="process_multiple-255"><a href="#process_multiple-255"><span class="linenos">255</span></a><span class="sd">            ``30``.</span>
+</span><span id="process_multiple-256"><a href="#process_multiple-256"><span class="linenos">256</span></a><span class="sd">        samples: Maximum scenes per date. Defaults to ``1``.</span>
+</span><span id="process_multiple-257"><a href="#process_multiple-257"><span class="linenos">257</span></a><span class="sd">        save_png: Whether to write RGB PNG previews. Defaults to ``False``.</span>
+</span><span id="process_multiple-258"><a href="#process_multiple-258"><span class="linenos">258</span></a>
+</span><span id="process_multiple-259"><a href="#process_multiple-259"><span class="linenos">259</span></a><span class="sd">    Returns:</span>
+</span><span id="process_multiple-260"><a href="#process_multiple-260"><span class="linenos">260</span></a><span class="sd">        list: List of output paths (one per row), with ``None`` entries</span>
+</span><span id="process_multiple-261"><a href="#process_multiple-261"><span class="linenos">261</span></a><span class="sd">        where no imagery was found.</span>
+</span><span id="process_multiple-262"><a href="#process_multiple-262"><span class="linenos">262</span></a><span class="sd">    &quot;&quot;&quot;</span>
+</span><span id="process_multiple-263"><a href="#process_multiple-263"><span class="linenos">263</span></a>    <span class="n">results</span> <span class="o">=</span> <span class="p">[]</span>
+</span><span id="process_multiple-264"><a href="#process_multiple-264"><span class="linenos">264</span></a>    <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">row</span> <span class="ow">in</span> <span class="n">tqdm</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">iterrows</span><span class="p">(),</span> <span class="n">total</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">df</span><span class="p">)):</span>
+</span><span id="process_multiple-265"><a href="#process_multiple-265"><span class="linenos">265</span></a>        <span class="n">lat</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="n">lat_col</span><span class="p">]</span>
+</span><span id="process_multiple-266"><a href="#process_multiple-266"><span class="linenos">266</span></a>        <span class="n">lon</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="n">lon_col</span><span class="p">]</span>
+</span><span id="process_multiple-267"><a href="#process_multiple-267"><span class="linenos">267</span></a>        <span class="n">date</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="n">date_col</span><span class="p">]</span>
+</span><span id="process_multiple-268"><a href="#process_multiple-268"><span class="linenos">268</span></a>        <span class="n">path</span> <span class="o">=</span> <span class="n">process_date</span><span class="p">(</span>
+</span><span id="process_multiple-269"><a href="#process_multiple-269"><span class="linenos">269</span></a>            <span class="n">lat</span><span class="o">=</span><span class="n">lat</span><span class="p">,</span>
+</span><span id="process_multiple-270"><a href="#process_multiple-270"><span class="linenos">270</span></a>            <span class="n">lon</span><span class="o">=</span><span class="n">lon</span><span class="p">,</span>
+</span><span id="process_multiple-271"><a href="#process_multiple-271"><span class="linenos">271</span></a>            <span class="n">date</span><span class="o">=</span><span class="n">date</span><span class="p">,</span>
+</span><span id="process_multiple-272"><a href="#process_multiple-272"><span class="linenos">272</span></a>            <span class="n">mission</span><span class="o">=</span><span class="n">mission</span><span class="p">,</span>
+</span><span id="process_multiple-273"><a href="#process_multiple-273"><span class="linenos">273</span></a>            <span class="n">buffer_km</span><span class="o">=</span><span class="n">buffer_km</span><span class="p">,</span>
+</span><span id="process_multiple-274"><a href="#process_multiple-274"><span class="linenos">274</span></a>            <span class="n">out_dir</span><span class="o">=</span><span class="n">out_dir</span><span class="p">,</span>
+</span><span id="process_multiple-275"><a href="#process_multiple-275"><span class="linenos">275</span></a>            <span class="n">days_before</span><span class="o">=</span><span class="n">days_before</span><span class="p">,</span>
+</span><span id="process_multiple-276"><a href="#process_multiple-276"><span class="linenos">276</span></a>            <span class="n">days_after</span><span class="o">=</span><span class="n">days_after</span><span class="p">,</span>
+</span><span id="process_multiple-277"><a href="#process_multiple-277"><span class="linenos">277</span></a>            <span class="n">cloud_filter</span><span class="o">=</span><span class="n">cloud_filter</span><span class="p">,</span>
+</span><span id="process_multiple-278"><a href="#process_multiple-278"><span class="linenos">278</span></a>            <span class="n">samples</span><span class="o">=</span><span class="n">samples</span><span class="p">,</span>
+</span><span id="process_multiple-279"><a href="#process_multiple-279"><span class="linenos">279</span></a>            <span class="n">save_png</span><span class="o">=</span><span class="n">save_png</span><span class="p">,</span>
+</span><span id="process_multiple-280"><a href="#process_multiple-280"><span class="linenos">280</span></a>        <span class="p">)</span>
+</span><span id="process_multiple-281"><a href="#process_multiple-281"><span class="linenos">281</span></a>        <span class="n">results</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+</span><span id="process_multiple-282"><a href="#process_multiple-282"><span class="linenos">282</span></a>    <span class="k">return</span> <span class="n">results</span>
 </span></pre></div>
 
 

@@ -27,7 +27,12 @@ from rasterio.merge import merge
 from tqdm import tqdm
 
 from swmaps.config import data_path
-from swmaps.infra.db import get_connection, register_scene
+from swmaps.infra.db import (
+    get_connection,
+    register_processing_run,
+    register_scene,
+    update_processing_run,
+)
 
 from .missions import get_mission
 
@@ -145,6 +150,80 @@ def get_best_image(collection: ee.ImageCollection, mission: str, samples: int):
 # ---------------------------------------------------------
 #  DOWNLOAD MULTIBAND IMAGE FROM GEE
 # ---------------------------------------------------------
+
+
+def _register_imagery_products(
+    conn, scene_id: str, out_path: str, mission: str
+) -> None:
+    import numpy as np
+    import rasterio
+    from PIL import Image
+
+    mission_info = get_mission(mission)
+    band_names = list(mission_info.bands().keys())
+    tif_path = Path(out_path)
+
+    # Register each individual band with its own PNG preview
+    for i, band_name in enumerate(band_names, start=1):
+        png_path = tif_path.parent / f"{tif_path.stem}_{band_name}.png"
+
+        # Generate single-band PNG preview
+        with rasterio.open(tif_path) as src:
+            data = src.read(i).astype("float32")
+            valid = data[data > 0]
+            if valid.size > 0:
+                lo, hi = np.percentile(valid, (2, 98))
+                data = np.clip((data - lo) / (hi - lo + 1e-6), 0, 1)
+            data = (data * 255).astype("uint8")
+        Image.fromarray(data, mode="L").save(png_path)
+
+        run = register_processing_run(
+            conn,
+            scene_id,
+            "imagery_band",
+            parameters={"band": band_name, "band_index": i},
+        )
+        update_processing_run(
+            conn,
+            run["product_id"],
+            status="complete",
+            output_paths=[str(tif_path), str(png_path)],
+        )
+        conn.commit()
+
+    # Register RGB composite with its own PNG preview
+    r, g, b = mission_info.rgb_bands
+    rgb_png_path = tif_path.parent / f"{tif_path.stem}_rgb.png"
+
+    with rasterio.open(tif_path) as src:
+        r_band = src.read(r).astype("float32")
+        g_band = src.read(g).astype("float32")
+        b_band = src.read(b).astype("float32")
+
+    def _stretch(arr):
+        valid = arr[arr > 0]
+        if valid.size == 0:
+            return np.zeros_like(arr, dtype="uint8")
+        lo, hi = np.percentile(valid, (2, 98))
+        arr = np.clip((arr - lo) / (hi - lo + 1e-6), 0, 1)
+        return (arr * 255).astype("uint8")
+
+    rgb = np.stack([_stretch(r_band), _stretch(g_band), _stretch(b_band)], axis=-1)
+    Image.fromarray(rgb, mode="RGB").save(rgb_png_path)
+
+    run = register_processing_run(
+        conn,
+        scene_id,
+        "imagery_rgb",
+        parameters={"bands": [r, g, b]},
+    )
+    update_processing_run(
+        conn,
+        run["product_id"],
+        status="complete",
+        output_paths=[str(tif_path), str(rgb_png_path)],
+    )
+    conn.commit()
 
 
 def download_gee_multiband(
@@ -308,6 +387,7 @@ def download_gee_multiband(
                     crs=ANALYSIS_CRS,
                     acquisition_date=acquisition_date,
                 )
+                _register_imagery_products(conn, image_id, str(out_path), mission)
         except Exception as e:
             print(f"[DB] Warning: Failed to register scene {image_id}: {e}")
 
@@ -316,23 +396,36 @@ def download_gee_multiband(
     # -------------------------------------------------
     # Synchronous download path
     # -------------------------------------------------
-    url = clipped.getDownloadURL(
-        {
-            "scale": scale,
-            "crs": ANALYSIS_CRS,
-            "region": region,
-            "format": "GEOTIFF",
-            "filePerBand": False,
-        }
-    )
+    max_retries = 3
+    for retry in range(max_retries):
+        try:
+            url = clipped.getDownloadURL(
+                {
+                    "scale": scale,
+                    "crs": ANALYSIS_CRS,
+                    "region": region,
+                    "format": "GEOTIFF",
+                    "filePerBand": False,
+                }
+            )
 
-    r = requests.get(url, stream=True)
-    with open(out_path, "wb") as f:
-        for chunk in r.iter_content(chunk_size=8192):
-            f.write(chunk)
+            r = requests.get(url, stream=True)
+            with open(out_path, "wb") as f:
+                for chunk in r.iter_content(chunk_size=8192):
+                    f.write(chunk)
 
-    timestamp_ms = image.get("system:time_start").getInfo()
-    acquisition_date = datetime.utcfromtimestamp(timestamp_ms / 1000).date().isoformat()
+            timestamp_ms = image.get("system:time_start").getInfo()
+            acquisition_date = (
+                datetime.utcfromtimestamp(timestamp_ms / 1000).date().isoformat()
+            )
+        except Exception as e:
+            if retry < max_retries - 1:
+                print(
+                    f"[GEE] Warning: Failed to write {image_id}: {e} ... retrying {retry}"
+                )
+            else:
+                print(f"[GEE] Error: Failed to write {image_id}: {e} ... skipping")
+                return None
 
     try:
         with get_connection() as conn:
@@ -345,6 +438,7 @@ def download_gee_multiband(
                 crs=ANALYSIS_CRS,
                 acquisition_date=acquisition_date,
             )
+            _register_imagery_products(conn, image_id, str(out_path), mission)
     except Exception as e:
         print(f"[DB] Warning: Failed to register scene {image_id}: {e}")
 

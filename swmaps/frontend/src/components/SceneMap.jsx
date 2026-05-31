@@ -38,9 +38,15 @@ function unionBounds(scenes) {
   return [[minLat, minLon], [maxLat, maxLon]]
 }
 
-function ProductTileLayer({ selectedProduct, titilerUrl }) {
+function ProductTileLayer({ selectedProduct, titilerUrl, opacity }) {
   const map = useMap()
   const layerRef = useRef(null)
+
+  useEffect(() => {
+    if (layerRef.current) {
+      layerRef.current.setOpacity(opacity)
+    }
+  }, [opacity])
 
   useEffect(() => {
     // Remove existing layer
@@ -59,10 +65,38 @@ function ProductTileLayer({ selectedProduct, titilerUrl }) {
     }
 
     const encodedPath = encodeURIComponent(`/data/${tifPath}`)
-    const tilesUrl = `/tiles/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?url=${encodedPath}&rescale=0,1&colormap_name=blues`
+    const statsUrl = `/tiles/cog/statistics?url=${encodedPath}`
+    let tilesUrl
 
-    layerRef.current = L.tileLayer(tilesUrl, { opacity: 0.2 })
-    layerRef.current.addTo(map)
+    fetch(statsUrl)
+    .then((r) => r.json())
+    .then((stats) => {
+      let tilesUrl
+
+      if (selectedProduct.task === 'imagery_rgb') {
+        const [r, g, b] = selectedProduct.parameters?.bands || [3, 2, 1]
+        // Get percentiles for each RGB band
+        const rStats = stats[`b${r}`]
+        const gStats = stats[`b${g}`]
+        const bStats = stats[`b${b}`]
+        // Use the overall min p2 and max p98 across the three bands
+        const lo = Math.min(rStats.percentile_2, gStats.percentile_2, bStats.percentile_2)
+        const hi = Math.max(rStats.percentile_98, gStats.percentile_98, bStats.percentile_98)
+        tilesUrl = `/tiles/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?url=${encodedPath}&bidx=${r}&bidx=${g}&bidx=${b}&rescale=${lo},${hi}`
+      } else if (selectedProduct.task === 'imagery_band') {
+        const bandIndex = selectedProduct.parameters?.band_index || 1
+        const bandStats = stats[`b${bandIndex}`]
+        const lo = bandStats.percentile_2
+        const hi = bandStats.percentile_98
+        tilesUrl = `/tiles/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?url=${encodedPath}&bidx=${bandIndex}&rescale=${lo},${hi}&colormap_name=greys`
+      } else {
+        tilesUrl = `/tiles/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?url=${encodedPath}&rescale=0,1&colormap_name=blues`
+      }
+
+      layerRef.current = L.tileLayer(tilesUrl, { opacity: opacity })
+      layerRef.current.addTo(map)
+    })
+    .catch(console.error)
 
     return () => {
       if (layerRef.current) {
@@ -80,7 +114,8 @@ export default function SceneMap({
   selectedSceneId, 
   hoveredSceneId,
   selectedProduct, 
-  titilerUrl }) {
+  titilerUrl,
+  overlayOpacity}) {
 
   const aggregate = unionBounds(scenes)
   const hoveredScene = scenes.find((s) => s.scene_id === hoveredSceneId)
@@ -97,7 +132,6 @@ export default function SceneMap({
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
 
-      {/* 1. Aggregate extent — light dashed outline, always shown */}
       {aggregate && (
         <Rectangle
           bounds={aggregate}
@@ -111,7 +145,6 @@ export default function SceneMap({
         />
       )}
 
-      {/* 2. Hovered scene — medium highlight */}
       {hoveredScene && hoveredScene.scene_id !== selectedSceneId && (() => {
         const bounds = parseBbox(hoveredScene.location_wkt || '')
         if (!bounds) return null
@@ -128,7 +161,6 @@ export default function SceneMap({
         )
       })()}
 
-      {/* 3. Selected scene — prominent */}
       {selectedScene && (() => {
         const bounds = parseBbox(selectedScene.location_wkt || '')
         if (!bounds) return null
@@ -144,7 +176,10 @@ export default function SceneMap({
         )
       })()}
 
-      <ProductTileLayer selectedProduct={selectedProduct} titilerUrl={titilerUrl} />
+      <ProductTileLayer 
+      selectedProduct={selectedProduct} 
+      titilerUrl={titilerUrl} 
+      opacity={overlayOpacity}/>
     </MapContainer>
   )
 }

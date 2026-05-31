@@ -96,6 +96,7 @@ __pycache__/
 
 # Distribution / packaging
 startup.sh
+clean_tear_down.sh
 .Python
 build/
 develop-eggs/

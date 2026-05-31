@@ -16,6 +16,7 @@ export default function App() {
   const [tasks, setTasks] = useState([])
   const [sensors, setSensors] = useState([])
   const [titilerUrl, setTitilerUrl] = useState('http://localhost:8001')
+  const [overlayOpacity, setOverlayOpacity] = useState(0.7)
 
   // Filters
   const [bbox, setBbox] = useState('-76.5,37.5,-74.5,39.5')
@@ -112,6 +113,7 @@ export default function App() {
             onSelectScene={handleSelectScene}
             selectedProduct={selectedProduct}
             titilerUrl={titilerUrl}
+            overlayOpacity={overlayOpacity}
           />
           {loading && (
             <div style={{
@@ -136,6 +138,21 @@ export default function App() {
         />
       </div>
 
+      {selectedProduct && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px' }}>
+          <label style={{ fontSize: 12, color: '#aaa' }}>opacity</label>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={overlayOpacity}
+            onChange={(e) => setOverlayOpacity(parseFloat(e.target.value))}
+            style={{ width: 100 }}
+          />
+          <span style={{ fontSize: 12, color: '#aaa' }}>{Math.round(overlayOpacity * 100)}%</span>
+        </div>
+      )}
       <ProductPanel
         sceneId={selectedSceneId}
         products={products[selectedSceneId]}

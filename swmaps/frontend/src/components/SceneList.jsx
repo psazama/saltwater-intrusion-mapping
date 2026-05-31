@@ -35,12 +35,6 @@ export default function SceneList({
     <div className="scene-pane">
       <div className="scene-list-header">
         <span>{scenes.length} scenes</span>
-        <button
-          className={compareMode ? 'active' : ''}
-          onClick={onToggleCompare}
-        >
-          {compareMode ? 'exit compare' : 'compare'}
-        </button>
       </div>
       <div className="scene-items">
         {scenes.length === 0 && (

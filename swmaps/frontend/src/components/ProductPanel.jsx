@@ -28,6 +28,12 @@ export default function ProductPanel({ sceneId, products, compareMode, tasks, on
     }
   }
 
+  function productLabel(product) {
+    if (product.task === 'imagery_rgb') return 'RGB'
+    if (product.task === 'imagery_band') return product.parameters?.band || product.task
+    return product.task.replace(/_/g, ' ')
+  }
+
   if (!sceneId) return null
 
   return (
@@ -38,20 +44,6 @@ export default function ProductPanel({ sceneId, products, compareMode, tasks, on
           onClick={() => setActiveTab('products')}
         >
           products
-        </button>
-        {compareMode && (
-          <button
-            className={`tab ${activeTab === 'compare' ? 'active' : ''}`}
-            onClick={() => setActiveTab('compare')}
-          >
-            compare {selected.length > 0 ? `(${selected.length})` : ''}
-          </button>
-        )}
-        <button
-          className={`tab ${activeTab === 'temporal' ? 'active' : ''}`}
-          onClick={() => setActiveTab('temporal')}
-        >
-          temporal
         </button>
         <span style={{ marginLeft: 'auto', padding: '8px 12px', fontSize: 11, color: '#666' }}>
           {sceneId}
@@ -65,7 +57,8 @@ export default function ProductPanel({ sceneId, products, compareMode, tasks, on
               <div className="empty-state">no previews available</div>
             )}
             {previewProducts.map((product) => {
-              const previewPath = product.output_paths?.find((p) => p.endsWith('.png') || p.endsWith('.tif'))
+              const previewPath = product.output_paths?.find((p) => p.endsWith('.png'))
+                || product.output_paths?.find((p) => p.endsWith('.tif'))
               const isSelected = selected.find(
                 (p) => p.product_id === product.product_id
               )
@@ -77,11 +70,11 @@ export default function ProductPanel({ sceneId, products, compareMode, tasks, on
                 >
                   <img
                     src={productImageUrl(previewPath)}
-                    alt={product.task}
+                    alt={productLabel(product)}
                     loading="lazy"
                   />
                   <div className="product-label">
-                    {product.task.replace(/_/g, ' ')}
+                    {productLabel(product)}
                     {' · '}
                     {product.completed_at?.slice(0, 10) || 'unknown date'}
                   </div>
@@ -114,7 +107,8 @@ function CompareView({ selected }) {
   return (
     <div className="compare-panel">
       {selected.map((product) => {
-        const previewPath = product.output_paths?.find((p) => p.endsWith('.png') || p.endsWith('.tif'))
+        const previewPath = product.output_paths?.find((p) => p.endsWith('.png'))
+          || product.output_paths?.find((p) => p.endsWith('.tif'))
         return (
           <div key={product.product_id} className="compare-slot">
             <img src={productImageUrl(previewPath)} alt={product.task} />
@@ -139,8 +133,9 @@ function TemporalView({ sceneId, products }) {
   }
 
   const current = sorted[index]
-  const previewPath = current?.output_paths?.find((p) => p.endsWith('.png') || p.endsWith('.tif'))
-  
+  const previewPath = current.output_paths?.find((p) => p.endsWith('.png'))
+    || current.output_paths?.find((p) => p.endsWith('.tif'))  
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 8 }}>
       <div style={{ flex: 1, display: 'flex', gap: 8 }}>

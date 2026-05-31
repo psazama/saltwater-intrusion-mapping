@@ -45,6 +45,20 @@ class Mission:
         """
         return self.name
 
+    @property
+    def rgb_bands(self) -> tuple[int, int, int]:
+        """1-based band indices for red, green, blue display.
+
+        Returns:
+            tuple[int, int, int]: ``(red, green, blue)`` 1-based indices.
+        """
+        band_names = list(self.bands().keys())
+        return (
+            band_names.index("red") + 1,
+            band_names.index("green") + 1,
+            band_names.index("blue") + 1,
+        )
+
     def reflectance_stack(self, src) -> Dict[str, object]:
         """Extract surface-reflectance arrays from an open rasterio dataset.
 

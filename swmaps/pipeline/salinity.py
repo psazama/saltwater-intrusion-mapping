@@ -31,6 +31,7 @@ from pathlib import Path
 
 import numpy as np
 import rasterio
+from PIL import Image
 from rasterio.errors import RasterioError
 
 from swmaps.config import data_path
@@ -46,6 +47,7 @@ from swmaps.datasets.salinity import (
     load_salinity_truth,
 )
 from swmaps.infra.db import track_pipeline_run
+from swmaps.infra.storage import add_overviews
 from swmaps.models.salinity_heuristic import (
     SalinityHeuristicModel,
 )
@@ -184,7 +186,7 @@ def run_salinity_classification(
         except ValueError:
             scene_id = mosaic_path.stem
 
-        with track_pipeline_run(conn, scene_id, "salinity"):
+        with track_pipeline_run(conn, scene_id, "salinity") as run:
             _write_band(score_path, profile, result["score"], dtype="float32")
             _write_band(
                 class_path,
@@ -199,11 +201,28 @@ def run_salinity_classification(
                 result["water_mask"].astype(np.float32),
                 dtype="float32",
             )
+            add_overviews(score_path)
+            add_overviews(class_path)
+            add_overviews(water_path)
+            run["output_paths"] = [str(score_path), str(class_path), str(water_path)]
+            if cfg.save_png:
+                score_png_path = score_path.with_suffix(".png")
+                score_filled = np.nan_to_num(result["score"], nan=0.0)
+                score_png = (np.clip(score_filled, 0, 1) * 255).astype(np.uint8)
+                Image.fromarray(score_png, mode="L").save(score_png_path)
+                output_paths.append(score_png_path)
+                run["output_paths"].append(str(score_png_path))
+
+                class_png_path = class_path.with_suffix(".png")
+                class_png = (result["class_codes"] * 85).astype(np.uint8)
+                Image.fromarray(class_png, mode="L").save(class_png_path)
+                output_paths.append(class_png_path)
+                run["output_paths"].append(str(class_png_path))
 
         output_paths.extend([score_path, class_path, water_path])
         logger.info("Salinity products written for %s", mosaic_path.name)
 
-    if not output_paths and skipped == len(mosaics):
+    if not output_paths and skipped == len(mosaic_list):
         return PipelineResult.failure(
             "All mosaics were skipped (band count, quality, or mission errors).",
         )

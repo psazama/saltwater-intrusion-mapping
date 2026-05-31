@@ -15,6 +15,13 @@ docs/
 gui/
 examples/
 
+# Frontend build artifacts
+frontend/node_modules/
+frontend/dist/
+
+# The static dir is built during Docker build, not copied from host
+swmaps/static/
+
 # Python artifacts
 *.pyc
 __pycache__/

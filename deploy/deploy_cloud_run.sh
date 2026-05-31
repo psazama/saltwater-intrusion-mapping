@@ -52,7 +52,31 @@ TRIGGER_IMAGE_URI="$REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/$TRIGGER_IMAGE_
 TRIGGER_SERVICE="swmaps-trigger"
 PIPELINE_JOB="swmaps-pipeline"
 
-echo "Step 3: Building Image..."
+API_IMAGE_NAME="swmaps-api"
+API_TAG="v1"
+API_IMAGE_URI="$REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/$API_IMAGE_NAME:$API_TAG"
+API_SERVICE="swmaps-api"
+
+echo "Step 3: Building frontend..."
+cd frontend
+if ! command -v npm &>/dev/null; then
+    echo "ERROR: npm not found. Install Node.js 18+ before deploying."
+    exit 1
+fi
+
+NODE_VERSION=$(node --version | cut -d'.' -f1 | tr -d 'v')
+if [ "$NODE_VERSION" -lt 18 ]; then
+    echo "ERROR: Node.js 18+ required, found $(node --version)."
+    echo "Run: nvm install 18 && nvm use 18"
+    exit 1
+fi
+
+npm install --silent
+npm run build
+cd ..
+echo "Frontend built successfully."
+
+echo "Step 4: Building Image..."
 gcloud builds submit \
     --config=deploy/cloudbuild.pipeline.yaml \
     --substitutions="_IMAGE_URI=$PIPELINE_IMAGE_URI" .
@@ -61,7 +85,11 @@ gcloud builds submit \
     --config=deploy/cloudbuild.trigger.yaml \
     --substitutions="_IMAGE_URI=$TRIGGER_IMAGE_URI" .
 
-echo "Step 4: Deploying to Cloud Run..."
+gcloud builds submit \
+    --config=deploy/cloudbuild.trigger.yaml \
+    --substitutions="_IMAGE_URI=$API_IMAGE_URI" .
+
+echo "Step 5: Deploying to Cloud Run..."
 if gcloud run jobs describe $PIPELINE_JOB --region=$REGION &>/dev/null; then
     gcloud run jobs update $PIPELINE_JOB \
         --image=$PIPELINE_IMAGE_URI \
@@ -87,11 +115,25 @@ gcloud run deploy $TRIGGER_SERVICE \
     --set-env-vars="PIPELINE_JOB=swmaps-pipeline,REGION=$REGION,GOOGLE_CLOUD_PROJECT=$PROJECT_ID" \
     --service-account=$SVC_ACCOUNT
 
+echo "Deploying API service..."
+gcloud run deploy $API_SERVICE \
+    --image=$API_IMAGE_URI \
+    --region=$REGION \
+    --allow-unauthenticated \
+    --set-env-vars="DB_HOST=/cloudsql/$CLOUD_SQL_INSTANCE,DB_PORT=5432,DB_NAME=swmaps,GOOGLE_CLOUD_PROJECT=$PROJECT_ID" \
+    --set-secrets="DB_PASSWORD=swmaps-db-password:latest,DB_USER=swmaps-db-user:latest" \
+    --memory=1Gi \
+    --cpu=1 \
+    --min-instances=0 \
+    --max-instances=5 \
+    --add-cloudsql-instances=$CLOUD_SQL_INSTANCE \
+    --service-account=$SVC_ACCOUNT
 
-echo "Step 5: Setting up Pub/Sub topic"
+
+echo "Step 6: Setting up Pub/Sub topic"
 gcloud pubsub topics create swmaps-new-scenes 2>/dev/null || true
 
-echo "Step 6: Wiring Pub/Sub to trigger service"
+echo "Step 7: Wiring Pub/Sub to trigger service"
 TRIGGER_URL=$(gcloud run services describe $TRIGGER_SERVICE \
     --region=$REGION \
     --format='get(status.url)')
@@ -111,11 +153,18 @@ gcloud pubsub subscriptions create swmaps-new-scenes-sub \
     --push-endpoint="$TRIGGER_URL/trigger" \
     --push-auth-service-account=$PUBSUB_SA
 
+API_URL=$(gcloud run services describe $API_SERVICE \
+    --region=$REGION \
+    --format='get(status.url)')
+
 echo "---------------------------------------------------"
 echo "Deployment complete."
-echo "Pipeline job: $PIPELINE_JOB"
-echo "Trigger service: $TRIGGER_URL"
-echo "Pub/Sub topic: swmaps-new-scenes"
+echo "Pipeline job:     $PIPELINE_JOB"
+echo "Trigger service:  $TRIGGER_URL"
+echo "API service:      $API_URL"
+echo "Science viewer:   $API_URL"
+echo "Swagger UI:       $API_URL/docs"
+echo "Pub/Sub topic:    swmaps-new-scenes"
 echo "---------------------------------------------------"
 echo "To test manually:"
 echo "gcloud pubsub topics publish swmaps-new-scenes --message='{\"scene_id\":\"test\",\"sensor\":\"landsat-7\",\"acquisition_date\":\"1999-08-06\"}'"

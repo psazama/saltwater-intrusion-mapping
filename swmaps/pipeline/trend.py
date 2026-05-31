@@ -112,13 +112,6 @@ def run_trend_heatmap(
     slope, pval = pixel_trend(class_year)
     signif = pval < 0.05
 
-    # Load yearly fraction for the class
-    class_year = load_class_year(binary_paths)
-
-    # Compute trends
-    slope, pval = pixel_trend(class_year)
-    signif = pval < 0.05
-
     # Plot heatmap
     ax = plot_trend_heatmap(
         slope,

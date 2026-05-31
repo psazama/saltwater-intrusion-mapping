@@ -308,6 +308,7 @@ class SalinityConfig(BaseModel):
     truth_dir: Optional[str] = None
     truth_file: Optional[str] = None
     water_threshold: float = 0.2
+    save_png: bool = False
 
     @classmethod
     def from_dict(cls, d: dict) -> "SalinityConfig":
@@ -327,6 +328,7 @@ class TrendConfig(BaseModel):
             (e.g. ``"mask"`` or ``"segmentation"``).
     """
 
+    run_water_masks: bool = False
     run_water_trend: bool = False
     trend_output_dir: Optional[str] = None
     trend_class_value: int = 1
@@ -437,6 +439,7 @@ class SceneResponse(BaseModel):
     file_locations: List[str]
     ingest_timestamp: Optional[str] = None
     version_no: int = 1
+    location_wkt: Optional[str] = None
 
     @classmethod
     def from_row(cls, row: dict) -> SceneResponse:
@@ -460,6 +463,7 @@ class SceneResponse(BaseModel):
                 str(row["ingest_timestamp"]) if row.get("ingest_timestamp") else None
             ),
             version_no=row.get("version_no", 1),
+            location_wkt=row.get("location_wkt"),
         )
 
 

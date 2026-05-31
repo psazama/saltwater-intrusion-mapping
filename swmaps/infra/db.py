@@ -29,6 +29,7 @@ import psycopg2
 from dotenv import load_dotenv
 from google.cloud import pubsub_v1
 from psycopg2.extras import RealDictCursor
+from rasterio.warp import transform_bounds
 
 load_dotenv()
 
@@ -99,16 +100,20 @@ def track_pipeline_run(conn, scene_id: str, task: str, parameters: dict = None):
         # run record is automatically marked complete or failed
     """
     if conn is None:
-        yield None
+        yield {"output_paths": []}
         return
 
     run_rec = register_processing_run(conn, scene_id, task, parameters)
+    run_rec = dict(run_rec)
+    run_rec["output_paths"] = []
+
     try:
         yield run_rec
         update_processing_run(
             conn,
             run_rec["product_id"],
             status="complete",
+            output_paths=run_rec["output_paths"] or None,
         )
     except Exception as exc:
         update_processing_run(
@@ -116,7 +121,9 @@ def track_pipeline_run(conn, scene_id: str, task: str, parameters: dict = None):
             run_rec["product_id"],
             status="failed",
             error_message=str(exc),
+            output_paths=run_rec["output_paths"] or None,
         )
+        conn.commit()
         raise
 
 
@@ -229,6 +236,7 @@ def insert_record(
                 THEN imagery.version_no + 1
                 ELSE imagery.version_no
             END,
+            location = EXCLUDED.location,
             file_locations = EXCLUDED.file_locations,
             file_hash = EXCLUDED.file_hash,
             ingest_timestamp = NOW(),
@@ -352,7 +360,8 @@ def fetch_scenes(
         params.append(date_to)
 
     sql = f"""
-        SELECT * FROM imagery
+        SELECT *, ST_AsText(location) as location_wkt
+        FROM imagery
         WHERE {" AND ".join(conditions)}
         ORDER BY acquisition_date DESC;
     """
@@ -371,7 +380,7 @@ def fetch_scene(conn, scene_id: str) -> dict | None:
     Returns:
         dict | None: The matching imagery row, or ``None`` if not found.
     """
-    sql = "SELECT * FROM imagery WHERE scene_id = %s;"
+    sql = "SELECT *, ST_AsText(location) as location_wkt FROM imagery WHERE scene_id = %s;"
     with conn.cursor() as cursor:
         cursor.execute(sql, (scene_id,))
         return cursor.fetchone()
@@ -431,9 +440,11 @@ def register_scene(
 
     from swmaps.infra.storage import raw_blob_path, upload_file
 
-    # Get band count from file
+    # Get band count and actual footprint from the file
     with rasterio.open(out_path) as src:
         band_count = src.count
+        # Reproject the file's real bounds to WGS84 for storage
+        wgs_bounds = transform_bounds(src.crs, "EPSG:4326", *src.bounds)
     local_file_hash = compute_file_hash(out_path)
 
     # Upload to GCS if bucket is configured, else fall back to local path
@@ -452,7 +463,8 @@ def register_scene(
         file_path = out_path
 
     # Convert bbox list to WKT polygon
-    location_wkt = dumps(box(*bbox))
+    # Build WKT from the file's actual footprint, not the requested AOI bbox
+    location_wkt = dumps(box(*wgs_bounds))
 
     return insert_record(
         conn=conn,

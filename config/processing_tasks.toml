@@ -11,5 +11,11 @@ description = "Water trend analysis"
 [tasks.water_mask]
 description = "Generates a water mask"
 
+[tasks.imagery_band]
+description = "Individual spectral band from multiband imagery"
+
+[tasks.imagery_rgb]
+description = "RGB composite view of multiband imagery"
+
 [pipeline]
 tasks_on_ingest = ["water_mask"]

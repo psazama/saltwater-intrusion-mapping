@@ -30,7 +30,6 @@ from pathlib import Path
 from swmaps.infra.db import (
     fetch_unprocessed_scenes,
     get_connection,
-    track_pipeline_run,
 )
 from swmaps.pipeline.registry import task_dict
 from swmaps.schema import PipelineResult
@@ -110,16 +109,18 @@ def run_pipeline() -> None:
             for f in scene["file_locations"]:
                 local_path, is_tmp = _resolve_input(f)
                 try:
-                    with track_pipeline_run(conn, scene_id, task_id, parameters):
-                        result: PipelineResult = task_func(local_path, conn=conn)
-
-                        if not result.is_ok:
-                            raise RuntimeError(result.error)
-
-                        for out_path in result.output_paths:
-                            gcs_uri = _upload_output(out_path, scene_id, task_id)
-                            processed_locations.append(gcs_uri)
-
+                    result: PipelineResult = task_func(local_path, conn=conn)
+                    if not result.is_ok:
+                        logger.warning(
+                            "Task %s failed for scene %s: %s",
+                            task_id,
+                            scene_id,
+                            result.error,
+                        )
+                        continue
+                    for out_path in result.output_paths:
+                        gcs_uri = _upload_output(Path(out_path), scene_id, task_id)
+                        processed_locations.append(gcs_uri)
                 except Exception:
                     logger.exception("Task %s failed for scene %s", task_id, scene_id)
                 finally:

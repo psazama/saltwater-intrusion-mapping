@@ -19,6 +19,11 @@ This repository integrates Google Earth Engine (GEE) data acquisition, supervise
 ---
 
 ## 📝 Changelog
+### 0.1.2 (May 2026)
+
+#### Added
+- **Results Viewer:**
+
 ### 0.1.1 (March 2026)
 
 #### Added
@@ -52,24 +57,48 @@ pip install -e .
 earthengine authenticate
 ```
 
+Build the database to store the processing products:
+```
+docker compose up db -d
+python swmaps/infra/migrate.py
+```
+
 ---
 
-### 2. Download-Only Workflow ⬇️
+### 2. Download-Only Workflow
 
 Skip all modeling steps and just download imagery:
 
 ```
-python examples/workflow_runner.py --config examples/quickstart_download_only.toml
+python examples/workflow_runner.py --config examples/quickstart_download_only.toml --track
 ```
 
 ---
 
-### 3. Training + Inference Example 🏋️
+### 3. Create Processing Products
+#### Create Water Masks
+Calculate the binary water masks for already downloaded imagery:
+
+```
+python examples/workflow_runner.py --config examples/quickstart_watermasks_only.toml --track
+```
+
+#### Create Salinity Predictions
+Generate the salinity predictions using a heuristic spectral classification approach based on SWIR and turbidity proxies:
+
+```
+python examples/workflow_runner.py --config examples/quickstart_salinity_only.toml --track
+```
+
+---
+
+### 4. Model Building
+#### Machine Learning Segmentation Training + Inference 
 
 To train a FarSeg model on CDL labels and then run inference:
 
 ```
-python examples/workflow_runner.py --config examples/quickstart_train.toml
+python examples/workflow_runner.py --config examples/quickstart_train.toml --track
 ```
 
 This workflow will:
@@ -79,14 +108,13 @@ This workflow will:
 * Train a FarSeg segmentation model
 * Run inference on trained model outputs
 
----
 
-### 4. Run Inference with a Pre-trained Model Example 🏃‍♂️
+#### Run Inference with a Pre-trained Model Example
 
 The pipeline uses a Python workflow runner with TOML configuration files. Here’s a minimal inference example:
 
 ```
-python examples/workflow_runner.py --config examples/quickstart_inference.toml
+python examples/workflow_runner.py --config examples/quickstart_inference.toml --track
 ```
 
 This workflow will:
@@ -96,6 +124,35 @@ This workflow will:
 * Save georeferenced prediction rasters and optional PNG previews
 
 ---
+### 5. View Results
+
+The Science Visualizer tool supports viewing and searching created products. Populate the database using steps 1-3 and then view the results by running the following:
+
+Terminal 1:
+```
+docker compose up db -d
+export $(cat .env.local.example | xargs) && python swmaps/infra/migrate.py
+docker compose up titiler -d
+cd swmaps/frontend
+npm run dev
+```
+
+Terminal 2:
+```
+export $(cat .env.local.example | xargs) && uvicorn swmaps.api:app --reload
+```
+
+In your browser navigate to `http://localhost:5173/` (or the address provided by your `npm run dev` result)
+
+These steps will:
+
+* Launch the Docker-wrapped TiTiler tiling service
+* Launch the Science Visualizer frontend
+* Launch the swmaps API server
+
+![The Science Viewer application](docs/viewer_sample.png)
+
+
 
 ## 📂 Repository Structure
 

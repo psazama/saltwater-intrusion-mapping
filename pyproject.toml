@@ -1,6 +1,14 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "swmaps"
 version = "0.1.2"
+description = "Configuration-driven satellite imagery pipeline for mapping saltwater intrusion and coastal land cover change."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
 dependencies = [
     "dask",
     "earthengine-api",
@@ -55,5 +63,7 @@ dev = [
     "ruff",
 ]
 
-[tool.setuptools]
-packages = { find = {} }
+[tool.setuptools.packages.find]
+# Only ship the swmaps package - the bare find previously also picked up
+# tests/ (it has an __init__.py) and installed it as a top-level package.
+include = ["swmaps*"]

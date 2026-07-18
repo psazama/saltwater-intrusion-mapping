@@ -553,37 +553,6 @@ class BaseSegModel(nn.Module):
         return next(self.parameters()).device
 
 
-class BaseSalinityModel(nn.Module):
-    """
-    Base class for salinity prediction models.
-    """
-
-    def __init__(self, output_dim: int = 1):
-        super().__init__()
-        self.output_dim = output_dim
-
-    def forward(self, x):
-        raise NotImplementedError
-
-    def train_model(self, data_pairs, out_dir, **kwargs):
-        """Abstract training method for salinity models."""
-        raise NotImplementedError(
-            "This model does not implement a custom training loop."
-        )
-
-    def freeze_backbone(self):
-        for name, p in self.named_parameters():
-            if "backbone" in name:
-                p.requires_grad = False
-
-    @property
-    def device(self):
-        return next(self.parameters()).device
-
-    @property
-    def is_regression(self):
-        return self.output_dim == 1
-
-    @property
-    def is_classification(self):
-        return self.output_dim > 1
+# BaseSalinityModel now lives in swmaps.models.salinity_base so the salinity
+# pipeline can be imported without torch. Re-exported here for back-compat.
+from swmaps.models.salinity_base import BaseSalinityModel  # noqa: E402, F401

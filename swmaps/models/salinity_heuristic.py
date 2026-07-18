@@ -26,7 +26,7 @@ from typing import Dict
 
 import numpy as np
 
-from swmaps.models.base import BaseSalinityModel
+from swmaps.models.salinity_base import BaseSalinityModel
 
 REQUIRED_BANDS = frozenset({"blue", "green", "red", "nir", "swir1", "swir2"})
 

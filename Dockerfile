@@ -28,11 +28,17 @@ RUN conda tos accept --override-channels --channel https://repo.anaconda.com/pkg
     conda env create -p /opt/conda/envs/swmaps_env -f environment.yml && \
     conda clean -afy
 
+# Put the env on PATH so plain `python` / `uvicorn` resolve for CMD overrides
+ENV PATH="/opt/conda/envs/swmaps_env/bin:${PATH}"
+
 # 4. Copy project files
 COPY . .
 
 # 5. Install the package in non-editable mode
-RUN /opt/conda/envs/swmaps_env/bin/pip install .
+RUN pip install .
 
-# 6. Set the Entrypoint
-ENTRYPOINT ["/usr/bin/tini", "--", "/opt/conda/envs/swmaps_env/bin/python", "examples/workflow_runner.py"]
+# 6. Entrypoint is just tini; the default command can be overridden by
+#    `docker run ... <cmd>` or a compose `command:` without being appended
+#    to workflow_runner.py.
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["python", "examples/workflow_runner.py"]

@@ -37,12 +37,12 @@ from pydantic import BaseModel
 from swmaps.config import config_path
 
 with open(config_path("validation.toml"), "rb") as f:
-    config = tomllib.load(f)
+    VALIDATION_CFG = tomllib.load(f)
 
-KNOWN_SENSORS = config["validation"]["known_sensors"]
+KNOWN_SENSORS = VALIDATION_CFG["validation"]["known_sensors"]
 
 with open(config_path("processing_tasks.toml"), "rb") as f:
-    config = tomllib.load(f)
+    TASKS_CFG = tomllib.load(f)
 
 
 class Message(BaseModel):
@@ -75,10 +75,12 @@ def validate_message(blob: dict) -> tuple | None:
     """
     try:
         Blob.model_validate(blob)
+        blob_data = json.loads(
+            base64.b64decode(blob["message"]["data"]).decode("utf-8")
+        )
     except Exception:
         return "Invalid json format", 400
 
-    blob_data = json.loads(base64.b64decode(blob["message"]["data"]).decode("utf-8"))
     if all(key in blob_data for key in required_keys):
         if blob_data["sensor"] not in KNOWN_SENSORS:
             return "Invalid json format", 400
@@ -116,7 +118,7 @@ def sub_message() -> tuple:
     try:
         client = run_v2.JobsClient()
 
-        for task in config["pipeline"]["tasks_on_ingest"]:
+        for task in TASKS_CFG["pipeline"]["tasks_on_ingest"]:
 
             task_request = run_v2.RunJobRequest(
                 name=f"projects/{project_id}/locations/{region}/jobs/{job_name}",

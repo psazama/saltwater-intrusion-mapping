@@ -34,12 +34,14 @@ from flask import Flask, request
 from google.cloud import run_v2
 from pydantic import BaseModel
 
-with open("config/validation.toml", "rb") as f:
+from swmaps.config import config_path
+
+with open(config_path("validation.toml"), "rb") as f:
     config = tomllib.load(f)
 
 KNOWN_SENSORS = config["validation"]["known_sensors"]
 
-with open("config/processing_tasks.toml", "rb") as f:
+with open(config_path("processing_tasks.toml"), "rb") as f:
     config = tomllib.load(f)
 
 

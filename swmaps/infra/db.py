@@ -31,6 +31,8 @@ from google.cloud import pubsub_v1
 from psycopg2.extras import RealDictCursor
 from rasterio.warp import transform_bounds
 
+from swmaps.config import config_path
+
 load_dotenv()
 
 
@@ -747,7 +749,7 @@ def seed_task_types(conn) -> None:
     Returns:
         None
     """
-    with open("config/processing_tasks.toml", "rb") as f:
+    with open(config_path("processing_tasks.toml"), "rb") as f:
         config = tomllib.load(f)
 
     sql = """

@@ -22,6 +22,13 @@ class Settings(BaseSettings):
         default_factory=lambda: Path(__file__).resolve().parent.parent
     )
 
+    # Directory holding TOML/GeoJSON config files. Defaults to the repo's
+    # ``config/`` folder so modules resolve it regardless of the process
+    # working directory. Override with SW_CONFIG_DIR.
+    config_dir: Path = Field(
+        default_factory=lambda: Path(__file__).resolve().parent.parent / "config"
+    )
+
     class Config:
         """Pydantic metadata configuring the ``SW_`` environment variable prefix.
 
@@ -63,3 +70,17 @@ def data_path(*parts: str | PathLike[str]) -> Path:
     """
 
     return settings.data_root.joinpath(*parts)
+
+
+def config_path(*parts: str | PathLike[str]) -> Path:
+    """Build a path inside the project ``config/`` directory.
+
+    Args:
+        *parts (str | os.PathLike): Path components joined relative to
+            :attr:`Settings.config_dir`.
+
+    Returns:
+        Path: Absolute path inside the configured config directory.
+    """
+
+    return settings.config_dir.joinpath(*parts)

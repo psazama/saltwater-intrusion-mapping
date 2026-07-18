@@ -4,18 +4,20 @@ from os import PathLike
 from pathlib import Path
 
 from pydantic import Field
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables.
 
-    Parameters:
-        None
+    Environment variables use the ``SW_`` prefix, e.g. ``SW_DATA_ROOT``.
 
     Attributes:
         data_root (Path): Root directory for persistent data artifacts.
+        config_dir (Path): Directory holding TOML/GeoJSON config files.
     """
+
+    model_config = SettingsConfigDict(env_prefix="SW_")
 
     # Can be overridden with SW_DATA_ROOT=/mnt/bucket or helm env var
     data_root: Path = Field(
@@ -28,18 +30,6 @@ class Settings(BaseSettings):
     config_dir: Path = Field(
         default_factory=lambda: Path(__file__).resolve().parent.parent / "config"
     )
-
-    class Config:
-        """Pydantic metadata configuring the ``SW_`` environment variable prefix.
-
-        Parameters:
-            None
-
-        Attributes:
-            env_prefix (str): Prefix applied to environment variables.
-        """
-
-        env_prefix = "SW_"
 
 
 def get_settings() -> Settings:

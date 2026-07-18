@@ -628,7 +628,7 @@ def preview_product(path: str = Query(..., description="Local file path to previ
             detail="Path is outside the configured data root.",
         ) from None
 
-    if not file_path.exists():
+    if not file_path.is_file():
         raise HTTPException(status_code=404, detail=f"File not found: {path}")
 
     # For TIF files, look for a companion PNG

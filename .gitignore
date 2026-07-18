@@ -125,3 +125,9 @@ swmaps/static/
 docs/*.html
 docs/swmaps/
 docs/search.js
+
+# ---------------------------------------------------------------------------
+# Downloaded / generated geodata (fetched on first use by swmaps.core.coastline)
+# ---------------------------------------------------------------------------
+coastline/
+notebooks/explore_outputs/

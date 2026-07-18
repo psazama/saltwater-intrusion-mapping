@@ -30,6 +30,7 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
+from swmaps import __version__
 from swmaps.infra.db import (
     fetch_depth_profile,
     fetch_imagery_near_sample,
@@ -80,7 +81,7 @@ app = FastAPI(
         "Query the saltwater intrusion mapping imagery catalog, salinity profiles, "
         "and processing run history. Trigger pipeline steps via typed config payloads."
     ),
-    version="0.1.0",
+    version=__version__,
     lifespan=lifespan,
 )
 

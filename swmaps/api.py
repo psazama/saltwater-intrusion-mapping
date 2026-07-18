@@ -500,14 +500,28 @@ def trigger_workflow(cfg: WorkflowConfig) -> JSONResponse:
 
 @app.get("/preview", tags=["scenes"])
 def preview_product(path: str = Query(..., description="Local file path to preview")):
-    """Serve a product PNG for preview in the science viewer."""
-    file_path = Path(path)
+    """Serve a product PNG for preview in the science viewer.
 
-    # If relative, resolve against the project data root
-    if not file_path.is_absolute():
-        from swmaps.config import settings
+    Paths are resolved against the configured data root, and the resolved
+    path must remain inside it - absolute paths and ``..`` segments cannot
+    be used to read arbitrary files on the host.
+    """
+    from swmaps.config import settings
 
-        file_path = settings.data_root / file_path
+    base = settings.data_root.resolve()
+    requested = Path(path)
+    file_path = (
+        requested.resolve() if requested.is_absolute() else (base / requested).resolve()
+    )
+
+    # Containment check: reject anything that escapes the data root.
+    try:
+        file_path.relative_to(base)
+    except ValueError:
+        raise HTTPException(
+            status_code=403,
+            detail="Path is outside the configured data root.",
+        )
 
     if not file_path.exists():
         raise HTTPException(status_code=404, detail=f"File not found: {path}")

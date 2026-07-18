@@ -1,4 +1,6 @@
-FROM nvidia/cuda:11.8.0-runtime-ubuntu22.04
+# CUDA 12.x runtime to match current PyTorch wheels (torch>=2.5 ships cu12x;
+# the 11.8 base predates them and mismatched drivers fail at runtime).
+FROM nvidia/cuda:12.6.3-runtime-ubuntu22.04
 
 # 1. Install system dependencies
 RUN apt-get update && apt-get install -y \

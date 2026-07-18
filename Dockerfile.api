@@ -1,0 +1,17 @@
+# Lightweight image for the FastAPI catalog/pipeline service.
+# The GPU/conda image in ./Dockerfile is only needed for ML training jobs;
+# the API imports without the [ml] stack (see swmaps/models/salinity_base.py).
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install deps first for layer caching
+COPY pyproject.toml README.md LICENSE ./
+COPY swmaps ./swmaps
+RUN pip install --no-cache-dir ".[api,gcp]"
+
+# Config files resolved via swmaps.config.config_path
+COPY config ./config
+
+EXPOSE 8000
+CMD ["uvicorn", "swmaps.api:app", "--host", "0.0.0.0", "--port", "8000"]

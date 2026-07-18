@@ -135,26 +135,34 @@ def run_water_masks(
         except ValueError:
             scene_id = tif.stem
 
-        with track_pipeline_run(conn, scene_id, "water_mask") as run:
-            out_mask = tif.with_name(f"{tif.stem}_mask.tif")
-            compute_ndwi(
-                str(tif),
-                mission,
-                str(out_mask),
-                display=False,
-                center_size=center_size,
-            )
-            add_overviews(out_mask)
-            run["output_paths"] = [str(out_mask)]
+        try:
+            with track_pipeline_run(conn, scene_id, "water_mask") as run:
+                out_mask = tif.with_name(f"{tif.stem}_mask.tif")
+                compute_ndwi(
+                    str(tif),
+                    mission,
+                    str(out_mask),
+                    display=False,
+                    center_size=center_size,
+                )
+                add_overviews(out_mask)
+                run["output_paths"] = [str(out_mask)]
 
-            if write_png:
-                png_path = out_mask.with_suffix(".png")
-                with rasterio.open(out_mask) as src:
-                    mask_arr = src.read(1)
-                mask_png = np.where(mask_arr > 0, 255, 0).astype(np.uint8)
-                Image.fromarray(mask_png, mode="L").save(png_path)
-                run["output_paths"].append(str(png_path))
-                output_paths.append(png_path)
+                if write_png:
+                    png_path = out_mask.with_suffix(".png")
+                    with rasterio.open(out_mask) as src:
+                        mask_arr = src.read(1)
+                    mask_png = np.where(mask_arr > 0, 255, 0).astype(np.uint8)
+                    Image.fromarray(mask_png, mode="L").save(png_path)
+                    run["output_paths"].append(str(png_path))
+                    output_paths.append(png_path)
+        except Exception as exc:
+            # track_pipeline_run has already marked the run "failed"; log and
+            # continue so one bad mosaic doesn't abort the whole batch (this
+            # matches the documented behaviour of this function).
+            logger.warning("Water mask failed for %s: %s", tif.name, exc)
+            skipped += 1
+            continue
 
         output_paths.append(out_mask)
 

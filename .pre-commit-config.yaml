@@ -28,4 +28,8 @@ repos:
         entry: pytest --maxfail=1 --disable-warnings -q tests/
         language: system
         types: [python]
+        pass_filenames: false
+        # Full test runs on every commit are slow and duplicate CI;
+        # run them once before pushing instead.
+        stages: [pre-push]
 

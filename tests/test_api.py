@@ -274,8 +274,24 @@ def test_get_processing_run_not_found():
 # ------------------------------------------------------------------
 
 
+def _wait_for_job(client, submit_response, timeout_s: float = 10.0) -> dict:
+    """Poll /jobs/{id} until the background job finishes."""
+    import time
+
+    assert submit_response.status_code == 202
+    body = submit_response.json()
+    job_id = body["job_id"]
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        job = client.get(f"/jobs/{job_id}").json()
+        if job["status"] != "running":
+            return job
+        time.sleep(0.05)
+    raise AssertionError(f"job {job_id} did not finish within {timeout_s}s")
+
+
 def test_trigger_download():
-    """POST /run/download returns a PipelineResult."""
+    """POST /run/download returns 202 and the job completes with the result."""
     from swmaps.schema import PipelineResult
 
     with patch(
@@ -292,8 +308,9 @@ def test_trigger_download():
                 "longitude": -76.0,
             },
         )
-    assert response.status_code == 200
-    assert response.json()["status"] == "ok"
+        job = _wait_for_job(client, response)
+    assert job["status"] == "complete"
+    assert job["result"]["status"] == "ok"
 
 
 def test_trigger_download_invalid_config():
@@ -306,7 +323,7 @@ def test_trigger_download_invalid_config():
 
 
 def test_trigger_salinity():
-    """POST /run/salinity returns a PipelineResult."""
+    """POST /run/salinity returns 202 and the job completes with the result."""
     from swmaps.schema import PipelineResult
 
     with patch(
@@ -317,12 +334,13 @@ def test_trigger_salinity():
             "/run/salinity",
             json={"run_salinity_pipeline": False},
         )
-    assert response.status_code == 200
-    assert response.json()["status"] == "skipped"
+        job = _wait_for_job(client, response)
+    assert job["status"] == "complete"
+    assert job["result"]["status"] == "skipped"
 
 
 def test_trigger_trend():
-    """POST /run/trend returns a PipelineResult."""
+    """POST /run/trend returns 202 and the job completes with the result."""
     from swmaps.schema import PipelineResult
 
     with patch(
@@ -333,5 +351,27 @@ def test_trigger_trend():
             "/run/trend",
             json={"run_water_trend": False},
         )
-    assert response.status_code == 200
-    assert response.json()["status"] == "skipped"
+        job = _wait_for_job(client, response)
+    assert job["status"] == "complete"
+    assert job["result"]["status"] == "skipped"
+
+
+def test_pipeline_endpoints_require_api_key(monkeypatch):
+    """When SWMAPS_API_KEY is set, /run/* rejects missing/invalid keys."""
+    import swmaps.api as api_module
+
+    monkeypatch.setattr(api_module, "API_KEY", "sekrit")
+    response = client.post("/run/trend", json={"run_water_trend": False})
+    assert response.status_code == 401
+
+    response = client.post(
+        "/run/trend",
+        json={"run_water_trend": False},
+        headers={"X-API-Key": "wrong"},
+    )
+    assert response.status_code == 401
+
+
+def test_get_job_unknown_id_returns_404():
+    response = client.get("/jobs/does-not-exist")
+    assert response.status_code == 404

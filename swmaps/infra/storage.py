@@ -13,13 +13,12 @@ import os
 from pathlib import Path
 
 import rasterio
-from google.cloud import storage
 from rasterio.enums import Resampling
 
 BUCKET_NAME = os.environ.get("GCS_BUCKET", "eo-ml-data")
 
 
-def get_client() -> storage.Client:
+def get_client():
     """Return an authenticated Google Cloud Storage client.
 
     Uses Application Default Credentials (ADC). Locally, run
@@ -28,6 +27,9 @@ def get_client() -> storage.Client:
     Returns:
         storage.Client: Authenticated GCS client instance.
     """
+
+    # Imported lazily so the core package works without the [gcp] extra.
+    from google.cloud import storage
 
     return storage.Client()
 

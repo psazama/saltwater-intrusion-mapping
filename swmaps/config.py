@@ -4,35 +4,32 @@ from os import PathLike
 from pathlib import Path
 
 from pydantic import Field
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables.
 
-    Parameters:
-        None
+    Environment variables use the ``SW_`` prefix, e.g. ``SW_DATA_ROOT``.
 
     Attributes:
         data_root (Path): Root directory for persistent data artifacts.
+        config_dir (Path): Directory holding TOML/GeoJSON config files.
     """
+
+    model_config = SettingsConfigDict(env_prefix="SW_")
 
     # Can be overridden with SW_DATA_ROOT=/mnt/bucket or helm env var
     data_root: Path = Field(
         default_factory=lambda: Path(__file__).resolve().parent.parent
     )
 
-    class Config:
-        """Pydantic metadata configuring the ``SW_`` environment variable prefix.
-
-        Parameters:
-            None
-
-        Attributes:
-            env_prefix (str): Prefix applied to environment variables.
-        """
-
-        env_prefix = "SW_"
+    # Directory holding TOML/GeoJSON config files. Defaults to the repo's
+    # ``config/`` folder so modules resolve it regardless of the process
+    # working directory. Override with SW_CONFIG_DIR.
+    config_dir: Path = Field(
+        default_factory=lambda: Path(__file__).resolve().parent.parent / "config"
+    )
 
 
 def get_settings() -> Settings:
@@ -63,3 +60,17 @@ def data_path(*parts: str | PathLike[str]) -> Path:
     """
 
     return settings.data_root.joinpath(*parts)
+
+
+def config_path(*parts: str | PathLike[str]) -> Path:
+    """Build a path inside the project ``config/`` directory.
+
+    Args:
+        *parts (str | os.PathLike): Path components joined relative to
+            :attr:`Settings.config_dir`.
+
+    Returns:
+        Path: Absolute path inside the configured config directory.
+    """
+
+    return settings.config_dir.joinpath(*parts)

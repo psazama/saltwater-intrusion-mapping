@@ -22,7 +22,7 @@ This repository integrates Google Earth Engine (GEE) data acquisition, supervise
 ### 0.1.2 (May 2026)
 
 #### Added
-- **Results Viewer:**
+- **Results Viewer:** React + Leaflet science viewer (`swmaps/frontend/`) for browsing catalogued scenes and products on a map, with a temporal slider, side-by-side compare panel, and TiTiler-backed raster tiles. Built assets are served directly by the FastAPI app.
 
 ### 0.1.1 (March 2026)
 

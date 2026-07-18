@@ -21,15 +21,20 @@ from __future__ import annotations
 
 import logging
 import os
+import secrets
+import threading
+import uuid
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
 
 import httpx
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
+from swmaps import __version__
 from swmaps.infra.db import (
     fetch_depth_profile,
     fetch_imagery_near_sample,
@@ -60,6 +65,81 @@ from swmaps.schema import (
 logger = logging.getLogger(__name__)
 TITILER_URL = os.environ.get("TITILER_URL", "http://localhost:8001")
 
+# Shared secret for the pipeline-triggering endpoints. When unset, the
+# endpoints stay open for local development but a warning is logged.
+API_KEY = os.environ.get("SWMAPS_API_KEY")
+
+
+def require_api_key(x_api_key: Optional[str] = Header(default=None)) -> None:
+    """FastAPI dependency guarding the pipeline endpoints.
+
+    Compares the ``X-API-Key`` request header against the ``SWMAPS_API_KEY``
+    environment variable using a constant-time comparison.
+    """
+    if API_KEY is None:
+        logger.warning(
+            "SWMAPS_API_KEY is not set - pipeline endpoints are UNAUTHENTICATED. "
+            "Set it in any deployment reachable by untrusted clients."
+        )
+        return
+    if not (x_api_key and secrets.compare_digest(x_api_key, API_KEY)):
+        raise HTTPException(
+            status_code=401,
+            detail="Missing or invalid X-API-Key header.",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Background job runner
+#
+# Pipeline steps can take minutes to hours; running them inside the request
+# handler blocks a worker and times out clients. Jobs are submitted to a small
+# thread pool and polled via GET /jobs/{job_id}. The registry is in-memory,
+# so job state is lost on restart - completed runs are still recorded in the
+# processed_products table where applicable.
+# ---------------------------------------------------------------------------
+
+_executor = ThreadPoolExecutor(
+    max_workers=int(os.environ.get("SWMAPS_PIPELINE_WORKERS", "2"))
+)
+_jobs: dict[str, dict] = {}
+_jobs_lock = threading.Lock()
+
+
+def _submit_job(task: str, fn, /, *args, **kwargs) -> JSONResponse:
+    """Run *fn* in the background and return a 202 with a pollable job id."""
+    job_id = uuid.uuid4().hex
+    with _jobs_lock:
+        _jobs[job_id] = {
+            "job_id": job_id,
+            "task": task,
+            "status": "running",
+            "result": None,
+            "error": None,
+        }
+
+    def _run() -> None:
+        try:
+            result = fn(*args, **kwargs)
+            payload = result if isinstance(result, dict) else result.to_dict()
+            with _jobs_lock:
+                _jobs[job_id].update(status="complete", result=payload)
+        except Exception as exc:
+            logger.exception("Background job %s (%s) failed", job_id, task)
+            with _jobs_lock:
+                _jobs[job_id].update(status="failed", error=str(exc))
+
+    _executor.submit(_run)
+    return JSONResponse(
+        status_code=202,
+        content={
+            "job_id": job_id,
+            "task": task,
+            "status": "running",
+            "poll": f"/jobs/{job_id}",
+        },
+    )
+
 
 # ---------------------------------------------------------------------------
 # App setup
@@ -80,7 +160,7 @@ app = FastAPI(
         "Query the saltwater intrusion mapping imagery catalog, salinity profiles, "
         "and processing run history. Trigger pipeline steps via typed config payloads."
     ),
-    version="0.1.0",
+    version=__version__,
     lifespan=lifespan,
 )
 
@@ -115,7 +195,7 @@ def _get_conn():
         raise HTTPException(
             status_code=503,
             detail=f"Database unavailable: {exc}",
-        )
+        ) from exc
 
 
 def _require_spatial(
@@ -151,7 +231,7 @@ def _require_spatial(
             raise HTTPException(
                 status_code=422,
                 detail="bbox must be 'min_lon,min_lat,max_lon,max_lat'",
-            )
+            ) from None
 
     if lat is not None and lon is not None and radius_km is not None:
         return {"lat": lat, "lon": lon, "radius_km": radius_km}
@@ -199,7 +279,7 @@ def get_scenes(
     bbox: Optional[str] = Query(
         None,
         description="Bounding box as 'min_lon,min_lat,max_lon,max_lat'",
-        example="-76.0,38.0,-75.0,39.0",
+        examples=["-76.0,38.0,-75.0,39.0"],
     ),
     lat: Optional[float] = Query(None, description="Center latitude"),
     lon: Optional[float] = Query(None, description="Center longitude"),
@@ -408,107 +488,149 @@ def get_processing_run(product_id: str) -> ProcessingRunResponse:
 # ---------------------------------------------------------------------------
 
 
-@app.post("/run/download", tags=["pipeline"])
+@app.post(
+    "/run/download", tags=["pipeline"], dependencies=[Depends(require_api_key)]
+)
 def trigger_download(cfg: DownloadConfig) -> JSONResponse:
-    """Trigger the imagery download pipeline step.
+    """Trigger the imagery download pipeline step in the background.
 
-    Posts a :class:`~swmaps.schema.DownloadConfig` and returns a
-    :class:`~swmaps.schema.PipelineResult`.
+    Posts a :class:`~swmaps.schema.DownloadConfig`; returns ``202`` with a
+    job id to poll at ``/jobs/{job_id}``.
     """
-    result = run_download(cfg)
-    return JSONResponse(content=result.to_dict())
+    return _submit_job("download", run_download, cfg)
 
 
-@app.post("/run/masks", tags=["pipeline"])
+@app.post("/run/masks", tags=["pipeline"], dependencies=[Depends(require_api_key)])
 def trigger_masks(
     input_dir: str = Query(..., description="Directory of mosaics to process"),
 ) -> JSONResponse:
-    """Trigger water mask generation for a directory of mosaics.
+    """Trigger water mask generation in the background.
 
-    Returns a :class:`~swmaps.schema.PipelineResult`.
+    Returns ``202`` with a job id to poll at ``/jobs/{job_id}``.
     """
-    with _get_conn() as conn:
-        result = run_water_masks(Path(input_dir), conn=conn)
-    return JSONResponse(content=result.to_dict())
+
+    def _job() -> object:
+        with get_connection() as conn:
+            return run_water_masks(Path(input_dir), conn=conn)
+
+    return _submit_job("water_masks", _job)
 
 
-@app.post("/run/salinity", tags=["pipeline"])
+@app.post(
+    "/run/salinity", tags=["pipeline"], dependencies=[Depends(require_api_key)]
+)
 def trigger_salinity(cfg: SalinityConfig) -> JSONResponse:
-    """Trigger the salinity ground-truth pipeline.
+    """Trigger the salinity ground-truth pipeline in the background.
 
-    Posts a :class:`~swmaps.schema.SalinityConfig` and returns a
-    :class:`~swmaps.schema.PipelineResult`.
+    Posts a :class:`~swmaps.schema.SalinityConfig`; returns ``202`` with a
+    job id to poll at ``/jobs/{job_id}``.
     """
-    result = run_salinity_pipeline(cfg)
-    return JSONResponse(content=result.to_dict())
+    return _submit_job("salinity_pipeline", run_salinity_pipeline, cfg)
 
 
-@app.post("/run/salinity/classify", tags=["pipeline"])
+@app.post(
+    "/run/salinity/classify",
+    tags=["pipeline"],
+    dependencies=[Depends(require_api_key)],
+)
 def trigger_salinity_classify(
     cfg: SalinityConfig,
     input_dir: str = Query(..., description="Directory of mosaics to classify"),
 ) -> JSONResponse:
-    """Trigger per-mosaic salinity classification.
+    """Trigger per-mosaic salinity classification in the background.
 
-    Posts a :class:`~swmaps.schema.SalinityConfig` and returns a
-    :class:`~swmaps.schema.PipelineResult`.
+    Returns ``202`` with a job id to poll at ``/jobs/{job_id}``.
     """
-    with _get_conn() as conn:
-        result = run_salinity_classification(cfg, Path(input_dir), conn=conn)
-    return JSONResponse(content=result.to_dict())
+
+    def _job() -> object:
+        with get_connection() as conn:
+            return run_salinity_classification(cfg, Path(input_dir), conn=conn)
+
+    return _submit_job("salinity_classification", _job)
 
 
-@app.post("/run/trend", tags=["pipeline"])
+@app.post("/run/trend", tags=["pipeline"], dependencies=[Depends(require_api_key)])
 def trigger_trend(cfg: TrendConfig) -> JSONResponse:
-    """Trigger the water-trend heatmap pipeline step.
+    """Trigger the water-trend heatmap pipeline step in the background.
 
-    Posts a :class:`~swmaps.schema.TrendConfig` and returns a
-    :class:`~swmaps.schema.PipelineResult`.
+    Posts a :class:`~swmaps.schema.TrendConfig`; returns ``202`` with a
+    job id to poll at ``/jobs/{job_id}``.
     """
-    result = run_trend_heatmap(cfg)
-    return JSONResponse(content=result.to_dict())
+    return _submit_job("trend", run_trend_heatmap, cfg)
 
 
-@app.post("/run/workflow", tags=["pipeline"])
+@app.post(
+    "/run/workflow", tags=["pipeline"], dependencies=[Depends(require_api_key)]
+)
 def trigger_workflow(cfg: WorkflowConfig) -> JSONResponse:
-    """Trigger the full end-to-end workflow.
+    """Trigger the full end-to-end workflow in the background.
 
-    Posts a :class:`~swmaps.schema.WorkflowConfig` and returns a
-    dict of :class:`~swmaps.schema.PipelineResult` objects keyed by
-    stage name.
+    Returns ``202`` with a job id; the job result is a dict of
+    :class:`~swmaps.schema.PipelineResult` payloads keyed by stage name.
     """
-    results = {}
 
-    results["download"] = run_download(cfg.download).to_dict()
+    def _job() -> dict:
+        results = {}
+        results["download"] = run_download(cfg.download).to_dict()
+        results["salinity_pipeline"] = run_salinity_pipeline(cfg.salinity).to_dict()
 
-    results["salinity_pipeline"] = run_salinity_pipeline(cfg.salinity).to_dict()
+        with get_connection() as conn:
+            results["salinity_classification"] = run_salinity_classification(
+                cfg.salinity, Path(cfg.download.out_dir or "data/outputs"), conn=conn
+            ).to_dict()
+            results["water_masks"] = run_water_masks(
+                Path(cfg.download.out_dir or "data/outputs"),
+                conn=conn,
+            ).to_dict()
 
-    with _get_conn() as conn:
-        results["salinity_classification"] = run_salinity_classification(
-            cfg.salinity, Path(cfg.download.out_dir or "data/outputs"), conn=conn
-        ).to_dict()
-        results["water_masks"] = run_water_masks(
-            Path(cfg.download.out_dir or "data/outputs"),
-            conn=conn,
-        ).to_dict()
+        results["trend"] = run_trend_heatmap(cfg.trend).to_dict()
+        return results
 
-    results["trend"] = run_trend_heatmap(cfg.trend).to_dict()
+    return _submit_job("workflow", _job)
 
-    return JSONResponse(content=results)
+
+@app.get("/jobs/{job_id}", tags=["pipeline"])
+def get_job(job_id: str) -> dict:
+    """Poll the status of a background pipeline job.
+
+    Args:
+        job_id: Identifier returned by a ``POST /run/*`` endpoint.
+    """
+    with _jobs_lock:
+        job = _jobs.get(job_id)
+        if job is not None:
+            job = job.copy()
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found.")
+    return job
 
 
 @app.get("/preview", tags=["scenes"])
 def preview_product(path: str = Query(..., description="Local file path to preview")):
-    """Serve a product PNG for preview in the science viewer."""
-    file_path = Path(path)
+    """Serve a product PNG for preview in the science viewer.
 
-    # If relative, resolve against the project data root
-    if not file_path.is_absolute():
-        from swmaps.config import settings
+    Paths are resolved against the configured data root, and the resolved
+    path must remain inside it - absolute paths and ``..`` segments cannot
+    be used to read arbitrary files on the host.
+    """
+    from swmaps.config import settings
 
-        file_path = settings.data_root / file_path
+    base = settings.data_root.resolve()
+    requested = Path(path)
+    file_path = (
+        requested.resolve() if requested.is_absolute() else (base / requested).resolve()
+    )
 
-    if not file_path.exists():
+    # Containment check: reject anything that escapes the data root.
+    try:
+        file_path.relative_to(base)
+    except ValueError:
+        raise HTTPException(
+            status_code=403,
+            detail="Path is outside the configured data root.",
+        ) from None
+
+    if not file_path.is_file():
         raise HTTPException(status_code=404, detail=f"File not found: {path}")
 
     # For TIF files, look for a companion PNG

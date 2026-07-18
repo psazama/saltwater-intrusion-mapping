@@ -167,7 +167,7 @@ def run_segmentation(
             preds.extend(pred.cpu())
 
     # 5. Output management (Geotiff/PNG)
-    for mosaic_path, mask in zip(mosaics, preds):
+    for mosaic_path, mask in zip(mosaics, preds, strict=True):
         stem = Path(mosaic_path).stem
         tif_path = out_dir / f"{stem}_segmentation.tif"
         _write_mask_like(mosaic_path, mask, tif_path)

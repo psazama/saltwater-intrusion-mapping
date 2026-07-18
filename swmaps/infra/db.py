@@ -27,9 +27,10 @@ from pathlib import Path
 
 import psycopg2
 from dotenv import load_dotenv
-from google.cloud import pubsub_v1
 from psycopg2.extras import RealDictCursor
 from rasterio.warp import transform_bounds
+
+from swmaps.config import config_path
 
 load_dotenv()
 
@@ -165,6 +166,9 @@ def publish_scene_message(
     project_id = os.environ.get("GOOGLE_CLOUD_PROJECT")
     if not project_id:
         raise ValueError("GOOGLE_CLOUD_PROJECT environment variable not set.")
+
+    # Imported lazily so the core package works without the [gcp] extra.
+    from google.cloud import pubsub_v1
 
     publisher = pubsub_v1.PublisherClient()
     topic_path = publisher.topic_path(project_id, topic_id)
@@ -582,7 +586,7 @@ def insert_depth_profile(
     with conn.cursor() as cursor:
         cursor.executemany(
             sql,
-            [(cast_id, d, s, t) for d, s, t in zip(depths, salinities, temperatures)],
+            [(cast_id, d, s, t) for d, s, t in zip(depths, salinities, temperatures, strict=True)],
         )
         conn.commit()
 
@@ -747,7 +751,7 @@ def seed_task_types(conn) -> None:
     Returns:
         None
     """
-    with open("config/processing_tasks.toml", "rb") as f:
+    with open(config_path("processing_tasks.toml"), "rb") as f:
         config = tomllib.load(f)
 
     sql = """

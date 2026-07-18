@@ -11,7 +11,9 @@ services:
       - pgdata:/var/lib/postgresql/data
 
   api:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.api
     command: uvicorn swmaps.api:app --host 0.0.0.0 --port 8000 --reload
     ports:
       - "8000:8000"

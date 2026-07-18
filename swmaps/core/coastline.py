@@ -30,7 +30,8 @@ def download_coastal_poly() -> None:
 
         # Download the file
         os.makedirs(extract_dir, exist_ok=True)
-        response = requests.get(url)
+        response = requests.get(url, timeout=60)
+        response.raise_for_status()
         with open(extract_path, "wb") as f:
             f.write(response.content)
 

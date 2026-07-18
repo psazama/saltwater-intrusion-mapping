@@ -5,7 +5,9 @@ from typing import Optional
 
 from pydantic import BaseModel, field_validator, model_validator
 
-with open("config/validation.toml", "rb") as f:
+from swmaps.config import config_path
+
+with open(config_path("validation.toml"), "rb") as f:
     config = tomllib.load(f)
 
 STUDY_AREA_BBOX = config["validation"]

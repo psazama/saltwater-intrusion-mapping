@@ -1,29 +1,74 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "swmaps"
-version = "0.1.1"
+version = "0.1.2"
+description = "Configuration-driven satellite imagery pipeline for mapping saltwater intrusion and coastal land cover change."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
 dependencies = [
-    "albumentations",
     "dask",
-    "fastapi",
-    "flask",
     "earthengine-api",
-    "httpx",
-    "hypertune",
+    "geemap",
+    "geopandas",
+    "matplotlib",
+    "numba",
     "numpy",
     "pandas",
-    "psycopg2",
+    "pillow",
+    "psycopg2-binary",
+    "pydantic",
+    "pydantic-settings",
+    "python-dotenv",
     "rasterio",
-    "geopandas",
-    "google-cloud-run",
-    "google-cloud-pubsub",
+    "requests",
+    "rioxarray",
+    "scipy",
     "shapely",
-    "xarray",
-    "scikit-learn",
-    "segmentation_models_pytorch",
     "tqdm",
-    "uvicorn",
-    "xgboost",
+    "xarray",
 ]
 
-[tool.setuptools]
-packages = { find = {} }
+[project.optional-dependencies]
+# Deep-learning training/inference stack (FarSeg, Panopticon, SAM)
+ml = [
+    "albumentations",
+    "cloudml-hypertune",
+    "scikit-learn",
+    "segmentation_models_pytorch",
+    "torch",
+    "torchgeo",
+]
+# FastAPI service + TiTiler proxy
+api = [
+    "fastapi",
+    "httpx",
+    "uvicorn",
+]
+# Cloud Run trigger, Pub/Sub publishing, GCS storage helpers
+gcp = [
+    "flask",
+    "google-cloud-pubsub",
+    "google-cloud-run",
+    "google-cloud-storage",
+]
+dev = [
+    "black",
+    "isort",
+    "pre-commit",
+    "pytest",
+    "ruff",
+]
+
+[tool.setuptools.packages.find]
+# Only ship the swmaps package - the bare find previously also picked up
+# tests/ (it has an __init__.py) and installed it as a top-level package.
+include = ["swmaps*"]
+
+[tool.ruff.lint]
+# Match what pre-commit's ruff hook enforces going forward
+select = ["E4", "E7", "E9", "F", "B", "S1", "S3", "S6"]
+ignore = ["S101", "S324", "S608"]  # asserts in tests; md5 for file de-dupe; parameterized SQL

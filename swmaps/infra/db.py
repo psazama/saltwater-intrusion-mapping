@@ -586,7 +586,7 @@ def insert_depth_profile(
     with conn.cursor() as cursor:
         cursor.executemany(
             sql,
-            [(cast_id, d, s, t) for d, s, t in zip(depths, salinities, temperatures)],
+            [(cast_id, d, s, t) for d, s, t in zip(depths, salinities, temperatures, strict=True)],
         )
         conn.commit()
 

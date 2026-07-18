@@ -14,6 +14,7 @@ Public functions
 :func:`download_matching_gee_images` - download imagery matched to ground truth.
 """
 
+import logging
 import os
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -41,16 +42,19 @@ from .missions import get_mission
 # ---------------------------------------------------------
 
 
+logger = logging.getLogger(__name__)
+
+
 def initialize_ee():
     """Safely initialize Earth Engine, falling back to project from env."""
     try:
         ee.Initialize()
-    except ee.EEException:
+    except ee.EEException as exc:
         project = os.environ.get("EARTHENGINE_PROJECT")
         if not project:
             raise ValueError(
                 "Earth Engine initialization failed and EARTHENGINE_PROJECT is not set."
-            )
+            ) from exc
         ee.Initialize(project=project)
 
 
@@ -363,11 +367,11 @@ def download_gee_multiband(
             try:
                 Path(tile_path).unlink()
             except Exception:
-                pass
+                logger.debug("Could not remove temp tile %s", tile_path, exc_info=True)
         try:
             tile_dir.rmdir()
         except Exception:
-            pass
+            logger.debug("Could not remove temp dir %s", tile_dir, exc_info=True)
 
         print(f"[GEE] Stitching complete: {out_path.name}")
 
@@ -566,7 +570,7 @@ def _stitch_tiles(tile_paths: list[str], output_path: Path):
                 try:
                     dataset.close()
                 except Exception:
-                    pass
+                    logger.debug("Could not close dataset cleanly", exc_info=True)
 
     return str(output_path)
 
@@ -578,7 +582,7 @@ def _stitch_tiles(tile_paths: list[str], output_path: Path):
 
 def find_gee_coverage(
     df: pd.DataFrame,
-    missions: list[str] = ["sentinel-2", "landsat-5", "landsat-7"],
+    missions: list[str] | None = None,
     buffer_km: float = 10,
     days_before: int = 7,
     days_after: int = 7,
@@ -604,6 +608,8 @@ def find_gee_coverage(
         containing a list of mission slugs for each row.
     """
     initialize_ee()
+    if missions is None:
+        missions = ["sentinel-2", "landsat-5", "landsat-7"]
 
     # ---- Same clustering logic as before ----
 
@@ -684,7 +690,7 @@ def find_gee_coverage(
 
 def download_matching_gee_images(
     df: pd.DataFrame,
-    missions: list[str] = ["sentinel-2", "landsat-5", "landsat-7"],
+    missions: list[str] | None = None,
     buffer_km: float = 0.1,
     output_dir: str | Path | None = None,
     days_before: int = 7,
@@ -713,6 +719,8 @@ def download_matching_gee_images(
         column containing lists of downloaded GeoTIFF paths per row.
     """
     initialize_ee()
+    if missions is None:
+        missions = ["sentinel-2", "landsat-5", "landsat-7"]
     output_dir = Path(output_dir) if output_dir else data_path("gee_downloads")
     output_dir.mkdir(parents=True, exist_ok=True)
 

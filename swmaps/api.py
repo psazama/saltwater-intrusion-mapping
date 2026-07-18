@@ -195,7 +195,7 @@ def _get_conn():
         raise HTTPException(
             status_code=503,
             detail=f"Database unavailable: {exc}",
-        )
+        ) from exc
 
 
 def _require_spatial(
@@ -231,7 +231,7 @@ def _require_spatial(
             raise HTTPException(
                 status_code=422,
                 detail="bbox must be 'min_lon,min_lat,max_lon,max_lat'",
-            )
+            ) from None
 
     if lat is not None and lon is not None and radius_km is not None:
         return {"lat": lat, "lon": lon, "radius_km": radius_km}
@@ -279,7 +279,7 @@ def get_scenes(
     bbox: Optional[str] = Query(
         None,
         description="Bounding box as 'min_lon,min_lat,max_lon,max_lat'",
-        example="-76.0,38.0,-75.0,39.0",
+        examples=["-76.0,38.0,-75.0,39.0"],
     ),
     lat: Optional[float] = Query(None, description="Center latitude"),
     lon: Optional[float] = Query(None, description="Center longitude"),
@@ -626,7 +626,7 @@ def preview_product(path: str = Query(..., description="Local file path to previ
         raise HTTPException(
             status_code=403,
             detail="Path is outside the configured data root.",
-        )
+        ) from None
 
     if not file_path.exists():
         raise HTTPException(status_code=404, detail=f"File not found: {path}")

@@ -261,7 +261,7 @@ def build_salinity_truth(
 
         times = [
             f"{y:04d}-{m:02d}-{d:02d}" if y > 0 else None
-            for y, m, d in zip(years, months, days)
+            for y, m, d in zip(years, months, days, strict=True)
         ]
 
         print("...")

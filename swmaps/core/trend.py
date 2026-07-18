@@ -115,7 +115,7 @@ def load_class_year(
 
     times = [extract_start_date(p) for p in paths]
 
-    pairs = [(t, d) for t, d in zip(times, datasets) if not np.isnat(t)]
+    pairs = [(t, d) for t, d in zip(times, datasets, strict=True) if not np.isnat(t)]
     if not pairs:
         raise ValueError("No valid dated masks found")
 

@@ -67,3 +67,8 @@ dev = [
 # Only ship the swmaps package - the bare find previously also picked up
 # tests/ (it has an __init__.py) and installed it as a top-level package.
 include = ["swmaps*"]
+
+[tool.ruff.lint]
+# Match what pre-commit's ruff hook enforces going forward
+select = ["E4", "E7", "E9", "F", "B", "S1", "S3", "S6"]
+ignore = ["S101", "S324", "S608"]  # asserts in tests; md5 for file de-dupe; parameterized SQL

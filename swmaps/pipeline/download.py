@@ -117,7 +117,7 @@ def run_download(cfg: DownloadConfig) -> PipelineResult:
         days_before = 7 if "sentinel" in mission else cfg.days_before
         days_after = 7 if "sentinel" in mission else cfg.days_after
 
-        for lat, lon in zip(lats, lons):
+        for lat, lon in zip(lats, lons, strict=True):
             for date in tqdm(
                 _daterange(start_date, end_date, cfg.date_step),
                 desc=f"[GEE] {mission} | lat={lat:.2f}, lon={lon:.2f}",

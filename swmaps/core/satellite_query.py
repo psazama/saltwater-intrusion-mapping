@@ -409,7 +409,7 @@ def download_gee_multiband(
                 }
             )
 
-            r = requests.get(url, stream=True)
+            r = requests.get(url, stream=True, timeout=(10, 300))
             with open(out_path, "wb") as f:
                 for chunk in r.iter_content(chunk_size=8192):
                     f.write(chunk)
@@ -512,7 +512,7 @@ def _download_tile(
         }
     )
 
-    r = requests.get(url, stream=True)
+    r = requests.get(url, stream=True, timeout=(10, 300))
     r.raise_for_status()
 
     with open(tile_path, "wb") as f:

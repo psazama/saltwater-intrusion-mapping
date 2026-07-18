@@ -126,7 +126,7 @@ def download_nlcd(
         "version": "1.0.0",
     }
 
-    resp = requests.get(wcs_url, params=params, stream=True)
+    resp = requests.get(wcs_url, params=params, stream=True, timeout=(10, 300))
     resp.raise_for_status()
 
     if closest_year != year:

@@ -27,7 +27,6 @@ from pathlib import Path
 
 import psycopg2
 from dotenv import load_dotenv
-from google.cloud import pubsub_v1
 from psycopg2.extras import RealDictCursor
 from rasterio.warp import transform_bounds
 
@@ -167,6 +166,9 @@ def publish_scene_message(
     project_id = os.environ.get("GOOGLE_CLOUD_PROJECT")
     if not project_id:
         raise ValueError("GOOGLE_CLOUD_PROJECT environment variable not set.")
+
+    # Imported lazily so the core package works without the [gcp] extra.
+    from google.cloud import pubsub_v1
 
     publisher = pubsub_v1.PublisherClient()
     topic_path = publisher.topic_path(project_id, topic_id)

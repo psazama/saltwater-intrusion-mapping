@@ -2,18 +2,10 @@
 name = "swmaps"
 version = "0.1.2"
 dependencies = [
-    "albumentations",
-    "cloudml-hypertune",
     "dask",
     "earthengine-api",
-    "fastapi",
-    "flask",
     "geemap",
     "geopandas",
-    "google-cloud-pubsub",
-    "google-cloud-run",
-    "google-cloud-storage",
-    "httpx",
     "matplotlib",
     "numba",
     "numpy",
@@ -26,16 +18,41 @@ dependencies = [
     "rasterio",
     "requests",
     "rioxarray",
-    "scikit-learn",
     "scipy",
-    "segmentation_models_pytorch",
     "shapely",
+    "tqdm",
+    "xarray",
+]
+
+[project.optional-dependencies]
+# Deep-learning training/inference stack (FarSeg, Panopticon, SAM)
+ml = [
+    "albumentations",
+    "cloudml-hypertune",
+    "scikit-learn",
+    "segmentation_models_pytorch",
     "torch",
     "torchgeo",
-    "tqdm",
+]
+# FastAPI service + TiTiler proxy
+api = [
+    "fastapi",
+    "httpx",
     "uvicorn",
-    "xarray",
-    "xgboost",
+]
+# Cloud Run trigger, Pub/Sub publishing, GCS storage helpers
+gcp = [
+    "flask",
+    "google-cloud-pubsub",
+    "google-cloud-run",
+    "google-cloud-storage",
+]
+dev = [
+    "black",
+    "isort",
+    "pre-commit",
+    "pytest",
+    "ruff",
 ]
 
 [tool.setuptools]

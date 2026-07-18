@@ -32,20 +32,6 @@ services:
         max-size: "100m"
         max-file: "5"
 
-  grafana:
-    image: grafana/grafana:latest
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
-      - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_INSTALL_PLUGINS=grafana-clock-panel
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./deploy/grafana/provisioning:/etc/grafana/provisioning
-      - ./deploy/grafana/dashboards:/var/lib/grafana/dashboards
-    restart: unless-stopped
-
   titiler:
     image: ghcr.io/developmentseed/titiler:latest
     environment:
@@ -55,6 +41,3 @@ services:
     volumes:
       - /data/swmaps:/data
     restart: unless-stopped
-
-volumes:
-  grafana_data:
